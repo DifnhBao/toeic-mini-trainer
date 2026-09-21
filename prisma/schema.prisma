@@ -1,0 +1,237 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------
+// 1. NGƯỜI DÙNG & HỆ THỐNG
+// ---------------------------------------------------------
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? // NextAuth cần trường này
+  image         String? // Lưu avatar từ Google
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  mobileSessions MobileSession[]
+  testAttempts   TestAttempt[]
+  createdTests   MiniTest[]      @relation("CreatedTests")
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------
+// 2. KHO CÂU HỎI (QUESTION BANK)
+// ---------------------------------------------------------
+enum GroupType {
+  AUDIO
+  TEXT
+  MIXED
+}
+
+model QuestionGroup {
+  id          String    @id @default(uuid())
+  groupType   GroupType
+  audioUrl    String? // Link file nghe (Part 3, 4)
+  imageUrl    String? // Link ảnh (Part 1, hoặc đồ thị Part 3, 4, 7)
+  passageText String? // Đoạn văn (Part 6, 7) hoặc Transcript
+  createdAt   DateTime  @default(now())
+
+  questions Question[]
+
+  @@map("question_groups")
+}
+
+model Question {
+  id            String   @id @default(uuid())
+  groupId       String? // Nullable: Null cho Part 2, Part 5
+  part          Int // 1 đến 7
+  content       String? // Nội dung câu hỏi (Null cho Part 1, Part 2)
+  options       Json // JSONB lưu các lựa chọn A, B, C, D
+  correctAnswer String // 'A', 'B', 'C', 'D'
+  createdAt     DateTime @default(now())
+
+  group         QuestionGroup?     @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  skillTags     QuestionSkillTag[]
+  testQuestions MiniTestQuestion[]
+  userAnswers   UserAnswer[]
+
+  @@index([part])
+  @@map("questions")
+}
+
+// ---------------------------------------------------------
+// 3. MINI TEST ENGINE
+// ---------------------------------------------------------
+model MiniTest {
+  id          String   @id @default(uuid())
+  title       String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  createdBy User?              @relation("CreatedTests", fields: [createdById], references: [id], onDelete: SetNull)
+  questions MiniTestQuestion[]
+  attempts  TestAttempt[]
+
+  @@index([createdById])
+  @@map("mini_tests")
+}
+
+// Bảng trung gian n-n giữa Test và Question, có thêm orderIndex để giữ thứ tự
+model MiniTestQuestion {
+  testId     String
+  questionId String
+  orderIndex Int
+
+  test     MiniTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([testId, questionId])
+  @@map("mini_test_questions")
+}
+
+// ---------------------------------------------------------
+// 4. LỊCH SỬ LÀM BÀI & SCORING
+// ---------------------------------------------------------
+model TestAttempt {
+  id                 String   @id @default(uuid())
+  userId             String
+  testId             String
+  clientSubmissionId String?  @unique
+  durationSeconds    Int?
+  score              Int? // Điểm tổng (số câu đúng)
+  completedAt        DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  test        MiniTest     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  userAnswers UserAnswer[]
+
+  @@index([userId])
+  @@map("test_attempts")
+}
+
+model UserAnswer {
+  id             String  @id @default(uuid())
+  attemptId      String
+  questionId     String
+  selectedOption String? // Có thể null nếu user bỏ trống
+  isCorrect      Boolean @default(false)
+
+  attempt       TestAttempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  aiExplanation AiExplanation?
+
+  @@index([isCorrect])
+  @@map("user_answers")
+}
+
+// ---------------------------------------------------------
+// 5. AI EXPLANATION & SKILL TAGS
+// ---------------------------------------------------------
+model AiExplanation {
+  id              String   @id @default(uuid())
+  userAnswerId    String   @unique
+  explanationText String   @db.Text
+  suggestedSkills Json? // JSON array lưu các tag AI gợi ý
+  createdAt       DateTime @default(now())
+
+  userAnswer UserAnswer @relation(fields: [userAnswerId], references: [id], onDelete: Cascade)
+
+  @@map("ai_explanations")
+}
+
+model SkillTag {
+  id          String  @id @default(uuid())
+  name        String  @unique // Ví dụ: "Vocabulary", "Tense", "Detail Question"
+  description String?
+
+  questions QuestionSkillTag[]
+
+  @@map("skill_tags")
+}
+
+model QuestionSkillTag {
+  questionId String
+  skillTagId String
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  skillTag SkillTag @relation(fields: [skillTagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, skillTagId])
+  @@map("question_skill_tags")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Refresh sessions for the Android/iOS application. Only a SHA-256 hash of the
+// opaque refresh token is persisted. Rows are retained after rotation so token
+// reuse can revoke the whole session family.
+model MobileSession {
+  id           String    @id @default(uuid())
+  userId       String
+  tokenHash    String    @unique
+  familyId     String
+  deviceId     String
+  deviceName   String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("mobile_sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}

@@ -1,0 +1,220 @@
+{
+  "data": [
+    {
+      "group": {
+        "groupType": "TEXT",
+        "passageText": "From: Vice President Donna Johnson\nTo: Helio Tech Employees\nDate: July 5th\nSubject: Lobby Renovation\n\nReceiving the federal grant money last month ___ [131] us to invest in upgrading a few areas of our building. ___ [132]. We will be remodeling the lobby starting July 12th. It should take approximately two weeks. ___ [133] that time, if you have a meeting with anyone from outside of the company, please schedule to have it at the Rose Street Café on the corner. We have set up a special account that anyone from the company can use over those two weeks. Please, just sign and date your check and return it to your server. We are ___ [134] that this is a bit of an inconvenience, and we thank you for your cooperation.",
+        "imageUrl": null,
+        "audioUrl": null
+      },
+      "questions": [
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [131]",
+          "options": {
+            "A": "did allow",
+            "B": "has allowed",
+            "C": "allows",
+            "D": "are allowing"
+          },
+          "correctAnswer": "B"
+        },
+        {
+          "part": 6,
+          "content": "Điền câu thích hợp vào chỗ trống [132]",
+          "options": {
+            "A": "Construction will begin when the building permits are received.",
+            "B": "This celebration will last for most of the month of July.",
+            "C": "Considering the cost, the renovation might be postponed.",
+            "D": "The first area that will benefit from this is the lobby."
+          },
+          "correctAnswer": "D"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [133]",
+          "options": {
+            "A": "Upon",
+            "B": "During",
+            "C": "Around",
+            "D": "Until"
+          },
+          "correctAnswer": "B"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [134]",
+          "options": {
+            "A": "aware",
+            "B": "disciplined",
+            "C": "reluctant",
+            "D": "content"
+          },
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "group": {
+        "groupType": "TEXT",
+        "passageText": "Part-time Cook Needed\n\nParadise Café is looking ___ [135] a part-time line cook. Applicants must be able to work in a fast-paced environment and be familiar with all standard breakfast fare. ___ [136]. This weekend schedule could change in the future. Ideally we are looking for an applicant that has ___ [137] one year of experience working as a short-order cook. Paradise Café is located right next to the post office in downtown Millstown. Please apply in person with a resume and be prepared to cook an egg dish to order. We look ___ [138] forward to welcoming you to our team!",
+        "imageUrl": null,
+        "audioUrl": null
+      },
+      "questions": [
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [135]",
+          "options": {
+            "A": "hiring",
+            "B": "hire",
+            "C": "to hire",
+            "D": "to hiring"
+          },
+          "correctAnswer": "C"
+        },
+        {
+          "part": 6,
+          "content": "Điền câu thích hợp vào chỗ trống [136]",
+          "options": {
+            "A": "Applicants should know how to make scrambled eggs.",
+            "B": "People applying should know how to wash dishes.",
+            "C": "Anyone applying should be able to work nights.",
+            "D": "Currently, we can only offer weekday shifts but the applicant must be willing to work weekends if required."
+          },
+          "correctAnswer": "D"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [137]",
+          "options": {
+            "A": "at most",
+            "B": "below",
+            "C": "at least",
+            "D": "the least"
+          },
+          "correctAnswer": "C"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [138]",
+          "options": {
+            "A": "look",
+            "B": "looking",
+            "C": "looked",
+            "D": "looks"
+          },
+          "correctAnswer": "A"
+        }
+      ]
+    },
+    {
+      "group": {
+        "groupType": "TEXT",
+        "passageText": "City Realty\n\nCity Realty is Washington's number one real estate company, serving the state for over 50 years. We ___ [139] recognized as the state's leading experts in the industry and many of our agents have been awarded for their excellence in service by Forbes Property Magazine. Our agents are ___ [140] to bringing their best knowledge and expertise to the table, and they have extensive know-how about the housing market dos and don'ts. ___ [141]. Our agents specialize in different areas of the industry including corporate real estate, residential real estate, and rental properties. Our headquarters is located in the central downtown area where you can meet with one of our agents ___ [142] a free consultation. You can also visit our website www.cityrealty.com for property listings and further information.",
+        "imageUrl": null,
+        "audioUrl": null
+      },
+      "questions": [
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [139]",
+          "options": {
+            "A": "been",
+            "B": "had been",
+            "C": "are being",
+            "D": "have been"
+          },
+          "correctAnswer": "D"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [140]",
+          "options": {
+            "A": "attached",
+            "B": "faithful",
+            "C": "committed",
+            "D": "loyal"
+          },
+          "correctAnswer": "C"
+        },
+        {
+          "part": 6,
+          "content": "Điền câu thích hợp vào chỗ trống [141]",
+          "options": {
+            "A": "You can be confident that they serve your specific needs.",
+            "B": "You can rent hundreds of properties from our listings.",
+            "C": "The agents in corporate real estate make the most earnings.",
+            "D": "The residential agents are very busy with the rising housing market."
+          },
+          "correctAnswer": "A"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [142]",
+          "options": {
+            "A": "with",
+            "B": "for",
+            "C": "to",
+            "D": "from"
+          },
+          "correctAnswer": "B"
+        }
+      ]
+    },
+    {
+      "group": {
+        "groupType": "TEXT",
+        "passageText": "Employee Message Board\n\nHoliday Office Party's Success and Appreciation\nPosted by Julie Norton\n\nI want to thank everyone who ___ [143] make this party a success. ___ [144]. We had some ups and downs as we started preparing for this but the final result has been extraordinary. In fact, the ___ [145] consensus seems to be that this year's party was the best yet. We had the highest turnout ever and many seem to agree that this year's activities contributed to the party's success. It was a joy to see everyone get along so well and participate in all the events. We ___ [146] even our children's charity fundraising goals by over $1000. Once again, I would like to thank everyone.",
+        "imageUrl": null,
+        "audioUrl": null
+      },
+      "questions": [
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [143]",
+          "options": {
+            "A": "helps",
+            "B": "helped",
+            "C": "helping",
+            "D": "had help"
+          },
+          "correctAnswer": "B"
+        },
+        {
+          "part": 6,
+          "content": "Điền câu thích hợp vào chỗ trống [144]",
+          "options": {
+            "A": "I really enjoyed all the food and chatting with everyone.",
+            "B": "I worked really hard to plan this event.",
+            "C": "Special thanks to Keith, Grant, Vanessa, and Melissa, who spent many hours outside of work to help plan everything.",
+            "D": "I'm glad to see that everyone made it to work today."
+          },
+          "correctAnswer": "C"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [145]",
+          "options": {
+            "A": "regular",
+            "B": "familiar",
+            "C": "different",
+            "D": "general"
+          },
+          "correctAnswer": "D"
+        },
+        {
+          "part": 6,
+          "content": "Điền từ thích hợp vào chỗ trống [146]",
+          "options": {
+            "A": "overstepped",
+            "B": "surrendered",
+            "C": "exceeded",
+            "D": "overwhelmed"
+          },
+          "correctAnswer": "C"
+        }
+      ]
+    }
+  ]
+}
