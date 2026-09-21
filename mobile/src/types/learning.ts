@@ -59,3 +59,20 @@ export type ProgressSummary = {
   totalAnswered: number;
   partStats: Array<{ part: number; total: number; accuracy: number }>;
 };
+
+export type CoachTurn = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export type CoachResponse = {
+  answer: string;
+};
+
+export type ExplainResponse = {
+  explanation: {
+    explanationText: string;
+    suggestedSkills: unknown;
+    cached: boolean;
+  };
+};

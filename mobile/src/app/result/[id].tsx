@@ -24,6 +24,7 @@ export default function ResultScreen() {
   const { authorizedFetch } = useAuth();
   const [attempt, setAttempt] = useState<AttemptDetail | null>(null);
   const [error, setError] = useState('');
+  const [explainRequests, setExplainRequests] = useState<Record<string, { loading: boolean; error: string }>>({});
 
   useEffect(() => {
     if (!attemptId) return;
@@ -35,6 +36,35 @@ export default function ResultScreen() {
       active = false;
     };
   }, [attemptId, authorizedFetch]);
+
+  const requestExplanation = async (answerId: string) => {
+    if (explainRequests[answerId]?.loading) return;
+    setExplainRequests((prev) => ({ ...prev, [answerId]: { loading: true, error: '' } }));
+    try {
+      const response = await authorizedFetch<{ explanation: { explanationText: string } }>('/api/v1/ai/explain', {
+        method: 'POST',
+        body: JSON.stringify({ userAnswerId: answerId }),
+      });
+      setAttempt((prev) =>
+        prev
+          ? {
+              ...prev,
+              userAnswers: prev.userAnswers.map((answer) =>
+                answer.id === answerId
+                  ? { ...answer, aiExplanation: { explanationText: response.explanation.explanationText, suggestedSkills: null } }
+                  : answer,
+              ),
+            }
+          : prev,
+      );
+      setExplainRequests((prev) => ({ ...prev, [answerId]: { loading: false, error: '' } }));
+    } catch (explainError) {
+      setExplainRequests((prev) => ({
+        ...prev,
+        [answerId]: { loading: false, error: explainError instanceof Error ? explainError.message : 'Không tạo được lời giải.' },
+      }));
+    }
+  };
 
   if (!attempt && !error) {
     return <View style={styles.state}><ActivityIndicator color={palette.primary} /><Text>Đang chấm và tải lời giải…</Text></View>;
@@ -105,9 +135,23 @@ export default function ResultScreen() {
               {!answer.isCorrect && (
                 <View style={styles.aiNotice}>
                   <Text style={styles.aiNoticeTitle}>✦ AI Coach</Text>
-                  <Text style={styles.aiNoticeText}>
-                    {answer.aiExplanation?.explanationText || 'Giải thích theo từng câu sẽ được kết nối ở giai đoạn 4.'}
-                  </Text>
+                  {answer.aiExplanation?.explanationText ? (
+                    <Text style={styles.aiNoticeText}>{answer.aiExplanation.explanationText}</Text>
+                  ) : explainRequests[answer.id]?.loading ? (
+                    <View style={styles.explainLoading}>
+                      <ActivityIndicator color="#5B3CB0" />
+                      <Text style={styles.aiNoticeText}>Đang soạn lời giải…</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Pressable onPress={() => requestExplanation(answer.id)} style={styles.explainButton}>
+                        <Text style={styles.explainButtonText}>Chữa câu này bằng AI</Text>
+                      </Pressable>
+                      {!!explainRequests[answer.id]?.error && (
+                        <Text style={styles.explainError}>{explainRequests[answer.id].error}</Text>
+                      )}
+                    </>
+                  )}
                 </View>
               )}
             </View>
@@ -167,4 +211,8 @@ const styles = StyleSheet.create({
   aiNotice: { marginTop: 14, backgroundColor: '#F1EEFF', borderRadius: radius.small, padding: 12 },
   aiNoticeTitle: { color: '#5B3CB0', fontSize: 12, fontWeight: '800' },
   aiNoticeText: { color: '#4B3F68', fontSize: 13, lineHeight: 19, marginTop: 4 },
+  explainLoading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  explainButton: { marginTop: 8, alignSelf: 'flex-start', backgroundColor: '#5B3CB0', paddingVertical: 9, paddingHorizontal: 14, borderRadius: radius.small },
+  explainButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
+  explainError: { color: palette.danger, fontSize: 12, marginTop: 6 },
 });
