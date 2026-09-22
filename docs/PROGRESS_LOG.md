@@ -3,6 +3,28 @@
 Mỗi lần hoàn thành một mốc công việc sẽ ghi thêm một mục ở đầu file này, kèm
 bằng chứng có thể kiểm chứng lại (hash commit, lệnh đã chạy, kết quả).
 
+## 2026-09-22 — Chốt Giai đoạn 5 vào Git
+
+- Commit `256440a` `feat(api,web,mobile): giai doan 5 - object storage rieng tu
+  va pipeline nhap pdf/audio` — 46 file (+2.682/−169), gồm toàn bộ 5A + 5B:
+  7 route upload/ingestion, 5 thư viện storage/import, tab Tài liệu mobile,
+  2 migration (vẫn **chưa áp dụng** lên database) và 2 bộ unit test.
+- Cổng kiểm tra chạy lại ngay trước khi commit (2026-09-22):
+  `npm test` → **11/11** đạt; `npx tsc --noEmit` (web) và `npx tsc --noEmit
+  -p mobile` → exit 0; `npm run lint` → 0 finding trong file Giai đoạn 5
+  (11 error + 4 warning còn lại đều thuộc file local bị Git bỏ qua
+  `/Test/*.js` hoặc file tồn từ commit trước, nằm ngoài phạm vi).
+- An toàn trước khi commit: `git check-ignore` xác nhận `.env`, `mobile/.env`,
+  `/public/uploads/`, `/Test/`, `mobile/dist-android/` đều bị bỏ qua; quét
+  pattern credential (AKIA/AIza/private key/SECRET=giá trị) trên toàn bộ
+  diff + file mới → sạch (chỉ có fixture giả lập trong unit test).
+- Production build và export Android/iOS không chạy lại: bằng chứng ngày
+  2026-09-21 (mục 5A/5B trên) vẫn còn hiệu lực vì cây làm việc không đổi
+  giữa hai thời điểm — audit read-only đã xác nhận.
+- Việc tiếp theo (theo thứ tự ưu tiên): cấp bucket R2/S3 thật + CORS +
+  lifecycle `pending/` 24 giờ → chạy 2 migration qua deployment job →
+  kiểm thử E2E PDF/audio thật trên web → test thiết bị Android/iOS thật.
+
 ## 2026-09-21 — Giai đoạn 5B (pipeline nhập PDF/audio web + mobile)
 
 ### 1. Pipeline có trạng thái và kiểm soát quyền sở hữu
