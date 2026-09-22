@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { prisma } from "@/app/lib/prisma";
+import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
 
 export const runtime = "nodejs";
 
@@ -38,7 +39,13 @@ export async function GET(
               options: true,
               correctAnswer: true,
               group: {
-                select: { passageText: true, audioUrl: true, imageUrl: true },
+                select: {
+                  passageText: true,
+                  audioUrl: true,
+                  imageUrl: true,
+                  audioAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
+                  imageAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
+                },
               },
             },
           },
@@ -48,11 +55,22 @@ export async function GET(
   });
   if (!attempt) return apiError("ATTEMPT_NOT_FOUND", "Không tìm thấy kết quả.", 404);
 
+  const userAnswers = await Promise.all(
+    attempt.userAnswers.map(async (answer) => ({
+      ...answer,
+      question: {
+        ...answer.question,
+        group: await resolveQuestionGroupMedia(answer.question.group, user.id),
+      },
+    })),
+  );
+
   return apiJson({
     attempt: {
       ...attempt,
       completedAt: attempt.completedAt.toISOString(),
-      total: attempt.userAnswers.length,
+      userAnswers,
+      total: userAnswers.length,
     },
   });
 }

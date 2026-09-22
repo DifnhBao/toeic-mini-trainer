@@ -70,6 +70,11 @@ export default function DashboardScreen() {
             <Text style={styles.cardTitle}>Hỏi AI Coach</Text>
             <Text style={styles.cardText}>Ngữ pháp, từ vựng và mẹo thi.</Text>
           </Pressable>
+          <Pressable onPress={() => router.push('/library')} style={styles.smallCard}>
+            <Text style={styles.cardIcon}>▣</Text>
+            <Text style={styles.cardTitle}>Nhập tài liệu</Text>
+            <Text style={styles.cardText}>PDF và audio riêng tư.</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -97,8 +102,8 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 34, backgroundColor: palette.line, marginHorizontal: 10 },
   historyLink: { paddingVertical: 8, paddingLeft: 4 },
   historyLinkText: { color: palette.primary, fontSize: 13, fontWeight: '800' },
-  grid: { flexDirection: 'row', gap: 12 },
-  smallCard: { flex: 1, minHeight: 150, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: radius.medium, padding: 16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  smallCard: { flexGrow: 1, flexBasis: '45%', minHeight: 150, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: radius.medium, padding: 16 },
   cardIcon: { color: palette.primary, fontSize: 22, fontWeight: '800' },
   cardTitle: { color: palette.ink, fontSize: 16, fontWeight: '700', marginTop: 14 },
   cardText: { color: palette.muted, fontSize: 13, lineHeight: 18, marginTop: 5 },

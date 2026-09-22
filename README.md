@@ -47,6 +47,18 @@ Kiểm tra bản production bằng `npm run build` rồi `npm start`.
 
 ## Lưu ý trước khi đưa lên Internet
 
-Hiện audio/ảnh upload được lưu trong `public/uploads` để dễ học và chạy local. Filesystem của nhiều nền tảng serverless không bền vững. Trước khi vận hành production, chuyển file sang object storage (S3/R2), thêm bảng metadata tài liệu, giới hạn tần suất gọi AI và chỉ cấp quyền nhập đề cho tài khoản chủ sở hữu.
+Luồng nhập PDF/audio trên web và mobile dùng chung object storage private tương thích S3/R2. Thư mục `public/uploads` chỉ còn để tương thích dữ liệu cũ, đã bị Git bỏ qua và không được dùng cho tài liệu mới hoặc production.
+
+### Object storage riêng tư — Giai đoạn 5
+
+1. Tạo bucket private trên S3/R2 và credentials chỉ có quyền với bucket đó.
+2. Điền các biến `OBJECT_STORAGE_*` theo `.env.example`; không dùng tiền tố `NEXT_PUBLIC_`.
+3. Cấu hình CORS chỉ cho origin tin cậy, method `PUT` và header `Content-Type` nếu upload từ web.
+4. Cấu hình lifecycle xóa prefix `pending/` sau 24 giờ để dọn upload chưa hoàn tất hoặc URL PUT bị dùng lại.
+5. Review cả hai migration `20260921170000_add_uploaded_assets` và `20260921190000_add_ingestion_jobs`, sau đó mới chạy `prisma migrate deploy` trong deployment job.
+
+API chỉ ký quyền PUT trong 5 phút. Server kiểm tra kích thước, MIME và magic bytes, sau đó copy có điều kiện ETag từ `pending/` sang `ready/`. URL đọc chỉ sống 60 phút và chỉ cấp cho chủ sở hữu đã đăng nhập. Pipeline AI chạy theo tác vụ có trạng thái, cho phép thử lại tối đa ba lần và luôn yêu cầu người dùng kiểm tra trước khi nhập câu hỏi.
+
+Việc xử lý nền hiện dùng cơ chế `after()` của Next.js và có timeout/retry trong database. Nền tảng production phải hỗ trợ `waitUntil`; nếu không, cần chuyển hàm xử lý sang worker/queue riêng trước khi mở cho người dùng thật.
 
 Không commit `.env`, file audio/PDF riêng tư hoặc khóa API lên Git.

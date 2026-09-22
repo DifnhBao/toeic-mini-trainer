@@ -10,6 +10,12 @@ const ai = new GoogleGenAI({});
 
 export async function POST(request: Request) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Endpoint upload trực tiếp đã ngừng hoạt động. Hãy dùng object storage." },
+        { status: 410 },
+      );
+    }
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Vui lòng đăng nhập để nhập tài liệu." }, { status: 401 });
@@ -41,9 +47,7 @@ export async function POST(request: Request) {
       const bytes = await audioFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
       const uploadDir = path.join(process.cwd(), "public/uploads/audio");
-      try {
-        await mkdir(uploadDir, { recursive: true });
-      } catch (e) {}
+      await mkdir(uploadDir, { recursive: true });
 
       const safeExtension = path.extname(audioFile.name).toLowerCase().replace(/[^.a-z0-9]/g, "") || ".mp3";
       const fileName = `${randomUUID()}${safeExtension}`;
@@ -58,7 +62,7 @@ export async function POST(request: Request) {
       // Dùng thuật toán cơ học đọc text từ PDF -> Đảm bảo không bị "ảo giác" chữ
       const pdfData = await pdf(docBuffer);
       rawText = pdfData.text;
-    } catch (e) {
+    } catch {
       return NextResponse.json(
         {
           error:

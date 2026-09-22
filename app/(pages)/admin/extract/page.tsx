@@ -6,8 +6,27 @@ import { signIn, useSession } from "next-auth/react";
 import AppHeader from "@/app/components/AppHeader";
 
 type ExtractedGroup = {
-  group?: { groupType?: string; passageText?: string; audioUrl?: string; imageUrl?: string } | null;
+  group?: {
+    groupType?: string;
+    passageText?: string | null;
+    audioUrl?: string | null;
+    imageUrl?: string | null;
+    audioAssetId?: string | null;
+    imageAssetId?: string | null;
+  } | null;
   questions: Array<{ part: number; content?: string; options: Record<string, string>; correctAnswer: string }>;
+};
+
+type UploadIntent = {
+  asset: { id: string };
+  upload: { method: "PUT"; url: string; headers: Record<string, string> };
+};
+
+type IngestionJob = {
+  id: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "IMPORTING" | "IMPORTED" | "FAILED";
+  errorCode: string | null;
+  result: { data: ExtractedGroup[] } | null;
 };
 
 export default function AIExtractPage() {
@@ -16,10 +35,56 @@ export default function AIExtractPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [extractedData, setExtractedData] = useState<{ data: ExtractedGroup[] } | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const questionCount = useMemo(() => extractedData?.data?.reduce((sum, group) => sum + group.questions.length, 0) || 0, [extractedData]);
+
+  async function readJson(response: Response) {
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.error?.message || data?.error || "Máy chủ không thể xử lý yêu cầu.");
+    }
+    return data;
+  }
+
+  async function uploadAsset(file: File, kind: "DOCUMENT" | "AUDIO") {
+    const intent = (await readJson(
+      await fetch("/api/v1/uploads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind,
+          fileName: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+        }),
+      }),
+    )) as UploadIntent;
+
+    const uploadResponse = await fetch(intent.upload.url, {
+      method: intent.upload.method,
+      headers: intent.upload.headers,
+      body: file,
+    });
+    if (!uploadResponse.ok) throw new Error(`Upload ${file.name} thất bại (${uploadResponse.status}).`);
+
+    await readJson(await fetch(`/api/v1/uploads/${intent.asset.id}/complete`, { method: "POST" }));
+    return intent.asset.id;
+  }
+
+  async function waitForJob(id: string) {
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      const response = (await readJson(await fetch(`/api/v1/ingestions/${id}`))) as { job: IngestionJob };
+      if (response.job.status === "COMPLETED" && response.job.result) return response.job.result;
+      if (response.job.status === "FAILED") {
+        throw new Error(`Không thể phân tích tài liệu (${response.job.errorCode || "INGESTION_FAILED"}).`);
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+    }
+    throw new Error("Quá trình phân tích mất quá nhiều thời gian. Bạn có thể thử lại sau.");
+  }
 
   async function extract() {
     if (status !== "authenticated") {
@@ -31,14 +96,23 @@ export default function AIExtractPage() {
     setError("");
     setMessage("");
     setExtractedData(null);
-    const formData = new FormData();
-    formData.append("document", pdfFile);
-    if (audioFile) formData.append("audio", audioFile);
+    setJobId(null);
     try {
-      const response = await fetch("/api/extract-ai", { method: "POST", body: formData });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Không thể đọc bộ đề.");
-      setExtractedData(data.extractedData);
+      setMessage("Đang upload PDF vào kho riêng tư…");
+      const documentAssetId = await uploadAsset(pdfFile, "DOCUMENT");
+      const audioAssetId = audioFile ? await uploadAsset(audioFile, "AUDIO") : null;
+      setMessage("Đã upload an toàn. AI đang phân tích trong nền…");
+      const created = (await readJson(
+        await fetch("/api/v1/ingestions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentAssetId, audioAssetId }),
+        }),
+      )) as { job: { id: string } };
+      setJobId(created.job.id);
+      const result = await waitForJob(created.job.id);
+      setExtractedData(result);
+      setMessage("Phân tích hoàn tất. Hãy kiểm tra kỹ trước khi lưu.");
     } catch (extractError) {
       setError(extractError instanceof Error ? extractError.message : "Lỗi kết nối.");
     } finally {
@@ -47,19 +121,19 @@ export default function AIExtractPage() {
   }
 
   async function save() {
-    if (!extractedData) return;
+    if (!extractedData || !jobId) return;
     setLoading(true);
     setError("");
     setMessage("");
     try {
-      const response = await fetch("/api/import/questions-json", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(extractedData),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Không thể lưu câu hỏi.");
-      setMessage(`Đã thêm ${data.questionsAdded} câu hỏi vào kho. Bạn có thể tạo bài luyện ngay.`);
+      const data = await readJson(
+        await fetch(`/api/v1/ingestions/${jobId}/import`, { method: "POST" }),
+      );
+      setMessage(
+        data.alreadyImported
+          ? "Bộ câu hỏi này đã được lưu trước đó; hệ thống không tạo bản trùng."
+          : `Đã thêm ${data.questionsAdded} câu hỏi vào kho. Bạn có thể tạo bài luyện ngay.`,
+      );
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Lỗi kết nối.");
     } finally {
@@ -76,7 +150,7 @@ export default function AIExtractPage() {
         <section className="pipeline-strip" aria-label="Quy trình nhập đề"><div className="is-active"><span>1</span><strong>Tải tài liệu</strong></div><i /><div className={extractedData ? "is-active" : ""}><span>2</span><strong>Kiểm tra dữ liệu</strong></div><i /><div className={message ? "is-active" : ""}><span>3</span><strong>Lưu vào kho</strong></div></section>
 
         <section className="upload-card">
-          <div className="upload-card-head"><div><span className="step-kicker">BƯỚC 1</span><h2>Chọn file nguồn</h2></div><span className="privacy-note">File chỉ dùng để tạo kho câu hỏi cá nhân</span></div>
+          <div className="upload-card-head"><div><span className="step-kicker">BƯỚC 1</span><h2>Chọn file nguồn</h2></div><span className="privacy-note">File được lưu riêng tư và chỉ mở bằng link tạm thời</span></div>
           <div className="upload-grid">
             <label className={`upload-zone ${pdfFile ? "has-file" : ""}`}>
               <input type="file" accept="application/pdf,.pdf" onChange={(event) => setPdfFile(event.target.files?.[0] || null)} />

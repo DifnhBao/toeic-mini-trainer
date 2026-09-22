@@ -83,7 +83,7 @@ export default function TestScreen() {
   const [test, setTest] = useState<TestData | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [startedAt, setStartedAt] = useState(Date.now());
+  const [startedAt, setStartedAt] = useState(0);
   const [submissionId, setSubmissionId] = useState(() => Crypto.randomUUID());
   const [elapsed, setElapsed] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -116,8 +116,9 @@ export default function TestScreen() {
             setCurrentIndex(Math.max(0, Math.min(response.test.questions.length - 1, draft.currentIndex!)));
           }
           if (typeof draft.startedAt === 'number') setStartedAt(draft.startedAt);
+          else setStartedAt(Date.now());
           if (typeof draft.clientSubmissionId === 'string') setSubmissionId(draft.clientSubmissionId);
-        }
+        } else setStartedAt(Date.now());
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : 'Không thể mở bài luyện.');
       } finally {
@@ -133,12 +134,13 @@ export default function TestScreen() {
   }, [authorizedFetch, draftKey, testId, user]);
 
   useEffect(() => {
+    if (startedAt <= 0) return;
     const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
 
   useEffect(() => {
-    if (!draftReady || !test) return;
+    if (!draftReady || !test || startedAt <= 0) return;
     const draft: Draft = {
       answers,
       currentIndex,
@@ -169,7 +171,9 @@ export default function TestScreen() {
           body: JSON.stringify({
             answers,
             clientSubmissionId: submissionId,
-            durationSeconds: Math.min(24 * 60 * 60, Math.floor((Date.now() - startedAt) / 1000)),
+            durationSeconds: startedAt > 0
+              ? Math.min(24 * 60 * 60, Math.floor((Date.now() - startedAt) / 1000))
+              : 0,
           }),
         },
       );
@@ -261,7 +265,12 @@ export default function TestScreen() {
 
         <View style={styles.questionCard}>
           {question.group?.imageUrl && (
-            <Image source={{ uri: question.group.imageUrl }} resizeMode="contain" style={styles.questionImage} />
+            <Image
+              alt={`Hình minh họa câu ${currentIndex + 1}`}
+              source={{ uri: question.group.imageUrl }}
+              resizeMode="contain"
+              style={styles.questionImage}
+            />
           )}
           {question.group?.passageText && (
             <View style={styles.passage}><Text style={styles.passageText}>{plainText(question.group.passageText)}</Text></View>

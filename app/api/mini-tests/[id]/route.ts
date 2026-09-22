@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { auth } from "@/auth";
+import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
+import { requestUser } from "@/app/lib/request-user";
 
 export async function GET(
   request: Request,
@@ -8,8 +9,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const user = await requestUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Vui lòng đăng nhập để mở bài luyện." }, { status: 401 });
     }
 
@@ -17,8 +18,11 @@ export async function GET(
     const resolvedParams = await params;
     const testId = resolvedParams.id;
 
-    const test = await prisma.miniTest.findUnique({
-      where: { id: testId },
+    const test = await prisma.miniTest.findFirst({
+      where: {
+        id: testId,
+        createdById: user.id,
+      },
       include: {
         questions: {
           orderBy: { orderIndex: "asc" },
@@ -36,6 +40,8 @@ export async function GET(
                     passageText: true,
                     audioUrl: true,
                     imageUrl: true,
+                    audioAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
+                    imageAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
                   },
                 },
               },
@@ -52,7 +58,16 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(test, { status: 200 });
+    const questions = await Promise.all(
+      test.questions.map(async (item) => ({
+        ...item,
+        question: {
+          ...item.question,
+          group: await resolveQuestionGroupMedia(item.question.group, user.id),
+        },
+      })),
+    );
+    return NextResponse.json({ ...test, questions }, { status: 200 });
   } catch (error) {
     console.error("Lỗi lấy test:", error);
     return NextResponse.json(

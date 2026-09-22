@@ -3,21 +3,44 @@ import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
 import AppHeader from "@/app/components/AppHeader";
 import AiExplainButton from "@/app/components/AiExplainButton";
+import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
 
 export default async function ResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = await params;
   const session = await auth();
 
-  const attempt = session?.user?.email ? await prisma.testAttempt.findFirst({
+  const rawAttempt = session?.user?.email ? await prisma.testAttempt.findFirst({
     where: { id: attemptId, user: { email: session.user.email } },
     include: {
       test: true,
       userAnswers: {
-        include: { question: { include: { group: true } }, aiExplanation: true },
+        include: {
+          question: {
+            include: {
+              group: { include: { audioAsset: true, imageAsset: true } },
+            },
+          },
+          aiExplanation: true,
+        },
         orderBy: { id: "asc" },
       },
     },
   }) : null;
+
+  const attempt = rawAttempt
+    ? {
+        ...rawAttempt,
+        userAnswers: await Promise.all(
+          rawAttempt.userAnswers.map(async (answer) => ({
+            ...answer,
+            question: {
+              ...answer.question,
+              group: await resolveQuestionGroupMedia(answer.question.group, rawAttempt.userId),
+            },
+          })),
+        ),
+      }
+    : null;
 
   if (!attempt) {
     return <div className="app-page"><AppHeader /><main className="test-state"><strong>Không tìm thấy kết quả</strong><p>Hãy đăng nhập đúng tài khoản đã làm bài này.</p><Link href="/">Về trang chủ</Link></main></div>;

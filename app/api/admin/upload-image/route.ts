@@ -6,6 +6,12 @@ import { auth } from "@/auth";
 
 export async function POST(request: Request) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Endpoint upload local đã bị tắt ở production." },
+        { status: 410 },
+      );
+    }
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Vui lòng đăng nhập." }, { status: 401 });
@@ -25,9 +31,7 @@ export async function POST(request: Request) {
 
     // Lưu vào public/uploads/images
     const uploadDir = path.join(process.cwd(), "public/uploads/images");
-    try {
-      await mkdir(uploadDir, { recursive: true });
-    } catch (e) {}
+    await mkdir(uploadDir, { recursive: true });
 
     const safeExtension = path.extname(imageFile.name).toLowerCase().replace(/[^.a-z0-9]/g, "") || ".jpg";
     const fileName = `${randomUUID()}${safeExtension}`;

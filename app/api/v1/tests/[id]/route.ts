@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { prisma } from "@/app/lib/prisma";
+import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,8 @@ export async function GET(
                   passageText: true,
                   audioUrl: true,
                   imageUrl: true,
+                  audioAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
+                  imageAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
                 },
               },
             },
@@ -50,5 +53,14 @@ export async function GET(
   });
 
   if (!test) return apiError("TEST_NOT_FOUND", "Không tìm thấy bài luyện.", 404);
-  return apiJson({ test });
+  const questions = await Promise.all(
+    test.questions.map(async (item) => ({
+      ...item,
+      question: {
+        ...item.question,
+        group: await resolveQuestionGroupMedia(item.question.group, user.id),
+      },
+    })),
+  );
+  return apiJson({ test: { ...test, questions } });
 }

@@ -40,7 +40,10 @@ export async function POST(request: Request) {
   if (!body.success) return body.response;
 
   const available = await prisma.question.findMany({
-    where: { part: { in: body.data.parts } },
+    where: {
+      part: { in: body.data.parts },
+      OR: [{ ownerId: null }, { ownerId: user.id }],
+    },
     select: { id: true, part: true },
   });
   if (available.length === 0) {

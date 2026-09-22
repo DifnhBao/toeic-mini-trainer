@@ -6,7 +6,7 @@
 - Next.js root application: web/admin UI and versioned API.
 - PostgreSQL/Prisma: accounts, question bank, attempts, explanations, and
   hashed mobile refresh sessions.
-- Object storage (next phase): PDF, image, and audio objects accessed through
+- Private object storage: PDF, image, and audio objects accessed through
   short-lived signed URLs.
 
 ## Delivery stages
@@ -30,8 +30,17 @@
      rate limit; conversation stays in app memory only, never persisted.
    - Wrong-answer explanations (`/api/v1/ai/explain`): ownership-checked,
      cache-first via `AiExplanation`, generated on demand from the result screen.
-5. **Document/audio ingestion**
-   - Signed object upload, type/size validation, background extraction jobs.
+5. **Document/audio ingestion — complete in source, pending infrastructure/device testing**
+   - Private S3/R2 upload intents, owner-scoped metadata, short-lived signed
+     PUT/GET URLs, declared/actual size and MIME checks, magic-byte validation,
+     and conditional promotion from `pending/` to `ready/`.
+   - Web and mobile upload/review/import flows use asset IDs end to end.
+   - Database-backed extraction jobs expose progress, bounded retries and an
+     idempotent import claim; AI output is strictly validated before writing.
+   - Imported question groups, questions and signed media remain owner-scoped;
+     only pre-existing seed questions without an owner are shared.
+   - Remaining operations: provision the private bucket, apply both reviewed
+     migrations, and verify real PDF/audio uploads on Android and iOS devices.
 6. **Offline and reliability**
    - Local attempt drafts, retry queue, network state, conflict rules.
 7. **Release readiness**

@@ -1,87 +1,58 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/app/lib/prisma";
-import { auth } from "@/auth";
+import { ZodError } from "zod";
+import { importExtractedQuestions } from "@/app/lib/question-import";
+import { requestUser } from "@/app/lib/request-user";
+
+export const runtime = "nodejs";
+
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const user = await requestUser(request);
+  if (!user) {
+    return NextResponse.json(
+      { error: "Vui lòng đăng nhập để cập nhật kho câu hỏi." },
+      { status: 401 },
+    );
+  }
+
+  const contentType = request.headers.get("content-type")?.toLowerCase() || "";
+  if (!contentType.startsWith("application/json")) {
+    return NextResponse.json({ error: "Yêu cầu phải dùng JSON." }, { status: 415 });
+  }
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_IMPORT_BYTES) {
+    return NextResponse.json({ error: "File JSON vượt quá 5 MB." }, { status: 413 });
+  }
+
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Vui lòng đăng nhập để cập nhật kho câu hỏi." }, { status: 401 });
+    const text = await request.text();
+    if (new TextEncoder().encode(text).byteLength > MAX_IMPORT_BYTES) {
+      return NextResponse.json({ error: "File JSON vượt quá 5 MB." }, { status: 413 });
     }
-
-    const body = await request.json();
-    const { data } = body;
-
-    if (!data || !Array.isArray(data)) {
-      return NextResponse.json(
-        { error: 'Định dạng JSON không hợp lệ. Cần có mảng "data".' },
-        { status: 400 },
-      );
-    }
-
-    let questionsAdded = 0;
-
-    // Sử dụng Interactive Transaction của Prisma để bảo vệ tính toàn vẹn dữ liệu
-    await prisma.$transaction(
-      async (tx) => {
-        for (const item of data) {
-          let groupId = null;
-
-          // 1. Tạo Group nếu có (Dùng cho Part 3, 4, 6, 7)
-          if (item.group) {
-            const newGroup = await tx.questionGroup.create({
-              data: {
-                groupType: item.group.groupType || "TEXT",
-                audioUrl: item.group.audioUrl || null,
-                imageUrl: item.group.imageUrl || null,
-                passageText: item.group.passageText || null,
-              },
-            });
-            groupId = newGroup.id;
-          }
-
-          // 2. Tạo các câu hỏi thuộc group này (hoặc câu độc lập nếu groupId = null)
-          if (item.questions && Array.isArray(item.questions)) {
-            for (const q of item.questions) {
-              // Ép kiểu an toàn (Input Validation cơ bản)
-              const part = Number(q.part);
-              const correctAnswer = String(q.correctAnswer || "").toUpperCase();
-              if (!Number.isInteger(part) || part < 1 || part > 7 || !["A", "B", "C", "D"].includes(correctAnswer) || !q.options || typeof q.options !== "object") {
-                throw new Error(
-                  `Câu hỏi không hợp lệ: Part phải từ 1–7, đáp án phải là A–D và cần có options.`,
-                );
-              }
-
-              await tx.question.create({
-                data: {
-                  groupId: groupId,
-                  part,
-                  content: q.content || null,
-                  options: q.options || {},
-                  correctAnswer,
-                },
-              });
-              questionsAdded++;
-            }
-          }
-        }
-      },
-      { maxWait: 5000, timeout: 20000 },
-    ); // Kết thúc Transaction
-
+    const questionsAdded = await importExtractedQuestions(user.id, JSON.parse(text));
     return NextResponse.json(
       { message: "Import thành công", questionsAdded },
       { status: 201 },
     );
-  } catch (error: any) {
-    console.error("Lỗi import JSON:", error);
-    // Trả về chính xác thông báo lỗi để hiển thị lên Frontend
+  } catch (error) {
+    if (error instanceof SyntaxError || error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Dữ liệu câu hỏi không đúng định dạng hoặc vượt giới hạn." },
+        { status: 400 },
+      );
+    }
+    if (error instanceof Error && error.message === "ASSET_OWNERSHIP_INVALID") {
+      return NextResponse.json(
+        { error: "File đính kèm không sẵn sàng hoặc không thuộc tài khoản." },
+        { status: 403 },
+      );
+    }
+    console.error("question import failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json(
-      {
-        error:
-          error.message ||
-          "Xảy ra lỗi trong quá trình lưu dữ liệu, đã tự động hoàn tác.",
-      },
+      { error: "Không thể lưu dữ liệu; giao dịch đã được hoàn tác." },
       { status: 500 },
     );
   }

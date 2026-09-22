@@ -28,8 +28,86 @@ model User {
   mobileSessions MobileSession[]
   testAttempts   TestAttempt[]
   createdTests   MiniTest[]      @relation("CreatedTests")
+  uploadedAssets UploadedAsset[]
+  ingestionJobs  IngestionJob[]
+  questionGroups QuestionGroup[]
+  questions      Question[]
 
   @@map("users")
+}
+
+enum AssetKind {
+  DOCUMENT
+  AUDIO
+  IMAGE
+}
+
+enum AssetStatus {
+  PENDING
+  READY
+  REJECTED
+}
+
+enum IngestionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  IMPORTING
+  IMPORTED
+  FAILED
+}
+
+// Metadata only. Object-storage credentials and signed URLs are never stored
+// in the database. PENDING objects should be removed by a bucket lifecycle rule.
+model UploadedAsset {
+  id           String      @id @default(uuid())
+  ownerId      String
+  kind         AssetKind
+  status       AssetStatus @default(PENDING)
+  objectKey    String      @unique
+  originalName String
+  contentType  String
+  sizeBytes    Int
+  etag         String?
+  failureCode  String?
+  verifiedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  audioQuestionGroups   QuestionGroup[] @relation("QuestionGroupAudioAsset")
+  imageQuestionGroups   QuestionGroup[] @relation("QuestionGroupImageAsset")
+  documentIngestionJobs IngestionJob[]  @relation("IngestionDocumentAsset")
+  audioIngestionJobs    IngestionJob[]  @relation("IngestionAudioAsset")
+
+  @@index([ownerId, status])
+  @@index([createdAt])
+  @@map("uploaded_assets")
+}
+
+model IngestionJob {
+  id              String          @id @default(uuid())
+  ownerId         String
+  documentAssetId String
+  audioAssetId    String?
+  status          IngestionStatus @default(PENDING)
+  attemptCount    Int             @default(0)
+  result          Json?
+  errorCode       String?
+  importedAt      DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  documentAsset UploadedAsset  @relation("IngestionDocumentAsset", fields: [documentAssetId], references: [id], onDelete: Restrict)
+  audioAsset    UploadedAsset? @relation("IngestionAudioAsset", fields: [audioAssetId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
+  @@map("ingestion_jobs")
 }
 
 // ---------------------------------------------------------
@@ -42,20 +120,30 @@ enum GroupType {
 }
 
 model QuestionGroup {
-  id          String    @id @default(uuid())
-  groupType   GroupType
-  audioUrl    String? // Link file nghe (Part 3, 4)
-  imageUrl    String? // Link ảnh (Part 1, hoặc đồ thị Part 3, 4, 7)
-  passageText String? // Đoạn văn (Part 6, 7) hoặc Transcript
-  createdAt   DateTime  @default(now())
+  id           String    @id @default(uuid())
+  ownerId      String?
+  groupType    GroupType
+  audioUrl     String? // Legacy/local link; production uploads use audioAssetId
+  imageUrl     String? // Legacy/local link; production uploads use imageAssetId
+  audioAssetId String?
+  imageAssetId String?
+  passageText  String? // Đoạn văn (Part 6, 7) hoặc Transcript
+  createdAt    DateTime  @default(now())
 
-  questions Question[]
+  questions  Question[]
+  owner      User?          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  audioAsset UploadedAsset? @relation("QuestionGroupAudioAsset", fields: [audioAssetId], references: [id], onDelete: SetNull)
+  imageAsset UploadedAsset? @relation("QuestionGroupImageAsset", fields: [imageAssetId], references: [id], onDelete: SetNull)
 
+  @@index([ownerId])
+  @@index([audioAssetId])
+  @@index([imageAssetId])
   @@map("question_groups")
 }
 
 model Question {
   id            String   @id @default(uuid())
+  ownerId       String?
   groupId       String? // Nullable: Null cho Part 2, Part 5
   part          Int // 1 đến 7
   content       String? // Nội dung câu hỏi (Null cho Part 1, Part 2)
@@ -63,11 +151,13 @@ model Question {
   correctAnswer String // 'A', 'B', 'C', 'D'
   createdAt     DateTime @default(now())
 
+  owner         User?              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   group         QuestionGroup?     @relation(fields: [groupId], references: [id], onDelete: SetNull)
   skillTags     QuestionSkillTag[]
   testQuestions MiniTestQuestion[]
   userAnswers   UserAnswer[]
 
+  @@index([ownerId, part])
   @@index([part])
   @@map("questions")
 }

@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { prisma } from "@/app/lib/prisma";
-import { auth } from "@/auth";
+import { requestUser } from "@/app/lib/request-user";
+
+const submitSchema = z
+  .object({
+    answers: z
+      .record(z.string().uuid(), z.enum(["A", "B", "C", "D"]))
+      .refine((answers) => Object.keys(answers).length <= 50, "Too many answers"),
+  })
+  .strict();
 
 export async function POST(
   request: Request,
@@ -8,35 +18,24 @@ export async function POST(
 ) {
   try {
     // 1. Xác thực người dùng đang đăng nhập
-    const session = await auth();
-
-    if (!session || !session.user || !session.user.email) {
+    const user = await requestUser(request);
+    if (!user) {
       return NextResponse.json(
         { error: "Vui lòng đăng nhập để nộp bài" },
         { status: 401 },
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Không tìm thấy thông tin tài khoản" },
-        { status: 404 },
-      );
-    }
-
     // 2. Lấy dữ liệu bài nộp từ Client
     const resolvedParams = await params;
     const testId = resolvedParams.id;
-    const body = await request.json();
-    const { answers } = body; // format: { "q_id_1": "A", "q_id_2": "C" }
+    const body = await parseBoundedJson(request, submitSchema);
+    if (!body.success) return body.response;
+    const { answers } = body.data; // format: { "q_id_1": "A", "q_id_2": "C" }
 
     // 3. Lấy bài test và tất cả đáp án đúng từ DB
-    const test = await prisma.miniTest.findUnique({
-      where: { id: testId },
+    const test = await prisma.miniTest.findFirst({
+      where: { id: testId, createdById: user.id },
       include: {
         questions: {
           include: { question: true },

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,25 +19,37 @@ export default function HistoryScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
-  const load = async (cursor?: string) => {
-    const response = await authorizedFetch<{ attempts: AttemptSummary[]; nextCursor: string | null }>(
+  const fetchPage = useCallback((cursor?: string) =>
+    authorizedFetch<{ attempts: AttemptSummary[]; nextCursor: string | null }>(
       `/api/v1/attempts${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
-    );
-    setAttempts((current) => (cursor ? [...current, ...response.attempts] : response.attempts));
-    setNextCursor(response.nextCursor);
-  };
+    ), [authorizedFetch]);
 
   useEffect(() => {
-    load()
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Không tải được lịch sử.'))
-      .finally(() => setLoading(false));
-  }, []);
+    let active = true;
+    fetchPage()
+      .then((response) => {
+        if (!active) return;
+        setAttempts(response.attempts);
+        setNextCursor(response.nextCursor);
+      })
+      .catch((loadError) => {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Không tải được lịch sử.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [fetchPage]);
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      await load(nextCursor);
+      const response = await fetchPage(nextCursor);
+      setAttempts((current) => [...current, ...response.attempts]);
+      setNextCursor(response.nextCursor);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Không tải được trang tiếp theo.');
     } finally {

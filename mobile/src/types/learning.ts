@@ -76,3 +76,39 @@ export type ExplainResponse = {
     cached: boolean;
   };
 };
+
+export type AssetKind = 'DOCUMENT' | 'AUDIO' | 'IMAGE';
+
+export type UploadIntent = {
+  asset: { id: string; kind: AssetKind; status: 'PENDING' };
+  upload: {
+    method: 'PUT';
+    url: string;
+    headers: Record<string, string>;
+    expiresIn: number;
+  };
+};
+
+export type ExtractedQuestionGroup = {
+  group?: {
+    groupType: 'AUDIO' | 'TEXT' | 'MIXED';
+    passageText?: string | null;
+    audioAssetId?: string | null;
+    imageAssetId?: string | null;
+  } | null;
+  questions: Array<{
+    part: number;
+    content?: string | null;
+    options: Record<string, string>;
+    correctAnswer: string;
+  }>;
+};
+
+export type IngestionJob = {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'IMPORTING' | 'IMPORTED' | 'FAILED';
+  attemptCount: number;
+  errorCode: string | null;
+  result: { data: ExtractedQuestionGroup[] } | null;
+  importedAt: string | null;
+};

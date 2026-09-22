@@ -114,7 +114,14 @@ export default function ResultScreen() {
                   {answer.isCorrect ? '✓ Chính xác' : '✕ Cần xem lại'}
                 </Text>
               </View>
-              {question.group?.imageUrl && <Image source={{ uri: question.group.imageUrl }} resizeMode="contain" style={styles.image} />}
+              {question.group?.imageUrl && (
+                <Image
+                  alt={`Hình minh họa câu ${index + 1}`}
+                  source={{ uri: question.group.imageUrl }}
+                  resizeMode="contain"
+                  style={styles.image}
+                />
+              )}
               {question.group?.passageText && <View style={styles.passage}><Text style={styles.passageText}>{stripMarkup(question.group.passageText)}</Text></View>}
               <Text style={styles.questionText}>{question.content || 'Chọn đáp án đúng nhất.'}</Text>
               <View style={styles.options}>

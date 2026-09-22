@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
-import { auth } from "@/auth";
+import { requestUser } from "@/app/lib/request-user";
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const user = await requestUser(request);
+    if (!user) {
       return NextResponse.json(
         { error: "Vui lòng đăng nhập để tạo bài luyện." },
         { status: 401 },
@@ -19,14 +20,14 @@ export async function POST(request: Request) {
       const body = await request.json();
       if (body.limit) limit = Number(body.limit);
       if (body.part) part = String(body.part); // Đọc tham số part từ UI gửi lên
-    } catch (e) {
+    } catch {
       // Bỏ qua nếu body trống
     }
 
     const finalLimit = Math.min(Math.max(limit, 5), 50);
 
     // 1. Tạo điều kiện lọc (where clause) cho Prisma
-    const whereClause =
+    const partClause: Prisma.QuestionWhereInput =
       part === "mixed"
         ? {}
         : part === "listening"
@@ -37,7 +38,12 @@ export async function POST(request: Request) {
 
     // 2. Lấy danh sách ID câu hỏi theo điều kiện lọc
     const allQuestions = await prisma.question.findMany({
-      where: whereClause,
+      where: {
+        AND: [
+          partClause,
+          { OR: [{ ownerId: null }, { ownerId: user.id }] },
+        ],
+      },
       select: { id: true },
     });
 
@@ -59,7 +65,7 @@ export async function POST(request: Request) {
     const testTitle = `Mini Test - ${new Date().toLocaleDateString("vi-VN")} (${titlePart}, ${actualCount} câu)`;
 
     const test = await prisma.miniTest.create({
-      data: { title: testTitle },
+      data: { title: testTitle, createdById: user.id },
     });
 
     // 5. Lưu vào bảng trung gian
