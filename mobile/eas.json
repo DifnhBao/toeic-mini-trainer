@@ -10,7 +10,10 @@
     },
     "preview": {
       "distribution": "internal",
-      "environment": "preview"
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://toeic-mini-trainer.vercel.app",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "551102657146-mid1qbod07ggi8bi3vqst13lg2t88e65.apps.googleusercontent.com"
+      }
     },
     "production": {
       "autoIncrement": true,
