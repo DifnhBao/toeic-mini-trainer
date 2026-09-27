@@ -3,6 +3,7 @@ import {
   CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -92,6 +93,13 @@ function clientAndBucket() {
     storageClientIdentity = identity;
   }
   return { client: storageClient, bucket: config.bucket };
+}
+
+export async function checkObjectStorageReady() {
+  const { client, bucket } = clientAndBucket();
+  await client.send(new HeadBucketCommand({ Bucket: bucket }), {
+    abortSignal: AbortSignal.timeout(5_000),
+  });
 }
 
 export function createStagingObjectKey(ownerId: string, kind: UploadKind, extension: string) {

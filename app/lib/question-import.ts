@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
+import { sanitizePassageHtml } from "@/app/lib/passage-html";
 
 const legacyMediaUrl = z
   .string()
@@ -30,7 +31,7 @@ const questionSchema = z
 const groupSchema = z
   .object({
     groupType: z.enum(["AUDIO", "TEXT", "MIXED"]).default("TEXT"),
-    passageText: z.string().max(50_000).nullable().optional(),
+    passageText: z.string().max(50_000).transform(sanitizePassageHtml).nullable().optional(),
     audioUrl: legacyMediaUrl.nullable().optional(),
     imageUrl: legacyMediaUrl.nullable().optional(),
     audioAssetId: z.string().uuid().nullable().optional(),

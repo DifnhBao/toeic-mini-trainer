@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
 import AppHeader from "@/app/components/AppHeader";
 import AiExplainButton from "@/app/components/AiExplainButton";
+import SafePassage from "@/app/components/SafePassage";
 import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
 
 export default async function ResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
@@ -73,7 +74,7 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
                 <div className="review-card-head"><div><span className="review-number">{index + 1}</span><strong>Part {question.part}</strong></div><span className="answer-status">{userAnswer.isCorrect ? "✓ Chính xác" : "✕ Cần xem lại"}</span></div>
                 {question.group?.audioUrl && <audio className="review-audio" controls preload="metadata" src={question.group.audioUrl} />}
                 {question.group?.imageUrl && <img className="question-image" src={question.group.imageUrl} alt={`Hình cho câu ${index + 1}`} />}
-                {question.group?.passageText && <div className="passage compact-passage" dangerouslySetInnerHTML={{ __html: question.group.passageText }} />}
+                {question.group?.passageText && <SafePassage html={question.group.passageText} className="passage compact-passage" />}
                 <h3>{question.content || "Chọn đáp án đúng nhất."}</h3>
                 <div className="review-options">
                   {Object.entries(options).map(([key, value]) => {

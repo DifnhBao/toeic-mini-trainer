@@ -107,6 +107,8 @@ model IngestionJob {
 
   @@index([ownerId, createdAt])
   @@index([status, createdAt])
+  @@index([documentAssetId])
+  @@index([audioAssetId])
   @@map("ingestion_jobs")
 }
 
@@ -159,6 +161,7 @@ model Question {
 
   @@index([ownerId, part])
   @@index([part])
+  @@index([groupId])
   @@map("questions")
 }
 
@@ -189,6 +192,7 @@ model MiniTestQuestion {
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@id([testId, questionId])
+  @@index([questionId])
   @@map("mini_test_questions")
 }
 
@@ -209,6 +213,7 @@ model TestAttempt {
   userAnswers UserAnswer[]
 
   @@index([userId])
+  @@index([testId])
   @@map("test_attempts")
 }
 
@@ -224,6 +229,8 @@ model UserAnswer {
   aiExplanation AiExplanation?
 
   @@index([isCorrect])
+  @@index([attemptId])
+  @@index([questionId])
   @@map("user_answers")
 }
 
@@ -260,6 +267,7 @@ model QuestionSkillTag {
   skillTag SkillTag @relation(fields: [skillTagId], references: [id], onDelete: Cascade)
 
   @@id([questionId, skillTagId])
+  @@index([skillTagId])
   @@map("question_skill_tags")
 }
 
@@ -280,6 +288,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
   @@map("accounts")
 }
 
@@ -290,6 +299,7 @@ model Session {
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("sessions")
 }
 

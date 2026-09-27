@@ -29,28 +29,25 @@ export async function POST(request: Request) {
   if (!body.success) return body.response;
   const { userAnswerId } = body.data;
 
-  // 1. Lời giải đã có trong database thì trả ngay, không gọi AI lại.
-  const cached = await prisma.aiExplanation.findUnique({ where: { userAnswerId } });
-  if (cached) {
-    return apiJson({
-      explanation: {
-        explanationText: cached.explanationText,
-        suggestedSkills: cached.suggestedSkills,
-        cached: true,
-      },
-    });
-  }
-
-  // 2. Chỉ chữa câu sai thuộc về đúng tài khoản đã đăng nhập.
+  // Check ownership before reading even a cached explanation.
   const ua = await prisma.userAnswer.findFirst({
     where: { id: userAnswerId, attempt: { userId: user.id } },
-    include: { question: { include: { group: true } } },
+    include: { question: { include: { group: true } }, aiExplanation: true },
   });
   if (!ua) {
     return apiError("ANSWER_NOT_FOUND", "Không tìm thấy câu trả lời trong kết quả của bạn.", 404);
   }
   if (ua.isCorrect) {
     return apiError("ALREADY_CORRECT", "Câu này đã đúng nên không cần chữa lỗi.", 422);
+  }
+  if (ua.aiExplanation) {
+    return apiJson({
+      explanation: {
+        explanationText: ua.aiExplanation.explanationText,
+        suggestedSkills: ua.aiExplanation.suggestedSkills,
+        cached: true,
+      },
+    });
   }
 
   const q = ua.question;

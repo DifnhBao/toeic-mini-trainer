@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import SafePassage from "@/app/components/SafePassage";
 
 type Question = {
   id: string;
@@ -145,7 +146,7 @@ export default function TestTakingPage({ params }: { params: Promise<{ id: strin
 
           <article className="question-card">
             {question.group?.imageUrl && <img className="question-image" src={question.group.imageUrl} alt={`Hình minh họa cho câu ${currentIndex + 1}`} />}
-            {question.group?.passageText && <div className="passage" dangerouslySetInnerHTML={{ __html: question.group.passageText }} />}
+            {question.group?.passageText && <SafePassage html={question.group.passageText} className="passage" />}
             <h1>{question.content || (question.part === 1 ? "Chọn câu mô tả đúng nhất cho hình ảnh." : "Chọn đáp án đúng nhất.")}</h1>
             <div className="answer-list" role="radiogroup" aria-label={`Đáp án câu ${currentIndex + 1}`}>
               {Object.entries(question.options || {}).map(([key, value]) => (

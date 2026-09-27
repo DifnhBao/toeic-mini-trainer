@@ -40,7 +40,7 @@ function mobileJwtSecret() {
 function configuredAudiences(...values: Array<string | undefined>) {
   const audiences = values.map((value) => value?.trim()).filter(Boolean) as string[];
   if (audiences.length === 0) {
-    throw new Error("Native OAuth client IDs are not configured");
+    throw new Error("OAuth client audience is not configured");
   }
   return audiences;
 }
@@ -65,8 +65,7 @@ export async function verifyGoogleIdentity(idToken: string): Promise<MobileIdent
   const { payload } = await jwtVerify(idToken, googleKeys, {
     issuer: ["https://accounts.google.com", "accounts.google.com"],
     audience: configuredAudiences(
-      process.env.GOOGLE_ANDROID_CLIENT_ID,
-      process.env.GOOGLE_IOS_CLIENT_ID,
+      process.env.GOOGLE_MOBILE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
     ),
   });
 

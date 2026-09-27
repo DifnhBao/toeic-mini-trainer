@@ -1,0 +1,56 @@
+name: Drain pending ingestion jobs
+
+on:
+  schedule:
+    # Every 15 min (ZCode 27/09/2026): 5-min schedule on a private repo bills
+    # ~8.6k Actions minutes/month (1-min minimum per run) vs 3k free with Pro.
+    - cron: "3/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ingestion-worker-staging
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call authenticated staging worker
+        shell: bash
+        env:
+          WORKER_URL: ${{ secrets.INGESTION_WORKER_URL }}
+          WORKER_SECRET: ${{ secrets.INGESTION_WORKER_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ "$WORKER_URL" != https://* || -z "$WORKER_SECRET" ]]; then
+            echo "Staging worker URL or secret is not configured" >&2
+            exit 1
+          fi
+          node --input-type=module <<'JS'
+          const headers = {
+            Authorization: `Bearer ${process.env.WORKER_SECRET}`,
+            Accept: 'application/json',
+          };
+          const readyUrl = new URL('/api/internal/ready', process.env.WORKER_URL);
+          const readiness = await fetch(readyUrl, {
+            method: 'GET',
+            redirect: 'error',
+            signal: AbortSignal.timeout(20_000),
+            headers,
+          });
+          if (!readiness.ok) {
+            throw new Error(`Readiness returned HTTP ${readiness.status}`);
+          }
+          const response = await fetch(process.env.WORKER_URL, {
+            method: 'POST',
+            redirect: 'error',
+            signal: AbortSignal.timeout(45_000),
+            headers,
+          });
+          if (!response.ok) {
+            throw new Error(`Worker returned HTTP ${response.status}`);
+          }
+          JS

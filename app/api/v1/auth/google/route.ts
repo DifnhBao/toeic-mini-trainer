@@ -20,8 +20,17 @@ export async function POST(request: Request) {
   const body = await parseBoundedJson(request, providerSignInSchema.omit({ name: true }));
   if (!body.success) return body.response;
 
+  let identity;
   try {
-    const identity = await verifyGoogleIdentity(body.data.idToken);
+    identity = await verifyGoogleIdentity(body.data.idToken);
+  } catch (error) {
+    if (isMobileAuthConfigurationError(error)) {
+      return apiError("AUTH_NOT_CONFIGURED", "Đăng nhập mobile chưa được cấu hình.", 503);
+    }
+    return apiError("INVALID_IDENTITY", "Không thể xác minh tài khoản Google.", 401);
+  }
+
+  try {
     const user = await resolveMobileUser(identity);
     const tokens = await createMobileSession(
       user.id,
@@ -34,9 +43,9 @@ export async function POST(request: Request) {
       tokens,
     });
   } catch (error) {
-    if (isMobileAuthConfigurationError(error)) {
-      return apiError("AUTH_NOT_CONFIGURED", "Đăng nhập mobile chưa được cấu hình.", 503);
-    }
-    return apiError("INVALID_IDENTITY", "Không thể xác minh tài khoản Google.", 401);
+    console.error("mobile Google session creation failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    return apiError("AUTH_SERVICE_UNAVAILABLE", "Đăng nhập tạm thời không khả dụng.", 503);
   }
 }

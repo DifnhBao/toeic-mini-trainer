@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { GoogleGenAI, Type } from "@google/genai";
 import { auth } from "@/auth";
+import { z } from "zod";
 
 // Khởi tạo client. Nó sẽ tự động đọc key từ process.env.GEMINI_API_KEY
 // Lưu ý: Đổi tên biến trong file .env của bạn từ GOOGLE_GENERATIVE_AI_API_KEY thành GEMINI_API_KEY
 const ai = new GoogleGenAI({});
+const explainSchema = z.object({ userAnswerId: z.string().uuid() });
 
 export async function POST(request: Request) {
   try {
@@ -14,29 +16,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Vui lòng đăng nhập để dùng AI Coach." }, { status: 401 });
     }
 
-    const { userAnswerId } = await request.json();
-
-    // 1. Kiểm tra xem câu này đã từng được AI giải thích chưa (Caching)
-    const existingExplanation = await prisma.aiExplanation.findUnique({
-      where: { userAnswerId },
-    });
-    if (existingExplanation) {
-      return NextResponse.json(existingExplanation, { status: 200 });
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Dữ liệu JSON không hợp lệ." }, { status: 400 });
     }
+    const parsed = explainSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Mã câu trả lời không hợp lệ." }, { status: 400 });
+    }
+    const { userAnswerId } = parsed.data;
 
-    // 2. Lấy dữ liệu câu hỏi và đáp án của user
+    // Check ownership before reading even a cached explanation.
     const ua = await prisma.userAnswer.findFirst({
       where: { id: userAnswerId, attempt: { user: { email: session.user.email } } },
       include: {
         question: { include: { group: true } },
+        aiExplanation: true,
       },
     });
 
-    if (!ua || ua.isCorrect) {
+    if (!ua) {
       return NextResponse.json(
-        { error: "Không tìm thấy hoặc câu này đã đúng" },
-        { status: 400 },
+        { error: "Không tìm thấy câu trả lời trong kết quả của bạn." },
+        { status: 404 },
       );
+    }
+    if (ua.isCorrect) {
+      return NextResponse.json({ error: "Câu này đã đúng nên không cần chữa lỗi." }, { status: 422 });
+    }
+    if (ua.aiExplanation) {
+      return NextResponse.json({
+        explanationText: ua.aiExplanation.explanationText,
+        suggestedSkills: ua.aiExplanation.suggestedSkills,
+      });
     }
 
     const q = ua.question;
@@ -98,7 +112,10 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(savedExplanation, { status: 200 });
+    return NextResponse.json({
+      explanationText: savedExplanation.explanationText,
+      suggestedSkills: savedExplanation.suggestedSkills,
+    });
   } catch (error) {
     console.error("Lỗi gọi AI:", error);
     return NextResponse.json(

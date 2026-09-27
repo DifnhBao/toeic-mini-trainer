@@ -1,4 +1,5 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as Google from 'expo-auth-session/providers/google';
 import { Redirect } from 'expo-router';
@@ -15,11 +16,12 @@ import {
 } from 'react-native';
 
 import { palette, radius } from '@/constants/design';
+import { ApiError } from '@/lib/api';
 import { useAuth } from '@/providers/auth-provider';
 
 WebBrowser.maybeCompleteAuthSession();
 
-function GoogleSignInButton({ onError }: { onError: (message: string) => void }) {
+function BrowserGoogleSignInButton({ onError }: { onError: (message: string) => void }) {
   const { signInWithGoogle } = useAuth();
   const [busy, setBusy] = useState(false);
   const handledToken = useRef<string | null>(null);
@@ -64,25 +66,93 @@ function GoogleSignInButton({ onError }: { onError: (message: string) => void })
   );
 }
 
+function AndroidGoogleSignInButton({ onError }: { onError: (message: string) => void }) {
+  const { signInWithGoogle } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+
+  const handlePress = async () => {
+    if (busyRef.current) return;
+    const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
+    if (!webClientId) {
+      onError('Thiếu Google Web Client ID cho bản Android này.');
+      return;
+    }
+
+    busyRef.current = true;
+    setBusy(true);
+    onError('');
+    try {
+      // Loading only on press lets Expo Go show the explanatory notice below.
+      const {
+        GoogleOneTapSignIn,
+        isCancelledResponse,
+        isNoSavedCredentialFoundResponse,
+        isSuccessResponse,
+      } = await import('react-native-nitro-google-signin');
+
+      GoogleOneTapSignIn.configure({ webClientId });
+      await GoogleOneTapSignIn.checkPlayServices();
+      let response = await GoogleOneTapSignIn.signIn();
+      if (isNoSavedCredentialFoundResponse(response)) {
+        response = await GoogleOneTapSignIn.createAccount();
+      }
+      if (isNoSavedCredentialFoundResponse(response)) {
+        response = await GoogleOneTapSignIn.presentExplicitSignIn();
+      }
+      if (isCancelledResponse(response)) return;
+      if (!isSuccessResponse(response) || !response.data.idToken) {
+        onError('Không tìm thấy tài khoản Google trên thiết bị.');
+        return;
+      }
+      await signInWithGoogle(response.data.idToken);
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'SIGN_IN_CANCELLED') return;
+      if (code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+        onError('Hãy cài đặt hoặc cập nhật Google Play Services rồi thử lại.');
+      } else if (code === 'DEVELOPER_ERROR') {
+        onError('Cấu hình Google chưa khớp với package hoặc chứng chỉ ký của APK.');
+      } else if (error instanceof ApiError) {
+        onError(error.message);
+      } else {
+        onError('Đăng nhập Google thất bại. Kiểm tra cấu hình OAuth và thử lại.');
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={busy}
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.oauthButton,
+        pressed && styles.buttonPressed,
+        busy && styles.buttonDisabled,
+      ]}>
+      {busy ? <ActivityIndicator color={palette.ink} /> : <Text style={styles.googleMark}>G</Text>}
+      <Text style={styles.oauthButtonText}>Tiếp tục với Google</Text>
+    </Pressable>
+  );
+}
+
 export default function SignInScreen() {
-  const { user, signInWithApple } = useAuth();
+  const { user, signInWithApple, sessionRestoreError, retrySession } = useAuth();
   const [errorMessage, setErrorMessage] = useState('');
   const [appleBusy, setAppleBusy] = useState(false);
   const hasGoogleConfig = Boolean(
     Platform.select({
-      android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+      android: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
       ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
       default: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     }),
   );
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    WebBrowser.warmUpAsync().catch(() => undefined);
-    return () => {
-      WebBrowser.coolDownAsync().catch(() => undefined);
-    };
-  }, []);
+  const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  const canUseGoogle = hasGoogleConfig && !isExpoGo;
 
   if (user) return <Redirect href="/(tabs)" />;
 
@@ -131,12 +201,29 @@ export default function SignInScreen() {
           <Text style={styles.cardTitle}>Bắt đầu học</Text>
           <Text style={styles.cardCaption}>Tài khoản giúp đồng bộ lịch sử và bảo vệ tiến độ.</Text>
 
-          {hasGoogleConfig ? (
-            <GoogleSignInButton onError={setErrorMessage} />
+          {sessionRestoreError && (
+            <View style={styles.configNotice}>
+              <Text style={styles.configNoticeText}>
+                Chưa thể khôi phục phiên vì kết nối hoặc máy chủ tạm thời gặp lỗi. Phiên của bạn vẫn được giữ trên thiết bị.
+              </Text>
+              <Pressable accessibilityRole="button" onPress={() => void retrySession()}>
+                <Text style={styles.retryText}>Thử kết nối lại</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {canUseGoogle ? (
+            Platform.OS === 'android' ? (
+              <AndroidGoogleSignInButton onError={setErrorMessage} />
+            ) : (
+              <BrowserGoogleSignInButton onError={setErrorMessage} />
+            )
           ) : (
             <View style={styles.configNotice}>
               <Text style={styles.configNoticeText}>
-                Cần cấu hình Google Client ID trong file .env.local.
+                {isExpoGo
+                  ? 'Đăng nhập Google cần Development Build của ứng dụng. Expo Go chỉ dùng để xem trước giao diện.'
+                  : 'Cần cấu hình Google Client ID trong file .env.local rồi khởi động lại Metro.'}
               </Text>
             </View>
           )}
@@ -221,6 +308,7 @@ const styles = StyleSheet.create({
   },
   configNotice: { padding: 12, borderRadius: radius.small, backgroundColor: '#FFF6E5' },
   configNoticeText: { color: '#7A4D00', fontSize: 13, lineHeight: 18 },
+  retryText: { color: palette.primary, fontSize: 14, fontWeight: '700', marginTop: 8 },
   errorText: { color: palette.danger, fontSize: 13, lineHeight: 18 },
   privacyText: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
 });

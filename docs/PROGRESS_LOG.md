@@ -3,6 +3,75 @@
 Mỗi lần hoàn thành một mốc công việc sẽ ghi thêm một mục ở đầu file này, kèm
 bằng chứng có thể kiểm chứng lại (hash commit, lệnh đã chạy, kết quả).
 
+## 2026-09-26 — Chuyển luồng phát triển sang mobile-first (chưa commit)
+
+- Xác định màn đăng nhập mobile không hiển thị nút Google vì chưa có
+  `mobile/.env.local` và chưa cấu hình Android OAuth Client ID; backend hiện mới
+  có Google Client ID cho web.
+- Theo tài liệu Expo SDK 57, OAuth/OIDC local không thể kiểm thử đúng trong Expo
+  Go vì app không sở hữu custom scheme. Đã thêm `expo-dev-client`, profile EAS
+  development/preview/production và các script chạy Development Build Android.
+- Màn đăng nhập nhận biết Expo Go và giải thích rõ đây chỉ là môi trường xem trước;
+  Development Build có cấu hình OAuth mới hiển thị nút đăng nhập Google.
+- Cập nhật `mobile/README.md` với package Android
+  `com.toeicminitrainer.app`, yêu cầu SHA-1/OAuth Client ID, API URL truy cập được
+  từ điện thoại và quy tắc giữ `MOBILE_JWT_SECRET` ở backend.
+- Kiểm tra: `npx tsc --noEmit` → exit 0; `npm run lint` → exit 0;
+  `npx expo config --type public` → exit 0, SDK 57 nhận đúng scheme/package.
+- Chưa tạo EAS project, chưa build lên cloud và chưa điền Client ID vì các bước
+  này cần tài khoản Expo/Google Cloud của chủ dự án. Không in hoặc commit secret.
+
+## 2026-09-26 — E2E Giai đoạn 5 (chưa commit, base `0a097a9`)
+
+- B0: user tự đăng nhập Google tại `/admin/extract`; giao diện hiện `Đăng xuất`.
+  Các request E2E sau đó dùng session cùng `ownerId`; không ghi cookie hoặc secret
+  vào log.
+- B1 (phiên trước, theo `Test/HANDOFF-E2E.md`): PDF `e2e-questions.pdf`:
+  `POST /api/v1/uploads` **201**, PUT từ browser sang R2 **200**, complete **200
+  READY**; asset `717ead5f-45a9-4cd4-8e50-68301f18e8d4`.
+- B2: UI upload `sample-audio.wav` (8.044 byte): intent **201**, complete **200
+  READY**; audio asset `772d1a7d-aea3-47fc-ad7b-8bd521c2260c`. Mã PUT của
+  lần upload UI không được ghi riêng; B5 xác minh object bằng signed GET **200**,
+  kích thước và SHA-256 khớp file local.
+- B3: job `f8ea9fae-c4fb-4d7f-a569-0540f93c84ef` từ PDF text layer hợp lệ:
+  create **202**, poll **200 COMPLETED**, 1 nhóm/5 câu Part 5. Job Part 3 có
+  audio `c3db080b-59a9-4992-8ed5-99920712fab3`: create **202**, retry **202**,
+  poll **200 COMPLETED**, 1 nhóm/3 câu và `audioAssetId` đúng. Hai lỗi ban đầu
+  đã được chẩn đoán: `DOCUMENT_PARSE_FAILED` do `pdf-parse` nhận `Buffer` không
+  ổn định với PDF nhỏ (đổi sang `Uint8Array` thuần); `AI_EXTRACTION_FAILED` do
+  schema Gemini chưa bắt buộc `options.A/B/C/D` (đã bổ sung). PDF gốc và PDF rỗng
+  đều đọc đúng sau sửa byte đầu vào. Xác nhận riêng trên asset PDF B1 gốc:
+  job `aa9d6877-9032-4be2-8f44-e8e8d3747889` create **202**, poll **200
+  COMPLETED**, 1 nhóm/5 câu Part 5 (không import lần nữa để tránh trùng nội dung).
+- B4: `POST /api/v1/ingestions/f8ea9fae-c4fb-4d7f-a569-0540f93c84ef/import`
+  → **200**, `questionsAdded: 5`; gọi lại → **200**, `alreadyImported: true`.
+  Truy vấn Prisma trước/giữa/sau cho Part 5 của chủ tài khoản: **0 → 5 → 5**;
+  5 câu có `ownerId` đúng và đủ lựa chọn A–D. Import job Part 3 → **200**,
+  `questionsAdded: 3`; DB có 1 `question_group` cùng `ownerId`, đúng
+  `audioAssetId`, chứa 3 câu Part 3 cùng chủ tài khoản.
+- B5: `POST /api/mini-tests/generate` Part 5, limit 10 → **201**; GET bài
+  `59fb1c02-2981-49ff-bf37-e7576ddb745e` → **200**, 10 câu Part 5; submit
+  → **200**, điểm 3/10. Part 3, limit 50 → **201**; GET bài
+  `e7a0cfa7-f700-4ddd-aeda-7679e6b3fa4e` → **200**, 3 câu đều có media
+  R2 ký tạm và chỉ chọn câu công khai/thuộc chủ tài khoản. URL dùng
+  `AWS4-HMAC-SHA256`, `X-Amz-Expires=3600`, không phải `/uploads/`; signed GET
+  audio → **200**, 8.044 byte, SHA-256 khớp `Test/sample-audio.wav`; submit
+  → **200**, điểm 1/3. Không lưu URL ký tạm trong log.
+- B6: upload `e2e-empty.pdf` 559 byte: intent **201**, PUT **200**, complete
+  **200 READY**, create job **202**, poll **200 FAILED** với
+  `DOCUMENT_TEXT_EMPTY`. File giả 16 byte bắt đầu `MZ` khai báo PDF: intent
+  **201**, PUT **200**, complete **422 ASSET_VALIDATION_FAILED**; DB ghi
+  `REJECTED/SIGNATURE_MISMATCH`, R2 HEAD object → **404**. GET asset UUID lạ
+  → **404 ASSET_NOT_FOUND**; POST upload không auth → **401 UNAUTHORIZED**.
+  PUT bằng URL upload có TTL 300 giây sau 325 giây → R2 **403**.
+- Kiểm tra: `npm test` → **11/11**; `npx tsc --noEmit` → exit 0;
+  `npx eslint app/lib/toeic-ingestion.ts next.config.ts` → exit 0;
+  `npm run build` → exit 0; `git diff --check` → exit 0. Đã đọc hướng dẫn
+  Next 16.3.5 trong `node_modules/next/dist/docs/` trước khi sửa code;
+  `next dev` chạy route E2E trên port 3000. `AGENTS.md` được `next dev` tự bổ
+  sung rule block; thay đổi này được giữ nguyên để user duyệt cùng diff.
+  Chưa commit, chưa chạy migration/reset.
+
 ## 2026-09-22 — Chốt Giai đoạn 5 vào Git
 
 - Commit `256440a` `feat(api,web,mobile): giai doan 5 - object storage rieng tu

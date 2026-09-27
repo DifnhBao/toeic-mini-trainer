@@ -86,6 +86,6 @@ export function isMobileAuthConfigurationError(error: unknown) {
   return (
     error instanceof Error &&
     (error.message.startsWith("MOBILE_JWT_SECRET") ||
-      error.message.startsWith("Native OAuth client IDs"))
+      error.message.startsWith("OAuth client audience"))
   );
 }

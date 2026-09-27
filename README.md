@@ -24,6 +24,8 @@ Yêu cầu Node.js, PostgreSQL và một Google OAuth app.
 
 Kiểm tra bản production bằng `npm run build` rồi `npm start`.
 
+`prisma migrate deploy` không chạy seed. Bộ câu hỏi demo chỉ dành cho database dev/test/demo tách biệt: đặt `ALLOW_DEMO_SEED=true` và `SEED_DATABASE_NAME` bằng chính tên database trong `DATABASE_URL`, rồi chạy `npx prisma db seed`. Script từ chối `NODE_ENV=production`, tên database không phải dev/test/demo hoặc thiếu xác nhận; không xóa dữ liệu đang có. Không chạy seed trên database hiện tại chỉ để thử nghiệm.
+
 ## Cấu trúc dễ học
 
 - `app/page.tsx`: dashboard và bộ tạo bài luyện.
@@ -59,6 +61,9 @@ Luồng nhập PDF/audio trên web và mobile dùng chung object storage private
 
 API chỉ ký quyền PUT trong 5 phút. Server kiểm tra kích thước, MIME và magic bytes, sau đó copy có điều kiện ETag từ `pending/` sang `ready/`. URL đọc chỉ sống 60 phút và chỉ cấp cho chủ sở hữu đã đăng nhập. Pipeline AI chạy theo tác vụ có trạng thái, cho phép thử lại tối đa ba lần và luôn yêu cầu người dùng kiểm tra trước khi nhập câu hỏi.
 
-Việc xử lý nền hiện dùng cơ chế `after()` của Next.js và có timeout/retry trong database. Nền tảng production phải hỗ trợ `waitUntil`; nếu không, cần chuyển hàm xử lý sang worker/queue riêng trước khi mở cho người dùng thật.
+Việc xử lý nền hiện dùng `after()` của Next.js. Trên Vercel, GitHub Actions gọi
+endpoint worker có secret mỗi 5 phút để quét job `PENDING` và phục hồi job bị
+ngắt; xem [hướng dẫn staging Vercel](docs/VERCEL_STAGING.md). Tác vụ vượt giới hạn
+Function vẫn cần worker/queue riêng trước khi mở rộng người dùng.
 
 Không commit `.env`, file audio/PDF riêng tư hoặc khóa API lên Git.

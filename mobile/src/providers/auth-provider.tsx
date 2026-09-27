@@ -45,6 +45,8 @@ type MeResponse = { user: MobileUser };
 type AuthContextValue = {
   user: MobileUser | null;
   isBootstrapping: boolean;
+  sessionRestoreError: boolean;
+  retrySession: () => Promise<void>;
   signInWithGoogle: (idToken: string) => Promise<void>;
   signInWithApple: (idToken: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -79,6 +81,7 @@ async function getDeviceId() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<MobileUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [sessionRestoreError, setSessionRestoreError] = useState(false);
   const accessTokenRef = useRef<string | null>(null);
   const accessTokenExpiryRef = useRef(0);
   const refreshTokenRef = useRef<string | null>(null);
@@ -201,40 +204,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).catch(() => undefined);
   }, [clearLocalSession]);
 
+  const restoreSession = useCallback(async (isActive: () => boolean = () => true) => {
+    if (isActive()) {
+      setIsBootstrapping(true);
+      setSessionRestoreError(false);
+    }
+    try {
+      const stored = await readSecret(REFRESH_TOKEN_KEY);
+      if (!stored) return;
+      refreshTokenRef.current = stored;
+      const token = await refreshAccessToken();
+      if (!token || !isActive()) return;
+      const response = await apiRequest<MeResponse>('/api/v1/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (isActive()) setUser(response.user);
+    } catch (error) {
+      // A temporary network/server failure must not erase a valid refresh token.
+      if (isActive() && error instanceof ApiError && error.status === 401) {
+        await clearLocalSession().catch(() => undefined);
+      } else if (isActive()) {
+        setSessionRestoreError(true);
+      }
+    } finally {
+      if (isActive()) setIsBootstrapping(false);
+    }
+  }, [clearLocalSession, refreshAccessToken]);
+
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const stored = await readSecret(REFRESH_TOKEN_KEY);
-        if (!stored) return;
-        refreshTokenRef.current = stored;
-        const token = await refreshAccessToken();
-        if (!token || !active) return;
-        const response = await apiRequest<MeResponse>('/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (active) setUser(response.user);
-      } catch {
-        if (active) await clearLocalSession().catch(() => undefined);
-      } finally {
-        if (active) setIsBootstrapping(false);
-      }
-    })();
+    queueMicrotask(() => {
+      if (active) void restoreSession(() => active);
+    });
     return () => {
       active = false;
     };
-  }, [clearLocalSession, refreshAccessToken]);
+  }, [restoreSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isBootstrapping,
+      sessionRestoreError,
+      retrySession: restoreSession,
       signInWithGoogle,
       signInWithApple,
       logout,
       authorizedFetch,
     }),
-    [user, isBootstrapping, signInWithGoogle, signInWithApple, logout, authorizedFetch],
+    [user, isBootstrapping, sessionRestoreError, restoreSession, signInWithGoogle, signInWithApple, logout, authorizedFetch],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

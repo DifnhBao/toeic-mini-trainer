@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "mobile/.expo/**",
+    "mobile/dist/**",
+    // Manual experiments and the Expo scaffold reset script are not app source.
+    "Test/**",
+    "mobile/scripts/reset-project.js",
   ]),
 ]);
 

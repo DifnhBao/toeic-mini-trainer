@@ -54,29 +54,34 @@ function MiniIcon({ name }: { name: string }) {
 export default function Dashboard() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const [stats, setStats] = useState<ProgressSummary | null>(null);
+  const [loadedStats, setLoadedStats] = useState<{
+    userId: string;
+    summary: ProgressSummary;
+  } | null>(null);
   const [testLimit, setTestLimit] = useState(10);
   const [selectedPart, setSelectedPart] = useState("mixed");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (status !== "authenticated") {
-      setStats(null);
-      return;
-    }
+    if (status !== "authenticated" || !session?.user?.id) return;
+    const userId = session.user.id;
     const controller = new AbortController();
     fetch("/api/progress/summary", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Không thể tải tiến độ");
         return response.json();
       })
-      .then(setStats)
+      .then((summary: ProgressSummary) => setLoadedStats({ userId, summary }))
       .catch((fetchError) => {
         if (fetchError.name !== "AbortError") console.error(fetchError);
       });
     return () => controller.abort();
-  }, [status]);
+  }, [status, session?.user?.id]);
+
+  const stats = status === "authenticated" && loadedStats?.userId === session?.user?.id
+    ? loadedStats.summary
+    : null;
 
   const weakestPart = useMemo(() => {
     if (!stats?.partStats.length) return null;

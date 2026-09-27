@@ -1,15 +1,31 @@
 "use client";
 import { useState } from "react";
 
+type Explanation = {
+  explanationText: string;
+  suggestedSkills: string[];
+};
+
+function normalizeSkills(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 export default function AiExplainButton({
   userAnswerId,
   initialExplanation,
 }: {
   userAnswerId: string;
-  initialExplanation: any;
+  initialExplanation: { explanationText: string; suggestedSkills: unknown } | null;
 }) {
   const [loading, setLoading] = useState(false);
-  const [explanation, setExplanation] = useState(initialExplanation);
+  const [explanation, setExplanation] = useState<Explanation | null>(
+    initialExplanation
+      ? {
+          explanationText: initialExplanation.explanationText,
+          suggestedSkills: normalizeSkills(initialExplanation.suggestedSkills),
+        }
+      : null,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleExplain = async () => {
@@ -28,8 +44,13 @@ export default function AiExplainButton({
         );
       } else if (data.error) {
         setErrorMessage(data.error);
+      } else if (typeof data.explanationText === "string") {
+        setExplanation({
+          explanationText: data.explanationText,
+          suggestedSkills: normalizeSkills(data.suggestedSkills),
+        });
       } else {
-        setExplanation(data);
+        setErrorMessage("Phản hồi AI không hợp lệ. Vui lòng thử lại.");
       }
     } catch (e) {
       console.error(e);
