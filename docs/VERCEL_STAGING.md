@@ -95,9 +95,9 @@ Sau deploy, kiểm tra:
 
 ## 4. GitHub Actions quét job PENDING
 
-Workflow `.github/workflows/ingestion-worker.yml` chạy mỗi 15 phút (và cho phép
-chạy tay; đổi từ 5 phút sang 15 phút để nằm trong hạn mức miễn phí của GitHub
-Actions trên repo private), kiểm tra readiness rồi gọi
+Workflow `.github/workflows/ingestion-worker.yml` chạy mỗi giờ vào phút 17
+(và cho phép chạy tay; giảm tần suất để tiết kiệm GitHub Actions trên repo
+private), kiểm tra readiness rồi gọi
 `POST /api/internal/ingestions/drain` qua HTTPS. Nếu Neon/R2 không sẵn sàng,
 workflow dừng trước khi claim job. Tạo hai repository secrets trong GitHub Actions
 trước khi bật lịch:
@@ -105,6 +105,11 @@ trước khi bật lịch:
 - `INGESTION_WORKER_URL` = `https://<domain>/api/internal/ingestions/drain`.
 - `INGESTION_WORKER_SECRET` = **cùng giá trị** với Vercel, không phải
   `MOBILE_JWT_SECRET` hay `NEXTAUTH_SECRET`.
+
+Trong GitHub Billing → Budgets and alerts, chủ tài khoản đặt giới hạn chi tiêu
+Actions ở mức $0 nếu giao diện cho phép và bật **Stop usage when budget limit is
+reached** cùng cảnh báo dùng hết quota. Giới hạn này phải được xác nhận trên tài
+khoản GitHub; cấu hình workflow trong repo không thể tự áp đặt ngân sách.
 
 Endpoint yêu cầu Bearer secret, tìm job PENDING cũ nhất và dùng `after()` để
 chạy nó trong giới hạn Function. Job PROCESSING bị ngắt quá 10 phút được đưa

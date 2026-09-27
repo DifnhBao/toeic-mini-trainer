@@ -2,9 +2,9 @@ name: Drain pending ingestion jobs
 
 on:
   schedule:
-    # Every 15 min (ZCode 27/09/2026): 5-min schedule on a private repo bills
-    # ~8.6k Actions minutes/month (1-min minimum per run) vs 3k free with Pro.
-    - cron: "3-59/15 * * * *"
+    # Hourly recovery sweep for personal staging; new jobs also start immediately.
+    # Keep private-repo Actions usage well below the GitHub Pro monthly allowance.
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions: {}
