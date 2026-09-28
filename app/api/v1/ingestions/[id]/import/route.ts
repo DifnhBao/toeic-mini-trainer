@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
+import { IMPORT_STALE_MS } from "@/app/lib/ingestion-status";
 import { importExtractedQuestions } from "@/app/lib/question-import";
 import { prisma } from "@/app/lib/prisma";
 import { requestUser } from "@/app/lib/request-user";
@@ -19,7 +20,15 @@ export async function POST(
   if (!parsedId.success) return apiError("INVALID_JOB_ID", "Mã tác vụ không hợp lệ.", 400);
 
   const claimed = await prisma.ingestionJob.updateMany({
-    where: { id: parsedId.data, ownerId: user.id, status: "COMPLETED", importedAt: null },
+    where: {
+      id: parsedId.data,
+      ownerId: user.id,
+      importedAt: null,
+      OR: [
+        { status: "COMPLETED" },
+        { status: "IMPORTING", updatedAt: { lt: new Date(Date.now() - IMPORT_STALE_MS) } },
+      ],
+    },
     data: { status: "IMPORTING" },
   });
   if (claimed.count !== 1) {

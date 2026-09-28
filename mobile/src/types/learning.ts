@@ -107,6 +107,7 @@ export type ExtractedQuestionGroup = {
 export type IngestionJob = {
   id: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'IMPORTING' | 'IMPORTED' | 'FAILED';
+  importStalled?: boolean;
   attemptCount: number;
   errorCode: string | null;
   result: { data: ExtractedQuestionGroup[] } | null;

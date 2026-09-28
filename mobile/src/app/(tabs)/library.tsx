@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette, radius } from '@/constants/design';
+import { pollIngestionJob } from '@/lib/ingestion-poll';
 import { uploadPrivateFile } from '@/lib/uploads';
 import { useAuth } from '@/providers/auth-provider';
 import type { IngestionJob } from '@/types/learning';
@@ -15,15 +16,12 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function delay(milliseconds: number) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
 export default function LibraryScreen() {
   const { authorizedFetch } = useAuth();
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [job, setJob] = useState<IngestionJob | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
@@ -61,18 +59,16 @@ export default function LibraryScreen() {
   };
 
   const pollJob = async (jobId: string) => {
-    for (let attempt = 0; attempt < 150; attempt += 1) {
-      const response = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${jobId}`);
-      setJob(response.job);
-      if (response.job.status === 'COMPLETED' || response.job.status === 'IMPORTED') {
-        return response.job;
-      }
-      if (response.job.status === 'FAILED') {
-        throw new Error(`Không thể phân tích tài liệu (${response.job.errorCode || 'INGESTION_FAILED'}).`);
-      }
-      await delay(2_000);
-    }
-    throw new Error('Quá trình phân tích mất quá nhiều thời gian. Hãy mở lại mục Tài liệu sau.');
+    return pollIngestionJob({
+      read: async () => (await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${jobId}`)).job,
+      onJob: setJob,
+      onTransientError: () => setStatusText('Kết nối gián đoạn, đang thử lại…'),
+    });
+  };
+
+  const refreshJob = async (jobId: string) => {
+    const latest = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${jobId}`);
+    setJob(latest.job);
   };
 
   const startIngestion = async () => {
@@ -80,6 +76,7 @@ export default function LibraryScreen() {
     setBusy(true);
     setError('');
     setJob(null);
+    setActiveJobId(null);
     try {
       setStatusText('Đang upload PDF…');
       const documentAssetId = await uploadPrivateFile(
@@ -101,11 +98,26 @@ export default function LibraryScreen() {
         method: 'POST',
         body: JSON.stringify({ documentAssetId, audioAssetId }),
       });
+      setActiveJobId(created.job.id);
       const completed = await pollJob(created.job.id);
       setStatusText(`Đã nhận diện ${completed.result?.data.length || 0} nhóm câu hỏi.`);
     } catch (ingestionError) {
       setError(ingestionError instanceof Error ? ingestionError.message : 'Không thể nhập tài liệu.');
       setStatusText('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resumePolling = async () => {
+    if (!activeJobId || busy) return;
+    setBusy(true);
+    setError('');
+    setStatusText('Đang kiểm tra tác vụ…');
+    try {
+      await pollJob(activeJobId);
+    } catch (pollError) {
+      setError(pollError instanceof Error ? pollError.message : 'Không thể kiểm tra tác vụ.');
     } finally {
       setBusy(false);
     }
@@ -139,6 +151,7 @@ export default function LibraryScreen() {
       setStatusText(`Đã thêm ${response.questionsAdded ?? questionCount} câu vào kho.`);
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Không thể lưu câu hỏi.');
+      await refreshJob(job.id).catch(() => undefined);
     } finally {
       setBusy(false);
     }
@@ -177,6 +190,22 @@ export default function LibraryScreen() {
 
         {!!error && <Text style={styles.error}>{error}</Text>}
 
+        {activeJobId && !busy && (!job || ['PENDING', 'PROCESSING'].includes(job.status)) && (
+          <Pressable onPress={resumePolling} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Kiểm tra lại tác vụ</Text>
+          </Pressable>
+        )}
+
+        {job?.status === 'IMPORTING' && !busy && (
+          <Pressable onPress={() => {
+            void refreshJob(job.id).catch((refreshError) =>
+              setError(refreshError instanceof Error ? refreshError.message : 'Không thể kiểm tra trạng thái lưu.'),
+            );
+          }} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Kiểm tra trạng thái lưu</Text>
+          </Pressable>
+        )}
+
         {!job?.result && (
           <Pressable
             onPress={startIngestion}
@@ -203,13 +232,19 @@ export default function LibraryScreen() {
                 <Text style={styles.answerKey}>{question.correctAnswer}</Text>
               </View>
             ))}
-            {job.status !== 'IMPORTED' ? (
-              <Pressable onPress={importQuestions} disabled={busy} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>Lưu {questionCount} câu vào kho</Text>
-              </Pressable>
-            ) : (
-              <Text style={styles.success}>✓ Bộ câu hỏi đã được lưu.</Text>
+            {job.status === 'IMPORTING' && !job.importStalled && (
+              <Text style={styles.reviewCopy}>Đang lưu câu hỏi. Vui lòng chờ…</Text>
             )}
+            {job.importStalled && (
+              <Text style={styles.error}>Lần lưu trước bị gián đoạn. Bạn có thể thử lưu lại.</Text>
+            )}
+            {(job.status === 'COMPLETED' || job.importStalled) ? (
+              <Pressable onPress={importQuestions} disabled={busy} style={styles.primaryButton}>
+                <Text style={styles.primaryButtonText}>{job.importStalled ? 'Thử lưu lại' : `Lưu ${questionCount} câu vào kho`}</Text>
+              </Pressable>
+            ) : job.status === 'IMPORTED' ? (
+              <Text style={styles.success}>✓ Bộ câu hỏi đã được lưu.</Text>
+            ) : null}
           </View>
         )}
       </ScrollView>

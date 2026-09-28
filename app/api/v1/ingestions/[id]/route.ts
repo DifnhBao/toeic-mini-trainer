@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
+import { isStalledImport } from "@/app/lib/ingestion-status";
 import { prisma } from "@/app/lib/prisma";
 import { requestUser } from "@/app/lib/request-user";
 
@@ -39,16 +40,10 @@ export async function GET(
     job.status === "PROCESSING" &&
     job.startedAt &&
     job.startedAt.getTime() < now - 6 * 60_000;
-  const importTimedOut =
-    job.status === "IMPORTING" &&
-    !job.importedAt &&
-    job.updatedAt.getTime() < now - 2 * 60_000;
-  if (processingTimedOut || importTimedOut) {
+  if (processingTimedOut) {
     await prisma.ingestionJob.updateMany({
       where: { id: job.id, ownerId: user.id, status: job.status },
-      data: processingTimedOut
-        ? { status: "FAILED", errorCode: "WORKER_TIMEOUT", completedAt: new Date() }
-        : { status: "COMPLETED" },
+      data: { status: "FAILED", errorCode: "WORKER_TIMEOUT", completedAt: new Date() },
     });
     job = await prisma.ingestionJob.findFirstOrThrow({
       where: { id: job.id, ownerId: user.id },
@@ -71,6 +66,7 @@ export async function GET(
   return apiJson({
     job: {
       ...job,
+      importStalled: isStalledImport(job, now),
       result: canReadResult ? job.result : null,
       createdAt: job.createdAt.toISOString(),
       completedAt: job.completedAt?.toISOString() || null,
