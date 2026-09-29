@@ -171,6 +171,8 @@ model IngestionJob {
   ownerId         String
   documentAssetId String
   audioAssetId    String?
+  pageStart       Int             @default(1)
+  pageEnd         Int?
   status          IngestionStatus @default(PENDING)
   attemptCount    Int             @default(0)
   result          Json?

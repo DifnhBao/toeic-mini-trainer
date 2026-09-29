@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { IMPORT_STALE_MS, isStalledImport } from "../app/lib/ingestion-status";
-import { pollIngestionJob } from "../mobile/src/lib/ingestion-poll";
+import { ingestionErrorMessage, pollIngestionJob } from "../mobile/src/lib/ingestion-poll";
 
 function apiError(status: number) {
   return Object.assign(new Error("Request failed"), { status });
 }
 
 describe("ingestion recovery", () => {
+  it("explains scan, page range and AI failures without exposing provider details", () => {
+    assert.match(ingestionErrorMessage("DOCUMENT_PAGE_RANGE_INVALID"), /Trang bắt đầu/);
+    assert.match(ingestionErrorMessage("DOCUMENT_OCR_TOO_LARGE"), /scan/);
+    assert.match(ingestionErrorMessage("AI_RATE_LIMITED"), /giới hạn/);
+  });
   it("flags stale imports without pretending they completed", () => {
     const now = Date.now();
     const stale = { status: "IMPORTING", importedAt: null, updatedAt: new Date(now - IMPORT_STALE_MS - 1) };

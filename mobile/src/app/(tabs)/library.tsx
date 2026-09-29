@@ -13,6 +13,7 @@ import type { ExtractedQuestionGroup, IngestionJob } from '@/types/learning';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
+const MAX_INGESTION_PAGES = 4;
 
 type ContributionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 type ContributionSummary = {
@@ -52,6 +53,9 @@ export default function LibraryScreen() {
   const { authorizedFetch } = useAuth();
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [pageStartText, setPageStartText] = useState('1');
+  const [uploadedDocument, setUploadedDocument] = useState<{ file: File; id: string } | null>(null);
+  const [uploadedAudio, setUploadedAudio] = useState<{ file: File; id: string } | null>(null);
   const [job, setJob] = useState<IngestionJob | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -165,7 +169,9 @@ export default function LibraryScreen() {
       return;
     }
     setDocumentFile(picked.result);
+    setUploadedDocument(null);
     setJob(null);
+    setActiveJobId(null);
     setReviewExpanded(false);
     setError('');
   };
@@ -180,7 +186,9 @@ export default function LibraryScreen() {
       return;
     }
     setAudioFile(picked.result);
+    setUploadedAudio(null);
     setJob(null);
+    setActiveJobId(null);
     setReviewExpanded(false);
     setError('');
   };
@@ -200,6 +208,11 @@ export default function LibraryScreen() {
 
   const startIngestion = async () => {
     if (!documentFile || busy) return;
+    const pageStart = Number(pageStartText);
+    if (!Number.isSafeInteger(pageStart) || pageStart < 1 || pageStart > 1_000) {
+      setError('Trang bắt đầu phải là số từ 1 đến 1000.');
+      return;
+    }
     setBusy(true);
     setError('');
     setJob(null);
@@ -207,24 +220,25 @@ export default function LibraryScreen() {
     setActiveJobId(null);
     try {
       setStatusText('Đang upload PDF…');
-      const documentAssetId = await uploadPrivateFile(
-        documentFile,
-        'DOCUMENT',
-        authorizedFetch,
-        setProgress,
-      );
+      const documentAssetId = uploadedDocument?.file === documentFile
+        ? uploadedDocument.id
+        : await uploadPrivateFile(documentFile, 'DOCUMENT', authorizedFetch, setProgress);
+      setUploadedDocument({ file: documentFile, id: documentAssetId });
       let audioAssetId: string | null = null;
       if (audioFile) {
         setStatusText('Đang upload audio…');
         setProgress(0);
-        audioAssetId = await uploadPrivateFile(audioFile, 'AUDIO', authorizedFetch, setProgress);
+        audioAssetId = uploadedAudio?.file === audioFile
+          ? uploadedAudio.id
+          : await uploadPrivateFile(audioFile, 'AUDIO', authorizedFetch, setProgress);
+        setUploadedAudio({ file: audioFile, id: audioAssetId });
       }
 
       setStatusText('AI đang đọc và cấu trúc bộ đề…');
       setProgress(1);
       const created = await authorizedFetch<{ job: { id: string } }>('/api/v1/ingestions', {
         method: 'POST',
-        body: JSON.stringify({ documentAssetId, audioAssetId }),
+        body: JSON.stringify({ documentAssetId, audioAssetId, pageStart }),
       });
       setActiveJobId(created.job.id);
       const completed = await pollJob(created.job.id);
@@ -291,7 +305,7 @@ export default function LibraryScreen() {
         <View>
           <Text style={styles.kicker}>KHO TÀI LIỆU CÁ NHÂN</Text>
           <Text style={styles.title}>Đưa bộ đề của bạn vào app</Text>
-          <Text style={styles.subtitle}>Chọn PDF có thể bôi chữ và audio nghe nếu có. PDF gốc luôn riêng tư; audio chỉ được chia sẻ nếu bạn chủ động gửi đóng góp và được duyệt.</Text>
+          <Text style={styles.subtitle}>Chọn PDF hoặc bản scan và audio nếu có. PDF gốc luôn riêng tư; audio chỉ được chia sẻ nếu bạn chủ động gửi đóng góp và được duyệt.</Text>
         </View>
 
         <Pressable onPress={pickDocument} disabled={busy} style={styles.fileCard}>
@@ -305,6 +319,12 @@ export default function LibraryScreen() {
           <Text style={styles.fileName}>{audioFile?.name || 'Chọn MP3, M4A hoặc WAV'}</Text>
           <Text style={styles.fileMeta}>{audioFile ? formatSize(audioFile.size) : 'Tối đa 100 MB'}</Text>
         </Pressable>
+
+        <View style={styles.fileCard}>
+          <Text style={styles.fileLabel}>KHOẢNG TRANG PHÂN TÍCH</Text>
+          <Text style={styles.reviewCopy}>Mỗi lượt đọc tối đa {MAX_INGESTION_PAGES} trang, bắt đầu từ trang bạn chọn. Hãy lưu kết quả trước khi chuyển sang lượt tiếp theo. AI có thể đọc sai bản scan và đáp án.</Text>
+          <TextInput value={pageStartText} onChangeText={setPageStartText} keyboardType="number-pad" placeholder="Trang bắt đầu (ví dụ: 1)" style={styles.pageInput} editable={!busy} />
+        </View>
 
         {busy && (
           <View style={styles.progressCard}>
@@ -400,6 +420,11 @@ export default function LibraryScreen() {
                   <Text style={styles.secondaryButtonText}>Gửi {questionCount} câu để duyệt</Text>
                 </Pressable>
               </View>
+            )}
+            {job.status === 'IMPORTED' && (
+              <Pressable onPress={() => { setJob(null); setActiveJobId(null); }} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Chọn trang khác để phân tích</Text>
+              </Pressable>
             )}
           </View>
         )}
@@ -500,4 +525,5 @@ const styles = StyleSheet.create({
   checkMark: { fontSize: 22, color: palette.primary },
   checkText: { flex: 1, color: palette.ink, fontSize: 13, lineHeight: 19 },
   noteInput: { borderWidth: 1, borderColor: palette.line, borderRadius: radius.medium, padding: 12, minHeight: 64, color: palette.ink },
+  pageInput: { borderWidth: 1, borderColor: palette.line, borderRadius: radius.medium, padding: 12, color: palette.ink },
 });

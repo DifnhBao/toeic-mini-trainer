@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
+import { MAX_INGESTION_PAGES } from "@/app/lib/ingestion-limits";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
@@ -15,8 +16,14 @@ const createJobSchema = z
   .object({
     documentAssetId: z.string().uuid(),
     audioAssetId: z.string().uuid().nullable().optional(),
+    pageStart: z.number().int().min(1).max(1_000).default(1),
+    pageEnd: z.number().int().min(1).max(1_000).nullable().optional(),
   })
-  .strict();
+  .strict()
+  .refine(({ pageStart, pageEnd }) => pageEnd == null ||
+    (pageEnd >= pageStart && pageEnd - pageStart + 1 <= MAX_INGESTION_PAGES), {
+    message: `Mỗi lần chỉ phân tích tối đa ${MAX_INGESTION_PAGES} trang liên tiếp.`,
+  });
 
 export async function POST(request: Request) {
   const user = await requestUser(request);
@@ -65,6 +72,8 @@ export async function POST(request: Request) {
       ownerId: user.id,
       documentAssetId: documentAsset.id,
       audioAssetId: audioAsset?.id || null,
+      pageStart: body.data.pageStart,
+      pageEnd: body.data.pageEnd ?? null,
     },
     select: { id: true, status: true, createdAt: true },
   });
