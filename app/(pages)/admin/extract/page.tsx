@@ -1,23 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { PDFDocument } from "pdf-lib";
 import AppHeader from "@/app/components/AppHeader";
+import IngestionQuestionReview, { type ExtractedGroup } from "@/app/components/IngestionQuestionReview";
 import { MAX_INGESTION_PAGES } from "@/app/lib/ingestion-limits";
-
-type ExtractedGroup = {
-  group?: {
-    groupType?: string;
-    passageText?: string | null;
-    audioUrl?: string | null;
-    imageUrl?: string | null;
-    audioAssetId?: string | null;
-    imageAssetId?: string | null;
-  } | null;
-  questions: Array<{ part: number; content?: string; options: Record<string, string>; correctAnswer: string }>;
-};
 
 type UploadIntent = {
   asset: { id: string };
@@ -43,15 +32,13 @@ export default function AIExtractPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [extractedData, setExtractedData] = useState<{ data: ExtractedGroup[] } | null>(null);
+  const [reviewVersion, setReviewVersion] = useState(0);
   const [processedRange, setProcessedRange] = useState<{ start: number; end: number } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobFailureCode, setJobFailureCode] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [rightsConfirmed, setRightsConfirmed] = useState(false);
-  const [submittedForReview, setSubmittedForReview] = useState(false);
 
-  const questionCount = useMemo(() => extractedData?.data?.reduce((sum, group) => sum + group.questions.length, 0) || 0, [extractedData]);
   const invalidPageRange = pdfPageCount !== null && (
     !Number.isSafeInteger(pageStart) || !Number.isSafeInteger(pageEnd) ||
     pageStart < 1 || pageEnd < pageStart || pageEnd > pdfPageCount ||
@@ -67,8 +54,6 @@ export default function AIExtractPage() {
     setProcessedRange(null);
     setJobId(null);
     setJobFailureCode(null);
-    setRightsConfirmed(false);
-    setSubmittedForReview(false);
     setMessage("");
     setError("");
     if (!file) return;
@@ -166,8 +151,6 @@ export default function AIExtractPage() {
     setProcessedRange(null);
     setJobId(null);
     setJobFailureCode(null);
-    setRightsConfirmed(false);
-    setSubmittedForReview(false);
     try {
       setMessage("Đang upload PDF vào kho riêng tư…");
       const documentAssetId = uploadedPdf?.file === pdfFile
@@ -191,6 +174,7 @@ export default function AIExtractPage() {
       const result = await waitForJob(created.job.id);
       setJobFailureCode(null);
       setExtractedData(result);
+      setReviewVersion((version) => version + 1);
       setMessage("Phân tích hoàn tất. Hãy kiểm tra kỹ trước khi lưu.");
     } catch (extractError) {
       setMessage("");
@@ -208,6 +192,7 @@ export default function AIExtractPage() {
       const result = await waitForJob(jobId);
       setJobFailureCode(null);
       setExtractedData(result);
+      setReviewVersion((version) => version + 1);
       setMessage("Phân tích hoàn tất. Hãy kiểm tra kỹ trước khi lưu.");
     } catch (resumeError) {
       setError(resumeError instanceof Error ? resumeError.message : "Không thể kiểm tra tác vụ.");
@@ -225,50 +210,10 @@ export default function AIExtractPage() {
       setJobFailureCode(null);
       const result = await waitForJob(jobId);
       setExtractedData(result);
+      setReviewVersion((version) => version + 1);
       setMessage("Phân tích hoàn tất. Hãy kiểm tra kỹ trước khi lưu.");
     } catch (retryError) {
       setError(retryError instanceof Error ? retryError.message : "Không thể thử lại tác vụ.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function save() {
-    if (!extractedData || !jobId) return;
-    setLoading(true);
-    setError("");
-    setMessage("");
-    try {
-      const data = await readJson(
-        await fetch(`/api/v1/ingestions/${jobId}/import`, { method: "POST" }),
-      );
-      setMessage(
-        data.alreadyImported
-          ? "Bộ câu hỏi này đã được lưu trước đó; hệ thống không tạo bản trùng."
-          : `Đã thêm ${data.questionsAdded} câu hỏi vào kho cá nhân. Bạn có thể tạo bài luyện ngay.`,
-      );
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Lỗi kết nối.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function submitForReview() {
-    if (!extractedData || !jobId || !rightsConfirmed || submittedForReview) return;
-    setLoading(true);
-    setError("");
-    setMessage("");
-    try {
-      await readJson(await fetch("/api/v1/contributions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, data: extractedData, rightsConfirmed: true }),
-      }));
-      setSubmittedForReview(true);
-      setMessage("Đã gửi tài liệu vào hàng chờ duyệt. Nội dung chưa công khai cho người học.");
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Không thể gửi đóng góp.");
     } finally {
       setLoading(false);
     }
@@ -319,27 +264,8 @@ export default function AIExtractPage() {
           {error && <p className="inline-error" role="alert">{error}</p>}
         </section>
 
-        {extractedData?.data && (
-          <section className="review-import">
-            <div className="review-import-head"><div><span className="step-kicker">BƯỚC 2</span><h2>Kiểm tra {questionCount} câu đã nhận diện</h2><p>Kết quả trang {processedRange?.start}-{processedRange?.end}. Đặc biệt kiểm tra Part, đáp án đúng và cách nhóm đoạn văn/audio.</p></div><button type="button" className="save-bank-button" onClick={save} disabled={loading}>{loading ? "Đang lưu…" : `Lưu ${questionCount} câu vào kho cá nhân`}</button></div>
-            {message && <p className="success-message" role="status">✓ {message}</p>}
-            <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
-              <p className="font-bold text-slate-900">Muốn đóng góp vào kho chung?</p>
-              <p className="mt-1">PDF gốc vẫn riêng tư. Câu hỏi và audio đính kèm chỉ công khai sau khi admin kiểm tra và duyệt.</p>
-              <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={rightsConfirmed} disabled={loading || submittedForReview} onChange={(event) => setRightsConfirmed(event.target.checked)} className="mt-1" /><span>Tôi có quyền chia sẻ nội dung và media này, đã kiểm tra đáp án.</span></label>
-              <button type="button" className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={!rightsConfirmed || loading || submittedForReview} onClick={() => void submitForReview()}>{submittedForReview ? "Đã gửi chờ duyệt" : "Gửi để admin duyệt"}</button>
-            </div>
-            <div className="extracted-list">
-              {extractedData.data.map((group, groupIndex) => (
-                <div className="extracted-group" key={groupIndex}>
-                  {group.group && <div className="group-context"><span>{group.group.groupType || "TEXT"}</span>{group.group.audioUrl && <audio controls preload="metadata" src={group.group.audioUrl} />}{group.group.passageText && <p>{group.group.passageText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}</p>}</div>}
-                  {group.questions.map((question, questionIndex) => (
-                    <article key={questionIndex}><div><span>Part {question.part}</span><strong>Đáp án {question.correctAnswer}</strong></div><h3>{question.content || "Câu hỏi nghe / mô tả tranh"}</h3><div className="mini-options">{Object.entries(question.options || {}).map(([key, value]) => <span key={key} className={key === question.correctAnswer ? "correct" : ""}><b>{key}</b>{value}</span>)}</div></article>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </section>
+        {extractedData?.data && jobId && (
+          <IngestionQuestionReview key={`${jobId}:${reviewVersion}`} groups={extractedData.data} jobId={jobId} pageRange={processedRange} />
         )}
       </main>
     </div>

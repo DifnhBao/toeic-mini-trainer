@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { IMPORT_STALE_MS } from "@/app/lib/ingestion-status";
+import { buildReviewedImport, InvalidIngestionReviewError } from "@/app/lib/ingestion-review";
 import { importExtractedQuestions } from "@/app/lib/question-import";
 import { prisma } from "@/app/lib/prisma";
 import { requestUser } from "@/app/lib/request-user";
@@ -18,6 +19,29 @@ export async function POST(
 
   const parsedId = idSchema.safeParse((await params).id);
   if (!parsedId.success) return apiError("INVALID_JOB_ID", "Mã tác vụ không hợp lệ.", 400);
+
+  // Browser imports must submit an explicit decision for every AI-generated
+  // question. The existing Bearer-token mobile flow remains unchanged.
+  let reviewedResult: ReturnType<typeof buildReviewedImport> | null = null;
+  if (!request.headers.has("authorization")) {
+    const source = await prisma.ingestionJob.findFirst({
+      where: { id: parsedId.data, ownerId: user.id },
+      select: { result: true, status: true, importedAt: true },
+    });
+    if (source?.status === "IMPORTED" && source.importedAt) {
+      return apiJson({ imported: true, alreadyImported: true });
+    }
+    if (!source?.result) return apiError("JOB_NOT_IMPORTABLE", "Tác vụ chưa sẵn sàng để lưu.", 409);
+    const payload = await request.json().catch(() => null);
+    try {
+      reviewedResult = buildReviewedImport(source.result, payload);
+    } catch (error) {
+      if (error instanceof InvalidIngestionReviewError) {
+        return apiError("REVIEW_INVALID", error.message, 400);
+      }
+      throw error;
+    }
+  }
 
   const claimed = await prisma.ingestionJob.updateMany({
     where: {
@@ -51,7 +75,7 @@ export async function POST(
     const importedAt = new Date();
     const questionsAdded = await importExtractedQuestions(
       user.id,
-      job.result,
+      reviewedResult ?? job.result,
       async (tx) => {
         await tx.ingestionJob.update({
           where: { id: parsedId.data },
