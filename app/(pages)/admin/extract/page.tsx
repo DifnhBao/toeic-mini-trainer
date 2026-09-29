@@ -225,7 +225,7 @@ export default function AIExtractPage() {
       <main className="page-shell import-page">
         <section className="import-heading"><div><p className="eyebrow">KHO TÀI LIỆU</p><h1>Biến PDF thành bộ câu hỏi luyện tập</h1><p>AI đọc nội dung, ghép audio và cấu trúc câu hỏi. Bạn luôn kiểm tra lại trước khi lưu.</p></div><Link href="/admin/import" className="ghost-button">Nhập file JSON</Link></section>
 
-        <section className="pipeline-strip" aria-label="Quy trình nhập đề"><div className="is-active"><span>1</span><strong>Tải tài liệu</strong></div><i /><div className={extractedData ? "is-active" : ""}><span>2</span><strong>Kiểm tra dữ liệu</strong></div><i /><div className={message ? "is-active" : ""}><span>3</span><strong>Lưu vào kho</strong></div></section>
+        <section className="pipeline-strip" aria-label="Quy trình nhập đề"><div className="is-active"><span>1</span><strong>Tải tài liệu</strong></div><i /><div className={extractedData ? "is-active" : ""}><span>2</span><strong>Kiểm tra dữ liệu</strong></div><i /><div className={message ? "is-active" : ""}><span>3</span><strong>Lưu hoặc gửi duyệt</strong></div></section>
 
         <section className="upload-card">
           <div className="upload-card-head"><div><span className="step-kicker">BƯỚC 1</span><h2>Chọn file nguồn</h2></div><span className="privacy-note">File được lưu riêng tư và chỉ mở bằng link tạm thời</span></div>
