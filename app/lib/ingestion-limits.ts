@@ -1,0 +1,3 @@
+export const MAX_INGESTION_PAGES = 4;
+export const MAX_INGESTION_TEXT_CHARS = 30_000;
+export const MAX_INGESTION_OCR_BYTES = 5 * 1024 * 1024;

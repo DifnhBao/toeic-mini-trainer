@@ -1,5 +1,20 @@
 type PolledJob = { status: string; errorCode: string | null };
 
+export function ingestionErrorMessage(code: string | null) {
+  const messages: Record<string, string> = {
+    DOCUMENT_PARSE_FAILED: 'PDF bị hỏng hoặc không thể đọc. Hãy thử xuất lại PDF.',
+    DOCUMENT_TEXT_EMPTY: 'PDF không có lớp chữ. Hãy chạy lại sau khi cập nhật để AI đọc bản scan.',
+    DOCUMENT_PAGE_RANGE_INVALID: 'Trang bắt đầu nằm ngoài PDF. Hãy chọn trang hợp lệ.',
+    DOCUMENT_SECTION_TOO_LONG: 'Các trang đã chọn có quá nhiều chữ. Hãy phân tích ít trang hơn trên web.',
+    DOCUMENT_OCR_TOO_LARGE: 'Bản scan quá nặng để đọc ảnh. Hãy nén PDF.',
+    DOCUMENT_NO_QUESTIONS: 'Không tìm thấy câu hỏi trong các trang đã chọn. Hãy chọn trang khác.',
+    AI_RATE_LIMITED: 'Dịch vụ AI đang giới hạn lượt gọi. Hãy thử lại sau.',
+    AI_PROVIDER_UNAVAILABLE: 'Dịch vụ AI tạm thời không phản hồi. Hãy thử lại sau.',
+    AI_RESPONSE_INVALID: 'AI chưa trả về câu hỏi đúng cấu trúc. Hãy thử tài liệu khác hoặc khoảng trang ngắn hơn.',
+  };
+  return messages[code || ''] || `Không thể phân tích tài liệu (${code || 'INGESTION_FAILED'}).`;
+}
+
 export function isTransientPollError(error: unknown) {
   return error instanceof TypeError ||
     (error instanceof Error && 'status' in error && typeof error.status === 'number' &&
@@ -30,7 +45,7 @@ export async function pollIngestionJob<T extends PolledJob>({
       onJob(job);
       if (job.status === 'COMPLETED' || job.status === 'IMPORTED') return job;
       if (job.status === 'FAILED') {
-        throw new Error(`Không thể phân tích tài liệu (${job.errorCode || 'INGESTION_FAILED'}).`);
+        throw new Error(ingestionErrorMessage(job.errorCode));
       }
     } catch (error) {
       if (!isTransientPollError(error)) throw error;
