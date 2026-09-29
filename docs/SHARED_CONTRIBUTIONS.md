@@ -28,7 +28,7 @@ Không chạy migration, bootstrap, deploy hay thử nghiệm có chi phí trên
 
 ## Giới hạn cần xử lý trước khi mở cho người dùng thật
 
-- Duyệt đang theo **cả bộ đề**, chưa sửa/duyệt từng câu. Người gửi xem trước nhưng không sửa đáp án ngay trong app; câu AI trích sai phải từ chối cả bộ và làm lại. Chưa có dashboard quản trị đầy đủ cho danh sách câu cũ/vai trò; các thao tác đó hiện là API/script có audit.
+- Duyệt đang theo **cả bộ đề**, chưa sửa/duyệt từng câu. Người gửi xem trước nhưng không sửa đáp án ngay trong app; câu AI trích sai phải từ chối cả bộ và làm lại. Dashboard web `/admin` đã có danh sách user, job, đóng góp và câu hỏi cũ cùng các thao tác có audit; chưa có chức năng biên tập từng câu hay xử lý hàng loạt. Câu `LEGACY` phải được xem xét thủ công trước khi xuất bản.
 - Audio đóng góp được sao chép sang object key `shared/audio/...` và asset không thuộc tài khoản người gửi khi duyệt. Cần kiểm thử copy/đọc R2 thật và thiết kế quy trình xóa/thu hồi bản sao nếu admin gỡ nội dung; lỗi giữa thao tác copy R2 và transaction DB vẫn có thể để lại object mồ côi cần dọn.
 - Câu chung cũ được gắn `LEGACY`, không tự xuất bản cho khách. Admin chỉ có thể xuất bản từng câu qua API sau khi kiểm tra; câu có media legacy chưa an toàn bị chặn. Chưa có công cụ rà hàng loạt.
 - Nếu sau này cho phép sửa nội dung/đáp án của một câu đã xuất bản, thao tác sửa phải tăng `contentRevision` và rà lại trạng thái xuất bản; nếu không cache lời giải cũ có thể trở nên sai. Hiện chưa có API sửa câu chung.

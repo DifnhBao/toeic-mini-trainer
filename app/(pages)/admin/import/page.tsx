@@ -38,7 +38,7 @@ export default function ImportPage() {
             `🎉 Thành công! Đã thêm ${data.questionsAdded} câu hỏi mới vào Database.`,
           );
         }
-      } catch (error) {
+      } catch {
         setResult("Lỗi: File tải lên không đúng định dạng JSON hợp lệ.");
       } finally {
         setLoading(false);

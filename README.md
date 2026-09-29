@@ -33,6 +33,7 @@ Kiểm tra bản production bằng `npm run build` rồi `npm start`.
 - `app/(pages)/attempts/[attemptId]/page.tsx`: kết quả và chữa bài.
 - `app/(pages)/coach/page.tsx`: giao diện AI Coach.
 - `app/(pages)/admin/extract/page.tsx`: pipeline PDF/audio → dữ liệu câu hỏi.
+- `app/(pages)/admin/page.tsx`: dashboard quản trị web; các trang con theo dõi tài khoản, tài liệu chờ duyệt, job nhập đề và câu hỏi chung.
 - `app/api/**/route.ts`: backend HTTP của từng luồng.
 - `prisma/schema.prisma`: mô hình dữ liệu.
 - `data/01.json`: ví dụ đúng định dạng để nhập câu hỏi.
@@ -62,8 +63,14 @@ Luồng nhập PDF/audio trên web và mobile dùng chung object storage private
 API chỉ ký quyền PUT trong 5 phút. Server kiểm tra kích thước, MIME và magic bytes, sau đó copy có điều kiện ETag từ `pending/` sang `ready/`. URL đọc chỉ sống 60 phút và chỉ cấp cho chủ sở hữu đã đăng nhập. Pipeline AI chạy theo tác vụ có trạng thái, cho phép thử lại tối đa ba lần và luôn yêu cầu người dùng kiểm tra trước khi nhập câu hỏi.
 
 Việc xử lý nền hiện dùng `after()` của Next.js. Trên Vercel, GitHub Actions gọi
-endpoint worker có secret mỗi 5 phút để quét job `PENDING` và phục hồi job bị
+endpoint worker có secret mỗi giờ để quét job `PENDING` và phục hồi job bị
 ngắt; xem [hướng dẫn staging Vercel](docs/VERCEL_STAGING.md). Tác vụ vượt giới hạn
 Function vẫn cần worker/queue riêng trước khi mở rộng người dùng.
 
 Không commit `.env`, file audio/PDF riêng tư hoặc khóa API lên Git.
+
+## Quản trị web
+
+Đăng nhập bằng tài khoản có vai trò `ADMIN`, rồi mở `/admin`. Dashboard và các trang quản trị mới kiểm tra vai trò đang lưu trong database ở mỗi request; API thay đổi quyền, trạng thái tài khoản, duyệt đóng góp và xuất bản/ẩn câu hỏi tiếp tục kiểm tra quyền độc lập và ghi audit. Admin có thể tìm user, xem trạng thái PDF/audio và job xử lý, duyệt tài liệu kèm PDF nguồn và audio, rà soát câu hỏi `LEGACY`, và xem nhật ký phân trang. Mọi thay đổi quyền/trạng thái hay xuất bản câu hỏi cần lý do.
+
+Trang `/admin/extract` cũ vẫn là luồng nhập PDF riêng tư cho mọi người dùng đăng nhập. Sau khi kiểm tra kết quả trích xuất, người gửi có thể chọn lưu vào kho cá nhân hoặc xác nhận quyền chia sẻ để gửi kho chung; chỉ khi được duyệt thì nội dung mới công khai. Không tự động xuất bản toàn bộ câu hỏi `LEGACY`.
