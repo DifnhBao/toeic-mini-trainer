@@ -1,0 +1,3 @@
+ALTER TABLE "ingestion_jobs"
+  ADD COLUMN "pageStart" INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN "pageEnd" INTEGER;
