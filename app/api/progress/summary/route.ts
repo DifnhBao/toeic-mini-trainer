@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { auth } from "@/auth";
+import { requestUser } from "@/app/lib/request-user";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     // 1. Kiểm tra session đăng nhập hiện tại từ NextAuth
-    const session = await auth();
+    const user = await requestUser(request);
 
-    if (!session || !session.user || !session.user.email) {
+    if (!user) {
       // Trả về lỗi 401 (Unauthorized) nếu chưa đăng nhập
       return NextResponse.json(
         { error: "Vui lòng đăng nhập để xem thống kê" },
@@ -16,18 +16,6 @@ export async function GET() {
     }
 
     // 2. Tìm user trong Database dựa vào email từ tài khoản Google
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      // Nếu không tìm thấy user (chưa đồng bộ kịp), trả về dữ liệu trống
-      return NextResponse.json(
-        { totalTests: 0, overallAccuracy: 0, partStats: [] },
-        { status: 200 },
-      );
-    }
-
     // 3. Lấy toàn bộ lịch sử làm bài CỦA RIÊNG USER ĐANG ĐĂNG NHẬP
     const attempts = await prisma.testAttempt.findMany({
       where: { userId: user.id },

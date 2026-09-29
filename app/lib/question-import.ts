@@ -64,6 +64,8 @@ export async function importExtractedQuestions(
   ownerId: string,
   input: unknown,
   finalize?: (tx: Prisma.TransactionClient, questionsAdded: number) => Promise<void>,
+  sharedContributionId?: string,
+  sharedAsset?: Prisma.UploadedAssetUncheckedCreateInput & { id: string },
 ) {
   const parsed = extractedDataSchema.parse(input);
   const assetIds = new Set<string>();
@@ -71,6 +73,17 @@ export async function importExtractedQuestions(
     if (item.group?.audioAssetId) assetIds.add(item.group.audioAssetId);
     if (item.group?.imageAssetId) assetIds.add(item.group.imageAssetId);
   }
+  if (sharedContributionId && assetIds.size > 0 && !sharedAsset) {
+    throw new Error("SHARED_ASSET_REQUIRED");
+  }
+  if (sharedAsset) {
+    if (!sharedContributionId || sharedAsset.kind !== "AUDIO" || sharedAsset.ownerId !== null ||
+      !assetIds.has(sharedAsset.id)) {
+      throw new Error("SHARED_ASSET_INVALID");
+    }
+    assetIds.delete(sharedAsset.id);
+  }
+  if (sharedContributionId && assetIds.size > 0) throw new Error("SHARED_ASSET_INVALID");
 
   if (assetIds.size > 0) {
     const ownedAssets = await prisma.uploadedAsset.findMany({
@@ -84,13 +97,15 @@ export async function importExtractedQuestions(
 
   return prisma.$transaction(
     async (tx) => {
+      if (sharedAsset) await tx.uploadedAsset.create({ data: sharedAsset });
       let questionsAdded = 0;
       for (const item of parsed.data) {
         let groupId: string | null = null;
         if (item.group) {
           const group = await tx.questionGroup.create({
             data: {
-              ownerId,
+              ownerId: sharedContributionId ? null : ownerId,
+              contributionId: sharedContributionId || null,
               groupType: item.group.groupType,
               passageText: item.group.passageText || null,
               audioUrl: item.group.audioUrl || null,
@@ -105,7 +120,9 @@ export async function importExtractedQuestions(
         for (const question of item.questions) {
           await tx.question.create({
             data: {
-              ownerId,
+              ownerId: sharedContributionId ? null : ownerId,
+              contributionId: sharedContributionId || null,
+              publicationStatus: sharedContributionId ? "PUBLISHED" : "PRIVATE",
               groupId,
               part: question.part,
               content: question.content || null,

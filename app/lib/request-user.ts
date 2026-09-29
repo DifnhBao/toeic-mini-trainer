@@ -9,19 +9,25 @@ export async function requestUser(request: Request) {
     return mobileUserFromRequest(request);
   }
 
+  return currentWebUser();
+}
+
+export async function currentWebUser() {
   const session = await auth();
   const id = session?.user?.id;
   if (id) {
-    return prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, image: true },
+      select: { id: true, name: true, email: true, image: true, role: true, status: true },
     });
+    return user?.status === "ACTIVE" ? user : null;
   }
 
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) return null;
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, name: true, email: true, image: true },
+    select: { id: true, name: true, email: true, image: true, role: true, status: true },
   });
+  return user?.status === "ACTIVE" ? user : null;
 }

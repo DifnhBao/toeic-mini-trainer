@@ -31,6 +31,7 @@ export const logoutSchema = z.object({
 export async function parseBoundedJson<T extends z.ZodType>(
   request: Request,
   schema: T,
+  maxBytes = MAX_JSON_BYTES,
 ): Promise<{ success: true; data: z.infer<T> } | { success: false; response: Response }> {
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   if (!contentType.startsWith("application/json")) {
@@ -41,7 +42,7 @@ export async function parseBoundedJson<T extends z.ZodType>(
   }
 
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_JSON_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     return {
       success: false,
       response: apiError("PAYLOAD_TOO_LARGE", "Dữ liệu gửi lên quá lớn.", 413),
@@ -50,7 +51,7 @@ export async function parseBoundedJson<T extends z.ZodType>(
 
   try {
     const text = await request.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES) {
+    if (new TextEncoder().encode(text).byteLength > maxBytes) {
       return {
         success: false,
         response: apiError("PAYLOAD_TOO_LARGE", "Dữ liệu gửi lên quá lớn.", 413),

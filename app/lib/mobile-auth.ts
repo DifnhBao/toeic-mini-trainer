@@ -29,6 +29,13 @@ export type MobileIdentity = {
   image?: string;
 };
 
+export class AccountSuspendedError extends Error {
+  constructor() {
+    super("Account is suspended");
+    this.name = "AccountSuspendedError";
+  }
+}
+
 function mobileJwtSecret() {
   const value = process.env.MOBILE_JWT_SECRET;
   if (!value || value.length < 32) {
@@ -121,7 +128,10 @@ export async function resolveMobileUser(identity: MobileIdentity) {
     },
     include: { user: true },
   });
-  if (existingAccount) return existingAccount.user;
+  if (existingAccount) {
+    if (existingAccount.user.status !== "ACTIVE") throw new AccountSuspendedError();
+    return existingAccount.user;
+  }
 
   if (!identity.email || !identity.emailVerified) {
     throw new Error("A verified email is required for the first sign-in");
@@ -152,6 +162,7 @@ export async function resolveMobileUser(identity: MobileIdentity) {
           providerAccountId: identity.providerAccountId,
         },
       });
+      if (user.status !== "ACTIVE") throw new AccountSuspendedError();
       return user;
     });
   } catch (error) {
@@ -166,7 +177,10 @@ export async function resolveMobileUser(identity: MobileIdentity) {
         },
         include: { user: true },
       });
-      if (account) return account.user;
+      if (account) {
+        if (account.user.status !== "ACTIVE") throw new AccountSuspendedError();
+        return account.user;
+      }
     }
     throw error;
   }
@@ -197,6 +211,8 @@ export async function createMobileSession(
   deviceId: string,
   deviceName?: string,
 ) {
+  const activeUser = await prisma.user.findFirst({ where: { id: userId, status: "ACTIVE" }, select: { id: true } });
+  if (!activeUser) throw new AccountSuspendedError();
   const refreshToken = newRefreshToken();
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
 
@@ -224,6 +240,10 @@ export async function rotateRefreshToken(token: string, deviceId: string) {
     where: { tokenHash: hashRefreshToken(token) },
   });
   if (!session) return null;
+  const activeUser = await prisma.user.findFirst({
+    where: { id: session.userId, status: "ACTIVE" }, select: { id: true },
+  });
+  if (!activeUser) return null;
 
   const now = new Date();
   if (session.revokedAt) {
@@ -311,10 +331,11 @@ export async function mobileUserFromRequest(request: Request) {
 
   try {
     const payload = await verifyMobileAccessToken(token);
-    return prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, name: true, email: true, image: true },
+      select: { id: true, name: true, email: true, image: true, role: true, status: true },
     });
+    return user?.status === "ACTIVE" ? user : null;
   } catch {
     return null;
   }

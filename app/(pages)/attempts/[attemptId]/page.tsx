@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth } from "@/auth";
+import { currentWebUser } from "@/app/lib/request-user";
 import { prisma } from "@/app/lib/prisma";
 import AppHeader from "@/app/components/AppHeader";
 import AiExplainButton from "@/app/components/AiExplainButton";
@@ -8,17 +8,17 @@ import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
 
 export default async function ResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = await params;
-  const session = await auth();
+  const user = await currentWebUser();
 
-  const rawAttempt = session?.user?.email ? await prisma.testAttempt.findFirst({
-    where: { id: attemptId, user: { email: session.user.email } },
+  const rawAttempt = user ? await prisma.testAttempt.findFirst({
+    where: { id: attemptId, userId: user.id },
     include: {
       test: true,
       userAnswers: {
         include: {
           question: {
             include: {
-              group: { include: { audioAsset: true, imageAsset: true } },
+              group: { include: { audioAsset: true, imageAsset: true, contribution: { select: { status: true } } } },
             },
           },
           aiExplanation: true,

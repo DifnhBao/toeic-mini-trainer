@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
+import { consumeDailyAiCall } from "@/app/lib/ai-usage";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
@@ -48,6 +49,15 @@ export async function POST(request: Request) {
   }
   if (body.data.audioAssetId && audioAsset?.kind !== "AUDIO") {
     return apiError("AUDIO_ASSET_INVALID", "Audio chưa sẵn sàng hoặc không thuộc tài khoản.", 400);
+  }
+
+  // Unlike an in-memory rate limiter, this quota survives Vercel instances
+  // and bounds the number of potentially paid PDF extraction calls per user.
+  try {
+    const allowed = await consumeDailyAiCall(user.id, "ingestion", user.role === "ADMIN" ? 10 : 3);
+    if (!allowed) return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt nhập tài liệu hôm nay.", 429);
+  } catch {
+    return apiError("AI_UNAVAILABLE", "Chưa thể kiểm tra hạn mức nhập tài liệu.", 503);
   }
 
   const job = await prisma.ingestionJob.create({

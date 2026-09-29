@@ -40,6 +40,7 @@ export async function GET(
                     passageText: true,
                     audioUrl: true,
                     imageUrl: true,
+                    contribution: { select: { status: true } },
                     audioAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
                     imageAsset: { select: { objectKey: true, kind: true, status: true, ownerId: true } },
                   },

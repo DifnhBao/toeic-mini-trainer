@@ -16,6 +16,8 @@ datasource db {
 // ---------------------------------------------------------
 model User {
   id            String    @id @default(uuid())
+  role          UserRole  @default(USER)
+  status        UserStatus @default(ACTIVE)
   name          String?
   email         String?   @unique
   emailVerified DateTime? // NextAuth cần trường này
@@ -32,8 +34,57 @@ model User {
   ingestionJobs  IngestionJob[]
   questionGroups QuestionGroup[]
   questions      Question[]
+  contributions  ContentContribution[] @relation("ContributionOwner")
+  reviewedContributions ContentContribution[] @relation("ContributionReviewer")
+  auditEvents   AuthorizationAuditEvent[]
 
   @@map("users")
+}
+
+enum UserRole {
+  USER
+  REVIEWER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model AuthorizationAuditEvent {
+  id            String   @id @default(uuid())
+  actorId       String
+  action        String
+  targetType    String
+  targetId      String
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@map("authorization_audit_events")
+}
+
+// Daily guest-test quota only. No question IDs, answers, or scores are saved.
+model GuestUsage {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("guest_usage")
+}
+
+model UserAiUsage {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("user_ai_usage")
 }
 
 enum AssetKind {
@@ -57,11 +108,40 @@ enum IngestionStatus {
   FAILED
 }
 
+enum ContributionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ContentContribution {
+  id          String             @id @default(uuid())
+  ownerId     String
+  sourceJobId String             @unique
+  status      ContributionStatus @default(PENDING)
+  data        Json
+  reviewedById String?
+  reviewNote  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  owner       User               @relation("ContributionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  reviewer    User?              @relation("ContributionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  sourceJob   IngestionJob       @relation(fields: [sourceJobId], references: [id], onDelete: Restrict)
+  groups      QuestionGroup[]
+  questions   Question[]
+
+  @@index([status, createdAt])
+  @@index([ownerId, createdAt])
+  @@map("content_contributions")
+}
+
 // Metadata only. Object-storage credentials and signed URLs are never stored
 // in the database. PENDING objects should be removed by a bucket lifecycle rule.
 model UploadedAsset {
   id           String      @id @default(uuid())
-  ownerId      String
+  ownerId      String?
   kind         AssetKind
   status       AssetStatus @default(PENDING)
   objectKey    String      @unique
@@ -74,7 +154,7 @@ model UploadedAsset {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   audioQuestionGroups   QuestionGroup[] @relation("QuestionGroupAudioAsset")
   imageQuestionGroups   QuestionGroup[] @relation("QuestionGroupImageAsset")
@@ -104,6 +184,7 @@ model IngestionJob {
   owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   documentAsset UploadedAsset  @relation("IngestionDocumentAsset", fields: [documentAssetId], references: [id], onDelete: Restrict)
   audioAsset    UploadedAsset? @relation("IngestionAudioAsset", fields: [audioAssetId], references: [id], onDelete: SetNull)
+  contribution ContentContribution?
 
   @@index([ownerId, createdAt])
   @@index([status, createdAt])
@@ -121,9 +202,17 @@ enum GroupType {
   MIXED
 }
 
+enum QuestionPublicationStatus {
+  PRIVATE
+  LEGACY
+  PUBLISHED
+  ARCHIVED
+}
+
 model QuestionGroup {
   id           String    @id @default(uuid())
   ownerId      String?
+  contributionId String?
   groupType    GroupType
   audioUrl     String? // Legacy/local link; production uploads use audioAssetId
   imageUrl     String? // Legacy/local link; production uploads use imageAssetId
@@ -134,10 +223,12 @@ model QuestionGroup {
 
   questions  Question[]
   owner      User?          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  contribution ContentContribution? @relation(fields: [contributionId], references: [id], onDelete: SetNull)
   audioAsset UploadedAsset? @relation("QuestionGroupAudioAsset", fields: [audioAssetId], references: [id], onDelete: SetNull)
   imageAsset UploadedAsset? @relation("QuestionGroupImageAsset", fields: [imageAssetId], references: [id], onDelete: SetNull)
 
   @@index([ownerId])
+  @@index([contributionId])
   @@index([audioAssetId])
   @@index([imageAssetId])
   @@map("question_groups")
@@ -146,6 +237,9 @@ model QuestionGroup {
 model Question {
   id            String   @id @default(uuid())
   ownerId       String?
+  contributionId String?
+  publicationStatus QuestionPublicationStatus @default(PRIVATE)
+  contentRevision Int @default(1)
   groupId       String? // Nullable: Null cho Part 2, Part 5
   part          Int // 1 đến 7
   content       String? // Nội dung câu hỏi (Null cho Part 1, Part 2)
@@ -154,12 +248,16 @@ model Question {
   createdAt     DateTime @default(now())
 
   owner         User?              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  contribution  ContentContribution? @relation(fields: [contributionId], references: [id], onDelete: SetNull)
   group         QuestionGroup?     @relation(fields: [groupId], references: [id], onDelete: SetNull)
   skillTags     QuestionSkillTag[]
   testQuestions MiniTestQuestion[]
   userAnswers   UserAnswer[]
+  explanationCaches QuestionExplanationCache[]
 
   @@index([ownerId, part])
+  @@index([publicationStatus, part])
+  @@index([contributionId])
   @@index([part])
   @@index([groupId])
   @@map("questions")
@@ -247,6 +345,33 @@ model AiExplanation {
   userAnswer UserAnswer @relation(fields: [userAnswerId], references: [id], onDelete: Cascade)
 
   @@map("ai_explanations")
+}
+
+enum ExplanationCacheStatus {
+  GENERATING
+  READY
+  FAILED
+  HIDDEN
+}
+
+model QuestionExplanationCache {
+  id              String @id @default(uuid())
+  questionId      String
+  contentRevision Int
+  locale          String @default("vi")
+  promptVersion   Int @default(1)
+  status          ExplanationCacheStatus @default(GENERATING)
+  explanation     Json?
+  startedAt       DateTime @default(now())
+  generatedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, contentRevision, locale, promptVersion])
+  @@index([status, updatedAt])
+  @@map("question_explanation_cache")
 }
 
 model SkillTag {

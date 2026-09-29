@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { auth } from "@/auth";
+import { currentWebUser } from "@/app/lib/request-user";
 import { prisma } from "@/app/lib/prisma";
 import AppHeader from "@/app/components/AppHeader";
 
 export default async function HistoryPage() {
-  const session = await auth();
-  const attempts = session?.user?.email ? await prisma.testAttempt.findMany({
-    where: { user: { email: session.user.email } },
+  const user = await currentWebUser();
+  const attempts = user ? await prisma.testAttempt.findMany({
+    where: { userId: user.id },
     orderBy: { completedAt: "desc" },
     include: { test: true, userAnswers: { include: { question: true } } },
   }) : [];
@@ -25,7 +25,7 @@ export default async function HistoryPage() {
           <div><span>TỔNG SỐ BÀI</span><strong>{attempts.length}</strong></div><div><span>CÂU ĐÃ LUYỆN</span><strong>{totalQuestions}</strong></div><div><span>ĐỘ CHÍNH XÁC</span><strong>{accuracy}%</strong></div>
         </section>
 
-        {!session?.user ? (
+        {!user ? (
           <div className="history-empty"><strong>Đăng nhập để xem lịch sử</strong><p>Kết quả được gắn với tài khoản Google của bạn.</p><Link href="/">Về trang chủ để đăng nhập</Link></div>
         ) : attempts.length === 0 ? (
           <div className="history-empty"><strong>Chưa có bài luyện nào</strong><p>Bắt đầu bằng một mini test 5 câu để tạo mốc đầu tiên.</p><Link href="/">Tạo bài luyện đầu tiên</Link></div>

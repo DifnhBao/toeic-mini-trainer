@@ -6,6 +6,7 @@ import {
   providerSignInSchema,
 } from "@/app/lib/mobile-api";
 import {
+  AccountSuspendedError,
   createMobileSession,
   resolveMobileUser,
   verifyGoogleIdentity,
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
       tokens,
     });
   } catch (error) {
+    if (error instanceof AccountSuspendedError) {
+      return apiError("ACCOUNT_SUSPENDED", "Tài khoản đã bị tạm khóa.", 403);
+    }
     console.error("mobile Google session creation failed", {
       errorType: error instanceof Error ? error.name : "unknown",
     });

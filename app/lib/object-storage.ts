@@ -136,7 +136,11 @@ export async function createSignedUploadUrl(
   );
 }
 
-export async function createSignedReadUrl(objectKey: string, kind: UploadKind) {
+export async function createSignedReadUrl(
+  objectKey: string,
+  kind: UploadKind,
+  expiresIn = READ_URL_TTL_SECONDS,
+) {
   const { client, bucket } = clientAndBucket();
   return getSignedUrl(
     client,
@@ -145,7 +149,7 @@ export async function createSignedReadUrl(objectKey: string, kind: UploadKind) {
       Key: objectKey,
       ResponseContentDisposition: kind === "DOCUMENT" ? "attachment" : "inline",
     }),
-    { expiresIn: READ_URL_TTL_SECONDS },
+    { expiresIn },
   );
 }
 
@@ -165,11 +169,12 @@ export async function readStoredObject(objectKey: string, maxBytes: number) {
 
 export async function resolveMediaUrl(
   legacyUrl: string | null,
-  asset: { objectKey: string; kind: UploadKind; status: string; ownerId: string } | null,
+  asset: { objectKey: string; kind: UploadKind; status: string; ownerId: string | null } | null,
   expectedOwnerId: string,
+  approvedSharedMedia = false,
 ) {
   if (asset) {
-    if (asset.status === "READY" && asset.ownerId === expectedOwnerId) {
+    if (canReadMediaAsset(asset, expectedOwnerId, approvedSharedMedia)) {
       return createSignedReadUrl(asset.objectKey, asset.kind);
     }
     return null;
@@ -177,11 +182,20 @@ export async function resolveMediaUrl(
   return legacyUrl;
 }
 
+export function canReadMediaAsset(
+  asset: { status: string; ownerId: string | null },
+  expectedOwnerId: string,
+  approvedSharedMedia: boolean,
+) {
+  return asset.status === "READY" && (asset.ownerId === null || asset.ownerId === expectedOwnerId || approvedSharedMedia);
+}
+
 type ResolvableQuestionGroup = {
   audioUrl: string | null;
   imageUrl: string | null;
-  audioAsset: { objectKey: string; kind: UploadKind; status: string; ownerId: string } | null;
-  imageAsset: { objectKey: string; kind: UploadKind; status: string; ownerId: string } | null;
+  contribution?: { status: string } | null;
+  audioAsset: { objectKey: string; kind: UploadKind; status: string; ownerId: string | null } | null;
+  imageAsset: { objectKey: string; kind: UploadKind; status: string; ownerId: string | null } | null;
 };
 
 export async function resolveQuestionGroupMedia<T extends ResolvableQuestionGroup>(
@@ -189,10 +203,11 @@ export async function resolveQuestionGroupMedia<T extends ResolvableQuestionGrou
   expectedOwnerId: string,
 ) {
   if (!group) return null;
-  const { audioAsset, imageAsset, ...rest } = group;
+  const { audioAsset, imageAsset, contribution, ...rest } = group;
+  const approvedSharedMedia = contribution?.status === "APPROVED";
   const [audioUrl, imageUrl] = await Promise.all([
-    resolveMediaUrl(group.audioUrl, audioAsset, expectedOwnerId),
-    resolveMediaUrl(group.imageUrl, imageAsset, expectedOwnerId),
+    resolveMediaUrl(group.audioUrl, audioAsset, expectedOwnerId, approvedSharedMedia),
+    resolveMediaUrl(group.imageUrl, imageAsset, expectedOwnerId, approvedSharedMedia),
   ]);
   return { ...rest, audioUrl, imageUrl };
 }

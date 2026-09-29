@@ -2,7 +2,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as Google from 'expo-auth-session/providers/google';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -252,6 +252,9 @@ export default function SignInScreen() {
             Android Keystore.
           </Text>
         </View>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/guest')} style={styles.configNotice}>
+          <Text style={styles.retryText}>Học thử 10 câu không cần đăng nhập →</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );

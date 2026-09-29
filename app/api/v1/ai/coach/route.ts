@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
+import { consumeDailyAiCall } from "@/app/lib/ai-usage";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { takeRateLimit } from "@/app/lib/rate-limit";
@@ -52,6 +53,10 @@ export async function POST(request: Request) {
   if (!body.success) return body.response;
 
   const focus = body.data.part?.trim() || "Tổng hợp";
+
+  if (!(await consumeDailyAiCall(user.id, "coach", 20))) {
+    return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt hỏi AI hôm nay.", 429);
+  }
 
   try {
     const response = await ai.models.generateContent({

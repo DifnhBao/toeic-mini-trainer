@@ -26,6 +26,7 @@ function RootNavigator() {
       }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+      <Stack.Screen name="guest" options={{ title: 'Học thử' }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="test/[id]" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="result/[id]" options={{ title: 'Kết quả', headerBackTitle: 'Trang chủ' }} />

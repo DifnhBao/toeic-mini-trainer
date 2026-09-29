@@ -41,7 +41,10 @@ export async function POST(request: Request) {
       where: {
         AND: [
           partClause,
-          { OR: [{ ownerId: null }, { ownerId: user.id }] },
+          { OR: [
+            { ownerId: null, publicationStatus: { in: ["LEGACY", "PUBLISHED"] } },
+            { ownerId: user.id, publicationStatus: "PRIVATE" },
+          ] },
         ],
       },
       select: { id: true },

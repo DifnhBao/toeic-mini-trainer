@@ -24,6 +24,12 @@ export async function POST(request: Request) {
     // Requeue only after twice the maximum function lifetime has elapsed.
     const staleBefore = new Date(Date.now() - STALE_AFTER_MS);
     const now = new Date();
+    // The hourly, secret-protected sweep also expires anonymous/AI quota
+    // counters; neither table contains learning history.
+    await Promise.all([
+      prisma.guestUsage.deleteMany({ where: { expiresAt: { lt: now } } }),
+      prisma.userAiUsage.deleteMany({ where: { expiresAt: { lt: now } } }),
+    ]);
     await prisma.ingestionJob.updateMany({
       where: { status: "PROCESSING", startedAt: { lt: staleBefore }, attemptCount: { lt: 3 } },
       data: { status: "PENDING", startedAt: null, completedAt: null, errorCode: null },

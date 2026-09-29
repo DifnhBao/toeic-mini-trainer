@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { auth } from "@/auth";
+import { currentWebUser } from "@/app/lib/request-user";
 
 export async function POST(request: Request) {
   try {
@@ -12,8 +12,8 @@ export async function POST(request: Request) {
         { status: 410 },
       );
     }
-    const session = await auth();
-    if (!session?.user?.email) {
+    const user = await currentWebUser();
+    if (!user) {
       return NextResponse.json({ error: "Vui lòng đăng nhập." }, { status: 401 });
     }
 

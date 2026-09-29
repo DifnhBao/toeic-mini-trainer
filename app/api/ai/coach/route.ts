@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import { auth } from "@/auth";
+import { requestUser } from "@/app/lib/request-user";
+import { consumeDailyAiCall } from "@/app/lib/ai-usage";
 
 const ai = new GoogleGenAI({});
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const user = await requestUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Vui lòng đăng nhập để dùng AI Coach." }, { status: 401 });
     }
 
@@ -17,6 +18,10 @@ export async function POST(request: Request) {
 
     if (!message || message.length > 2000) {
       return NextResponse.json({ error: "Câu hỏi cần từ 1 đến 2.000 ký tự." }, { status: 400 });
+    }
+
+    if (!(await consumeDailyAiCall(user.id, "coach", 20))) {
+      return NextResponse.json({ error: "Bạn đã dùng hết lượt hỏi AI hôm nay." }, { status: 429 });
     }
 
     const prompt = `

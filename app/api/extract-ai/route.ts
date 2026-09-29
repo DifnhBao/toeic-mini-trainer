@@ -4,7 +4,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 import { randomUUID } from "crypto";
-import { auth } from "@/auth";
+import { currentWebUser } from "@/app/lib/request-user";
 
 const ai = new GoogleGenAI({});
 
@@ -16,8 +16,8 @@ export async function POST(request: Request) {
         { status: 410 },
       );
     }
-    const session = await auth();
-    if (!session?.user?.email) {
+    const user = await currentWebUser();
+    if (!user) {
       return NextResponse.json({ error: "Vui lòng đăng nhập để nhập tài liệu." }, { status: 401 });
     }
 
