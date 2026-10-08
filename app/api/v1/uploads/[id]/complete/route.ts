@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { requestUser } from "@/app/lib/request-user";
+import { hasRole } from "@/app/lib/authorization";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,7 @@ export async function POST(
 ) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
+  if (!hasRole(user, "ADMIN")) return apiError("ADMIN_CONTENT_ONLY", "Chỉ quản trị viên được nhập đề và audio trên web.", 403);
 
   const limit = await takeRateLimit(request, `mobile-upload-complete:${user.id}`, 30, 10 * 60_000);
   if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });

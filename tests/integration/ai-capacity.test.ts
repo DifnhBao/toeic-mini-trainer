@@ -46,11 +46,16 @@ describe("PostgreSQL AI capacity across independent clients", () => {
   it("admits exactly three out of twenty simultaneous requests", async () => {
     const results = await Promise.allSettled(Array.from({ length: 20 }, (_, index) => acquire(clients[index % 2])));
     const admitted = results.filter((result) => result.status === "fulfilled");
-    assert.equal(admitted.length, 3);
-    for (const result of results) {
-      if (result.status === "rejected") assert.ok(result.reason instanceof capacity.AiCapacityError && result.reason.code === "AI_BUSY");
+    try {
+      assert.equal(admitted.length, 3);
+      for (const result of results) {
+        if (result.status === "rejected") assert.ok(result.reason instanceof capacity.AiCapacityError && result.reason.code === "AI_BUSY");
+      }
+    } finally {
+      // A failed assertion must not leave this test's permits active and turn
+      // independent expiry/recovery checks into cascading AI_BUSY failures.
+      await Promise.all(admitted.map((result) => result.status === "fulfilled" && result.value.release()));
     }
-    await Promise.all(admitted.map((result) => result.status === "fulfilled" && result.value.release()));
     assert.equal(await clients[1].userAiUsage.count({ where: { key: { in: [...ownLeases] } } }), 0);
   });
   it("reclaims expired permits and a late release cannot remove a replacement", async () => {

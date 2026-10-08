@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:integration": "node --import tsx --test tests/integration/*.test.ts",
+    "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "audit:dependencies": "node --experimental-strip-types scripts/audit-dependencies.mts",
     "check:mobile-bundle": "node --experimental-strip-types scripts/check-mobile-bundle.mts",
     "check:vercel-payload": "node --experimental-strip-types scripts/check-vercel-payload.mts",

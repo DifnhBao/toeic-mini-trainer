@@ -5,6 +5,7 @@ import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { requestUser } from "@/app/lib/request-user";
 import { processIngestionJob } from "@/app/lib/toeic-ingestion";
+import { hasRole } from "@/app/lib/authorization";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -17,6 +18,7 @@ export async function POST(
 ) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
+  if (!hasRole(user, "ADMIN")) return apiError("ADMIN_CONTENT_ONLY", "Chỉ quản trị viên được xử lý lại tài liệu trên web.", 403);
 
   const parsedId = idSchema.safeParse((await params).id);
   if (!parsedId.success) return apiError("INVALID_JOB_ID", "Mã tác vụ không hợp lệ.", 400);

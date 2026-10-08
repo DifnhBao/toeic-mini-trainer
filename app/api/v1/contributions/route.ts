@@ -43,6 +43,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
+  if (!hasRole(user, "ADMIN")) return apiError("ADMIN_CONTENT_ONLY", "Chỉ quản trị viên được chuẩn bị nội dung mới cho kho chung.", 403);
 
   const limit = await takeRateLimit(request, `contribution-submit:${user.id}`, 5, 60_000);
   if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });

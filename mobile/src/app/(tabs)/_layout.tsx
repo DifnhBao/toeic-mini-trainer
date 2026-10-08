@@ -32,7 +32,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Hôm nay', headerTitle: 'TOEIC Mini Trainer' }} />
       <Tabs.Screen name="practice" options={{ title: 'Luyện tập', headerTitle: 'Tạo bài luyện' }} />
       <Tabs.Screen name="coach" options={{ title: 'AI Coach', headerTitle: 'Giáo viên AI' }} />
-      <Tabs.Screen name="library" options={{ title: 'Tài liệu', headerTitle: 'Kho tài liệu' }} />
+      <Tabs.Screen name="library" options={{ title: 'Kho bài', headerTitle: 'Bài có sẵn' }} />
       <Tabs.Screen name="profile" options={{ title: 'Cá nhân', headerTitle: 'Tài khoản' }} />
     </Tabs>
   );

@@ -14,6 +14,7 @@ let importRoute: typeof import('../app/api/v1/ingestions/[id]/import/route');
 let listRoute: typeof import('../app/api/v1/ingestions/route');
 let contributionRoute: typeof import('../app/api/v1/contributions/route');
 let prisma: PrismaClient;
+let contentWriters: Array<(request: Request) => Promise<Response>>;
 const priorSecret = process.env.MOBILE_JWT_SECRET;
 const priorGemini = process.env.GEMINI_API_KEY;
 
@@ -35,6 +36,38 @@ before(async () => {
   importRoute = await import('../app/api/v1/ingestions/[id]/import/route');
   listRoute = await import('../app/api/v1/ingestions/route');
   contributionRoute = await import('../app/api/v1/contributions/route');
+  const upload = await import('../app/api/v1/uploads/route');
+  const complete = await import('../app/api/v1/uploads/[id]/complete/route');
+  const retry = await import('../app/api/v1/ingestions/[id]/retry/route');
+  const invalidId = { params: Promise.resolve({ id: 'invalid' }) };
+  contentWriters = [(req) => upload.POST(req), (req) => complete.POST(req, invalidId),
+    (req) => listRoute.POST(req), (req) => retry.POST(req, invalidId), (req) => contributionRoute.POST(req)];
+});
+
+describe('admin-prepared content policy at the real API entry points', () => {
+  for (const role of ['USER', 'REVIEWER'] as const) {
+    it(`rejects ${role} before upload, storage, quota or worker access`, async () => {
+      fakeDatabase();
+      mock.method(prisma.user, 'findUnique', async () => ({ id: 'owner', role, status: 'ACTIVE' }));
+      for (const write of contentWriters) {
+        const response = await write(await request('{}'));
+        assert.equal(response.status, 403);
+        assert.equal((await response.json()).error.code, 'ADMIN_CONTENT_ONLY');
+      }
+    });
+  }
+  it('rejects suspended admins and invalid access tokens', async () => {
+    fakeDatabase();
+    mock.method(prisma.user, 'findUnique', async () => ({ id: 'owner', role: 'ADMIN', status: 'SUSPENDED' }));
+    for (const write of contentWriters) {
+      assert.equal((await write(await request('{}'))).status, 401);
+      assert.equal((await write(new Request('https://api.example', { method: 'POST', headers: { authorization: 'Bearer invalid' } }))).status, 401);
+    }
+  });
+  it('lets an active admin reach validation without calling storage or AI', async () => {
+    fakeDatabase();
+    for (const write of contentWriters) assert.equal((await write(await request('{}', 'policy-admin'))).status, 400);
+  });
 });
 afterEach(() => mock.restoreAll());
 after(() => {
@@ -54,7 +87,7 @@ async function request(body?: string, userId = 'owner') {
 function fakeDatabase(source: unknown = { data: groups }, audioAssetId: string | null = null) {
   let status = 'COMPLETED'; let importedAt: Date | null = null; let claimed = 0;
   const saved: Array<Prisma.QuestionUncheckedCreateInput> = [];
-  mock.method(prisma.user, 'findUnique', async ({ where }: { where: { id: string } }) => ({ id: where.id, role: 'USER', status: 'ACTIVE' }));
+  mock.method(prisma.user, 'findUnique', async ({ where }: { where: { id: string } }) => ({ id: where.id, role: 'ADMIN', status: 'ACTIVE' }));
   mock.method(prisma.ingestionJob, 'findFirst', async ({ where }: { where: { id: string; ownerId: string } }) =>
     where.ownerId === 'owner' && where.id === jobId ? { id: jobId, audioAssetId, result: source, status, importedAt } : null);
   mock.method(prisma.ingestionJob, 'updateMany', async ({ where }: { where: { ownerId: string } }) => {

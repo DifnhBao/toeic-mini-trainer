@@ -86,10 +86,12 @@ export default function IngestionQuestionReview({
   groups,
   jobId,
   pageRange,
+  forSharedLibrary = false,
 }: {
   groups: ExtractedGroup[];
   jobId: string;
   pageRange: { start: number; end: number } | null;
+  forSharedLibrary?: boolean;
 }) {
   const [entries, setEntries] = useState(() => initialEntries(groups));
   const [activeIndex, setActiveIndex] = useState(0);
@@ -174,7 +176,7 @@ export default function IngestionQuestionReview({
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error?.message || "Không thể gửi đóng góp.");
       setSubmittedForReview(true);
-      setMessage("Đã gửi các câu được duyệt vào hàng chờ. Nội dung chưa công khai cho người học.");
+      setMessage("Đã chuyển sang bước xuất bản. Mở trang Duyệt nội dung, kiểm tra PDF/audio và bấm Duyệt & công khai để người học chọn được bài.");
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Không thể gửi đóng góp.");
     } finally {
@@ -263,13 +265,14 @@ export default function IngestionQuestionReview({
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
         <p className="text-sm text-slate-600">{counts.pending > 0 ? `Còn ${counts.pending} câu cần quyết định.` : counts.approved === 0 ? "Cần duyệt ít nhất một câu để lưu." : "Đã duyệt toàn bộ. Chỉ câu được duyệt mới được lưu."}</p>
-        <button type="button" className="save-bank-button" disabled={!canSave} onClick={() => void save()}>{busy ? "Đang lưu…" : imported ? "Đã lưu" : `Lưu ${counts.approved} câu đã duyệt`}</button>
+        {!forSharedLibrary && <button type="button" className="save-bank-button" disabled={!canSave} onClick={() => void save()}>{busy ? "Đang lưu…" : imported ? "Đã lưu" : `Lưu ${counts.approved} câu đã duyệt`}</button>}
       </div>
       <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
-        <p className="font-bold text-slate-900">Muốn đóng góp vào kho chung?</p>
-        <p className="mt-1">PDF gốc vẫn riêng tư. Chỉ các câu bạn đã duyệt và media đính kèm được gửi; nội dung chỉ công khai sau khi admin duyệt.</p>
+        <p className="font-bold text-slate-900">{forSharedLibrary ? "BƯỚC 3 · Xuất bản vào kho bài" : "Muốn đóng góp vào kho chung?"}</p>
+        <p className="mt-1">PDF gốc vẫn riêng tư. Sau khi kiểm tra từng câu, chuyển sang trang Duyệt nội dung để nghe lại audio và công khai bài cho người học.</p>
         <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={rightsConfirmed} disabled={busy || submittedForReview} onChange={(event) => setRightsConfirmed(event.target.checked)} className="mt-1" /><span>Tôi có quyền chia sẻ nội dung và media này, đã kiểm tra đáp án.</span></label>
-        <button type="button" className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={!canSubmit} onClick={() => void submitForReview()}>{submittedForReview ? "Đã gửi chờ duyệt" : `Gửi ${counts.approved} câu đã duyệt để admin duyệt`}</button>
+        <button type="button" className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={!canSubmit} onClick={() => void submitForReview()}>{submittedForReview ? "Đã chuyển sang bước xuất bản" : `Chuyển ${counts.approved} câu sang bước xuất bản`}</button>
+        {submittedForReview && <a className="ml-3 inline-block font-semibold text-blue-700 underline" href="/admin/contributions?status=PENDING">Mở trang Duyệt nội dung →</a>}
       </div>
       {message && <p className="success-message mt-3" role="status">✓ {message}</p>}
       {error && <p className="inline-error mt-3" role="alert">{error}</p>}

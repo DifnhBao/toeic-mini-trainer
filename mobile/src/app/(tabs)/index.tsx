@@ -74,8 +74,8 @@ export default function DashboardScreen() {
           </Pressable>
           <Pressable onPress={() => router.push('/library')} style={styles.smallCard}>
             <Text style={styles.cardIcon}>▣</Text>
-            <Text style={styles.cardTitle}>Nhập tài liệu</Text>
-            <Text style={styles.cardText}>PDF và audio riêng tư.</Text>
+            <Text style={styles.cardTitle}>Kho bài</Text>
+            <Text style={styles.cardText}>Chọn bài nghe và đọc có sẵn.</Text>
           </Pressable>
         </View>
       </ScrollView>

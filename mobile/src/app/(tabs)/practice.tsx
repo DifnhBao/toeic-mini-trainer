@@ -78,7 +78,7 @@ export default function PracticeScreen() {
         <View style={styles.summary}>
           <Text style={styles.summaryTitle}>{count} câu · {selectedParts.length} Part</Text>
           <Text style={styles.summaryText}>
-            Câu hỏi được chọn ngẫu nhiên từ kho cá nhân và không lộ đáp án trước khi nộp.
+            Câu hỏi được chọn từ kho chung và các câu bạn đã lưu trước đây. Đáp án chỉ hiện sau khi nộp.
           </Text>
         </View>
         {!!error && <Text style={styles.error}>{error}</Text>}

@@ -1,532 +1,76 @@
-import { File } from 'expo-file-system';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import IngestionQuestionReview from '@/components/IngestionQuestionReview';
 import { palette, radius } from '@/constants/design';
-import { getApiBaseUrl } from '@/lib/api';
-import { draftNamespace } from '@/lib/ingestion-drafts';
-import { ingestionDrafts } from '@/lib/local-ingestion-store';
-import { pollIngestionJob } from '@/lib/ingestion-poll';
-import { uploadPrivateFile } from '@/lib/uploads';
 import { useAuth } from '@/providers/auth-provider';
-import type { ExtractedQuestionGroup, IngestionJob, IngestionSummary } from '@/types/learning';
-
-const MAX_PDF_BYTES = 15 * 1024 * 1024;
-const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
-const MAX_INGESTION_PAGES = 4;
-
-type ContributionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-type ContributionSummary = {
-  id: string;
-  sourceJobId: string;
-  status: ContributionStatus;
-  reviewNote: string | null;
-  createdAt: string;
-};
-type PendingContribution = {
-  id: string;
-  createdAt: string;
-  data: { data: ExtractedQuestionGroup[] };
-  owner: { name: string | null; email: string | null };
-};
-type ContributionsResponse = {
-  mine: ContributionSummary[];
-  isReviewer: boolean;
-  pending: PendingContribution[];
-};
-
-function formatSize(bytes: number) {
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function ContributionAudio({ url }: { url: string }) {
-  const player = useAudioPlayer(url);
-  const status = useAudioPlayerStatus(player);
-  return (
-    <Pressable onPress={() => status.playing ? player.pause() : player.play()} style={styles.secondaryButton}>
-      <Text style={styles.secondaryButtonText}>{status.playing ? 'Tạm dừng audio' : 'Nghe audio để kiểm tra'}</Text>
-    </Pressable>
-  );
-}
+import type { LibraryCatalogue } from '../../../../types/library';
 
 export default function LibraryScreen() {
   const { user } = useAuth();
-  if (!user) return null;
-  return <LibraryContent key={user.id} namespace={draftNamespace(getApiBaseUrl(), user.id)} />;
+  return user ? <LibraryContent key={user.id} /> : null;
 }
-
-function LibraryContent({ namespace }: { namespace: string }) {
+function LibraryContent() {
   const { authorizedFetch } = useAuth();
-  const lifecycle = useRef(new AbortController());
-  const [restored, setRestored] = useState(false);
-  const [recentJobs, setRecentJobs] = useState<IngestionSummary[]>([]);
-  const [draftNotice, setDraftNotice] = useState('');
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [pageStartText, setPageStartText] = useState('1');
-  const [uploadedDocument, setUploadedDocument] = useState<{ file: File; id: string } | null>(null);
-  const [uploadedAudio, setUploadedAudio] = useState<{ file: File; id: string } | null>(null);
-  const [job, setJob] = useState<IngestionJob | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState('');
+  const [catalogue, setCatalogue] = useState<LibraryCatalogue>({ lessons: [], nextCursor: null });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [contributions, setContributions] = useState<ContributionsResponse | null>(null);
-  const [selectedPendingId, setSelectedPendingId] = useState<string | null>(null);
-  const [reviewNote, setReviewNote] = useState('');
-  const [reviewAudioUrl, setReviewAudioUrl] = useState<string | null>(null);
-  const [reviewDocumentUrl, setReviewDocumentUrl] = useState<string | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    lifecycle.current = controller;
-    void (async () => {
-      try {
-        const active = await ingestionDrafts.readActive(namespace);
-        if (controller.signal.aborted) return;
-        if (active) {
-          setActiveJobId(active);
-          try {
-            const latest = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${active}`);
-            if (!controller.signal.aborted) setJob(latest.job);
-          } catch (restoreError) {
-            if (!controller.signal.aborted) {
-              if (restoreError instanceof Error && 'status' in restoreError && (restoreError.status === 404 || restoreError.status === 403)) {
-                setActiveJobId(null);
-                setError('Tác vụ cũ không còn khả dụng với tài khoản này.');
-              } else setError('Chưa tải được tác vụ cũ. Bấm kiểm tra lại khi có mạng; không cần upload lại.');
-            }
-          }
-        }
-      } catch {
-        if (!controller.signal.aborted) setDraftNotice('Không đọc được dấu tác vụ trên máy. Bạn vẫn có thể mở từ danh sách tác vụ gần đây.');
-      } finally {
-        if (!controller.signal.aborted) setRestored(true);
-      }
-    })();
-    void authorizedFetch<{ jobs: IngestionSummary[] }>('/api/v1/ingestions')
-      .then((response) => { if (!controller.signal.aborted) setRecentJobs(response.jobs); })
-      .catch(() => { if (!controller.signal.aborted) setError('Chưa tải được danh sách tác vụ gần đây. Hãy cập nhật khi có mạng.'); });
-    return () => controller.abort();
-  }, [authorizedFetch, namespace]);
-
-  useEffect(() => {
-    if (!restored) return;
-    let cancelled = false;
-    void ingestionDrafts.writeActive(namespace, activeJobId)
-      .catch(() => { if (!cancelled) setDraftNotice('Chưa lưu được dấu tác vụ trên máy. Dùng danh sách gần đây để mở lại.'); });
-    return () => { cancelled = true; };
-  }, [restored, namespace, activeJobId]);
-
-  const refreshRecentJobs = async () => {
-    const response = await authorizedFetch<{ jobs: IngestionSummary[] }>('/api/v1/ingestions');
-    if (!lifecycle.current.signal.aborted) setRecentJobs(response.jobs);
-  };
-
-  const openRecentJob = async (id: string) => {
-    if (busy || !restored) return;
-    setBusy(true); setError(''); setStatusText('Đang mở lại tác vụ…');
+  const [creating, setCreating] = useState<string | null>(null);
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void authorizedFetch<LibraryCatalogue>('/api/v1/library')
+      .then((data) => { if (active) { setCatalogue(data); setError(''); } })
+      .catch((failure) => { if (active) setError(failure instanceof Error ? failure.message : 'Chưa tải được kho bài.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [authorizedFetch]));
+  async function load(more = false) {
+    if (loading) return;
+    setLoading(true); setError('');
     try {
-      const latest = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${id}`);
-      if (lifecycle.current.signal.aborted) return;
-      setJob(latest.job);
-      setActiveJobId(id);
-    } catch (openError) {
-      if (!lifecycle.current.signal.aborted) setError(openError instanceof Error ? openError.message : 'Không mở được tác vụ.');
-    } finally {
-      if (!lifecycle.current.signal.aborted) { setBusy(false); setStatusText(''); }
-    }
-  };
-
-  const refreshContributions = async () => {
-    const response = await authorizedFetch<ContributionsResponse>('/api/v1/contributions');
-    if (!lifecycle.current.signal.aborted) setContributions(response);
-  };
-
-  useEffect(() => {
-    void authorizedFetch<ContributionsResponse>('/api/v1/contributions')
-      .then((response) => { if (!lifecycle.current.signal.aborted) setContributions(response); })
-      .catch(() => undefined);
-  }, [authorizedFetch]);
-
-  const reviewContribution = async (id: string, decision: 'APPROVE' | 'REJECT') => {
-    if (busy || (decision === 'REJECT' && reviewNote.trim().length < 5)) {
-      if (decision === 'REJECT') setError('Hãy ghi lý do từ chối ít nhất 5 ký tự.');
-      return;
-    }
-    setBusy(true);
-    setError('');
+      const data = await authorizedFetch<LibraryCatalogue>(`/api/v1/library${more && catalogue.nextCursor ? `?cursor=${catalogue.nextCursor}` : ''}`);
+      if (!mounted.current) return;
+      setCatalogue((current) => ({ ...data, lessons: more ? [...current.lessons, ...data.lessons.filter((lesson) => !current.lessons.some((old) => old.id === lesson.id))] : data.lessons }));
+    } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : 'Chưa tải được kho bài.'); }
+    finally { if (mounted.current) setLoading(false); }
+  }
+  async function start(id: string) {
+    if (busy.current) return;
+    busy.current = true; setCreating(id); setError('');
     try {
-      await authorizedFetch(`/api/v1/contributions/${id}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ decision, ...(reviewNote.trim() ? { note: reviewNote.trim() } : {}) }),
-      });
-      setSelectedPendingId(null);
-      setReviewAudioUrl(null);
-      setReviewDocumentUrl(null);
-      setReviewNote('');
-      await refreshContributions();
-    } catch (reviewError) {
-      setError(reviewError instanceof Error ? reviewError.message : 'Không thể duyệt đóng góp.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const togglePending = async (id: string) => {
-    if (selectedPendingId === id) {
-      setSelectedPendingId(null);
-      setReviewAudioUrl(null);
-      setReviewDocumentUrl(null);
-      return;
-    }
-    setSelectedPendingId(id);
-    setReviewAudioUrl(null);
-    setReviewDocumentUrl(null);
-    setReviewNote('');
-    try {
-      const [media, source] = await Promise.all([
-        authorizedFetch<{ audioUrl: string | null }>(`/api/v1/contributions/${id}/media`),
-        authorizedFetch<{ url: string }>(`/api/v1/contributions/${id}/source`),
-      ]);
-      setReviewAudioUrl(media.audioUrl);
-      setReviewDocumentUrl(source.url);
-    } catch {
-      setError('Không thể mở tài liệu để kiểm tra. Đừng duyệt khi chưa xác minh nội dung.');
-    }
-  };
-
-  const openReviewSource = async (id: string) => {
-    try {
-      // Fetch on tap: the reviewer might leave a card open past the URL's 5-minute lifetime.
-      const source = await authorizedFetch<{ url: string }>(`/api/v1/contributions/${id}/source`);
-      await WebBrowser.openBrowserAsync(source.url);
-    } catch {
-      setError('Không thể mở PDF nguồn. Hãy tải lại trước khi duyệt.');
-    }
-  };
-
-  const pickDocument = async () => {
-    const picked = await File.pickFileAsync({ mimeTypes: 'application/pdf' });
-    if (picked.canceled) return;
-    if (picked.result.size > MAX_PDF_BYTES) {
-      setError('PDF phải nhỏ hơn hoặc bằng 15 MB.');
-      return;
-    }
-    setDocumentFile(picked.result);
-    setUploadedDocument(null);
-    setJob(null);
-    setActiveJobId(null);
-    setError('');
-  };
-
-  const pickAudio = async () => {
-    const picked = await File.pickFileAsync({
-      mimeTypes: ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/x-wav'],
-    });
-    if (picked.canceled) return;
-    if (picked.result.size > MAX_AUDIO_BYTES) {
-      setError('Audio phải nhỏ hơn hoặc bằng 100 MB.');
-      return;
-    }
-    setAudioFile(picked.result);
-    setUploadedAudio(null);
-    setJob(null);
-    setActiveJobId(null);
-    setError('');
-  };
-
-  const pollJob = async (jobId: string) => {
-    return pollIngestionJob({
-      read: async () => (await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${jobId}`)).job,
-      onJob: setJob,
-      signal: lifecycle.current.signal,
-      onTransientError: () => setStatusText('Kết nối gián đoạn, đang thử lại…'),
-    });
-  };
-
-  const refreshJob = async (jobId: string) => {
-    const latest = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${jobId}`);
-    if (!lifecycle.current.signal.aborted) setJob(latest.job);
-  };
-
-  const startIngestion = async () => {
-    if (!documentFile || busy || !restored) return;
-    const pageStart = Number(pageStartText);
-    if (!Number.isSafeInteger(pageStart) || pageStart < 1 || pageStart > 1_000) {
-      setError('Trang bắt đầu phải là số từ 1 đến 1000.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    setJob(null);
-    setActiveJobId(null);
-    try {
-      setStatusText('Đang upload PDF…');
-      const documentAssetId = uploadedDocument?.file === documentFile
-        ? uploadedDocument.id
-        : await uploadPrivateFile(documentFile, 'DOCUMENT', authorizedFetch, setProgress);
-      if (lifecycle.current.signal.aborted) return;
-      setUploadedDocument({ file: documentFile, id: documentAssetId });
-      let audioAssetId: string | null = null;
-      if (audioFile) {
-        setStatusText('Đang upload audio…');
-        setProgress(0);
-        audioAssetId = uploadedAudio?.file === audioFile
-          ? uploadedAudio.id
-          : await uploadPrivateFile(audioFile, 'AUDIO', authorizedFetch, setProgress);
-        setUploadedAudio({ file: audioFile, id: audioAssetId });
-      }
-
-      if (lifecycle.current.signal.aborted) return;
-      setStatusText('AI đang đọc và cấu trúc bộ đề…');
-      setProgress(1);
-      const created = await authorizedFetch<{ job: { id: string } }>('/api/v1/ingestions', {
-        method: 'POST',
-        body: JSON.stringify({ documentAssetId, audioAssetId, pageStart }),
-      });
-      if (lifecycle.current.signal.aborted) return;
-      setActiveJobId(created.job.id);
-      void refreshRecentJobs().catch(() => undefined);
-      const completed = await pollJob(created.job.id);
-      setStatusText(`Đã nhận diện ${completed.result?.data.length || 0} nhóm câu hỏi.`);
-    } catch (ingestionError) {
-      setError(ingestionError instanceof Error ? ingestionError.message : 'Không thể nhập tài liệu.');
-      setStatusText('');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resumePolling = async () => {
-    if (!activeJobId || busy) return;
-    setBusy(true);
-    setError('');
-    setStatusText('Đang kiểm tra tác vụ…');
-    try {
-      await pollJob(activeJobId);
-    } catch (pollError) {
-      setError(pollError instanceof Error ? pollError.message : 'Không thể kiểm tra tác vụ.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const retry = async () => {
-    if (!job || busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      await authorizedFetch(`/api/v1/ingestions/${job.id}/retry`, { method: 'POST' });
-      setStatusText('Đang thử phân tích lại…');
-      await pollJob(job.id);
-    } catch (retryError) {
-      setError(retryError instanceof Error ? retryError.message : 'Không thể thử lại.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-        <View>
-          <Text style={styles.kicker}>KHO TÀI LIỆU CÁ NHÂN</Text>
-          <Text style={styles.title}>Đưa bộ đề của bạn vào app</Text>
-          <Text style={styles.subtitle}>Chọn PDF hoặc bản scan và audio nếu có. PDF gốc luôn riêng tư; audio chỉ được chia sẻ nếu bạn chủ động gửi đóng góp và được duyệt.</Text>
-        </View>
-
-        <Pressable onPress={pickDocument} disabled={busy || !restored} style={styles.fileCard}>
-          <Text style={styles.fileLabel}>PDF BẮT BUỘC</Text>
-          <Text style={styles.fileName}>{documentFile?.name || 'Chọn đề hoặc tài liệu TOEIC'}</Text>
-          <Text style={styles.fileMeta}>{documentFile ? formatSize(documentFile.size) : 'Tối đa 15 MB'}</Text>
-        </Pressable>
-
-        <Pressable onPress={pickAudio} disabled={busy || !restored} style={styles.fileCard}>
-          <Text style={styles.fileLabel}>AUDIO KHÔNG BẮT BUỘC</Text>
-          <Text style={styles.fileName}>{audioFile?.name || 'Chọn MP3, M4A hoặc WAV'}</Text>
-          <Text style={styles.fileMeta}>{audioFile ? formatSize(audioFile.size) : 'Tối đa 100 MB'}</Text>
-        </Pressable>
-
-        <View style={styles.fileCard}>
-          <Text style={styles.fileLabel}>KHOẢNG TRANG PHÂN TÍCH</Text>
-          <Text style={styles.reviewCopy}>Mỗi lượt đọc tối đa {MAX_INGESTION_PAGES} trang, bắt đầu từ trang bạn chọn. Hãy lưu kết quả trước khi chuyển sang lượt tiếp theo. AI có thể đọc sai bản scan và đáp án.</Text>
-          <TextInput value={pageStartText} onChangeText={setPageStartText} keyboardType="number-pad" placeholder="Trang bắt đầu (ví dụ: 1)" style={styles.pageInput} editable={!busy} />
-        </View>
-
-        {busy && (
-          <View style={styles.progressCard}>
-            <ActivityIndicator color={palette.primary} />
-            <View style={styles.progressCopy}>
-              <Text style={styles.progressTitle}>{statusText}</Text>
-              <View style={styles.track}><View style={[styles.fill, { width: `${Math.round(progress * 100)}%` }]} /></View>
-            </View>
-          </View>
-        )}
-
-        {!restored && <Text style={styles.reviewCopy}>Đang khôi phục tác vụ trước…</Text>}
-        {!!draftNotice && <Text style={styles.reviewCopy}>{draftNotice}</Text>}
-        {!!error && <Text style={styles.error}>{error}</Text>}
-
-        {activeJobId && !busy && (!job || ['PENDING', 'PROCESSING'].includes(job.status)) && (
-          <Pressable onPress={resumePolling} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Kiểm tra lại tác vụ</Text>
-          </Pressable>
-        )}
-
-        {job?.status === 'IMPORTING' && !busy && (
-          <Pressable onPress={() => {
-            void refreshJob(job.id).catch((refreshError) =>
-              setError(refreshError instanceof Error ? refreshError.message : 'Không thể kiểm tra trạng thái lưu.'),
-            );
-          }} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Kiểm tra trạng thái lưu</Text>
-          </Pressable>
-        )}
-
-        {!job?.result && (
-          <Pressable
-            onPress={startIngestion}
-            disabled={!documentFile || busy || !restored}
-            style={[styles.primaryButton, (!documentFile || busy || !restored) && styles.disabled]}>
-            <Text style={styles.primaryButtonText}>Upload và phân tích</Text>
-          </Pressable>
-        )}
-
-        {job?.status === 'FAILED' && job.attemptCount < 3 && (
-          <Pressable onPress={retry} disabled={busy} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Thử phân tích lại</Text>
-          </Pressable>
-        )}
-
-        {job?.result && (
-          <>
-            <IngestionQuestionReview
-              key={job.id} job={job} namespace={namespace} onBusyChange={setBusy}
-              onChanged={(updated) => {
-                setJob(updated);
-                void refreshContributions().catch(() => undefined);
-              }}
-            />
-            <Pressable disabled={busy} onPress={() => { setJob(null); setActiveJobId(null); }} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Chọn tài liệu hoặc trang khác</Text>
-            </Pressable>
-          </>
-        )}
-
-        <View style={styles.reviewCard}>
-          <Text style={styles.reviewTitle}>Tác vụ gần đây (tối đa 20)</Text>
-          <Text style={styles.reviewCopy}>Mở lại chỉ đọc kết quả đã có, không gọi AI mới. Bản nháp chỉnh sửa chỉ khôi phục trên máy đã duyệt.</Text>
-          {recentJobs.map((item) => (
-            <Pressable key={item.id} disabled={busy || !restored} onPress={() => void openRecentJob(item.id)} style={styles.contributionRow}>
-              <Text style={styles.checkText}>{item.documentAsset.originalName} · trang {item.pageStart}{item.pageEnd ? `–${item.pageEnd}` : ''}</Text>
-              <Text style={styles.reviewCopy}>{new Date(item.createdAt).toLocaleString('vi-VN')} · {item.status} · Mở lại</Text>
-            </Pressable>
-          ))}
-          <Pressable disabled={busy || !restored} onPress={() => void refreshRecentJobs().catch(() => setError('Không tải được tác vụ gần đây.'))} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Cập nhật danh sách tác vụ</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.reviewCard}>
-          <Text style={styles.reviewTitle}>Đóng góp của tôi</Text>
-          {contributions?.mine.length ? contributions.mine.map((item) => (
-            <View key={item.id} style={styles.contributionRow}>
-              <Text style={styles.checkText}>{new Date(item.createdAt).toLocaleDateString('vi-VN')} · {item.status === 'PENDING' ? 'Chờ duyệt' : item.status === 'APPROVED' ? 'Đã vào kho chung' : 'Bị từ chối'}</Text>
-              {!!item.reviewNote && <Text style={styles.reviewCopy}>Ghi chú: {item.reviewNote}</Text>}
-            </View>
-          )) : <Text style={styles.reviewCopy}>Chưa gửi bộ câu hỏi nào.</Text>}
-          <Pressable onPress={() => void refreshContributions().catch(() => setError('Không thể tải trạng thái đóng góp.'))} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Cập nhật trạng thái</Text>
-          </Pressable>
-        </View>
-
-        {contributions?.isReviewer && (
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewTitle}>Hàng chờ duyệt ({contributions.pending.length})</Text>
-            {contributions.pending.map((item) => (
-              <View key={item.id} style={styles.contributionRow}>
-                <Text style={styles.checkText}>{item.owner.name || item.owner.email || 'Người đóng góp'} · {item.data.data.reduce((sum, group) => sum + group.questions.length, 0)} câu</Text>
-                <Pressable onPress={() => void togglePending(item.id)} style={styles.secondaryButton}>
-                  <Text style={styles.secondaryButtonText}>{selectedPendingId === item.id ? 'Thu gọn' : 'Xem toàn bộ câu hỏi'}</Text>
-                </Pressable>
-                {selectedPendingId === item.id && (
-                  <View style={styles.contributionBox}>
-                    {reviewDocumentUrl && (
-                      <Pressable onPress={() => void openReviewSource(item.id)} style={styles.secondaryButton}>
-                        <Text style={styles.secondaryButtonText}>Mở PDF nguồn để kiểm tra</Text>
-                      </Pressable>
-                    )}
-                    {reviewAudioUrl && <ContributionAudio url={reviewAudioUrl} />}
-                    {item.data.data.map((group, groupIndex) => (
-                      <View key={groupIndex} style={styles.contributionRow}>
-                        <Text style={styles.questionPart}>Nhóm {groupIndex + 1} · {group.group?.groupType || 'TEXT'}{group.group?.audioAssetId ? ' · có audio' : ''}</Text>
-                        {!!group.group?.passageText && <Text style={styles.reviewCopy}>{group.group.passageText.replace(/<[^>]*>/g, ' ')}</Text>}
-                        {group.questions.map((question, questionIndex) => (
-                          <View key={questionIndex} style={styles.contributionRow}>
-                            <Text style={styles.checkText}>P{question.part} · {question.content || 'Câu hỏi nghe'}</Text>
-                            {Object.entries(question.options).map(([key, value]) => <Text key={key} style={styles.reviewCopy}>{key}. {value}</Text>)}
-                            <Text style={styles.answerKey}>Đáp án: {question.correctAnswer}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    ))}
-                    <TextInput value={reviewNote} onChangeText={setReviewNote} placeholder="Lý do từ chối hoặc ghi chú (tuỳ chọn khi duyệt)" multiline maxLength={1000} style={styles.noteInput} />
-                    <Pressable onPress={() => void reviewContribution(item.id, 'APPROVE')} disabled={busy} style={styles.primaryButton}>
-                      <Text style={styles.primaryButtonText}>Duyệt vào kho chung</Text>
-                    </Pressable>
-                    <Pressable onPress={() => void reviewContribution(item.id, 'REJECT')} disabled={busy} style={styles.secondaryButton}>
-                      <Text style={styles.secondaryButtonText}>Từ chối</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
+      const data = await authorizedFetch<{ test: { id: string } }>(`/api/v1/library/${id}/test`, { method: 'POST' });
+      if (mounted.current) router.push(`/test/${data.test.id}`);
+    } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : 'Chưa tạo được bài.'); }
+    finally { busy.current = false; if (mounted.current) setCreating(null); }
+  }
+  return <SafeAreaView edges={['bottom']} style={styles.safeArea}><ScrollView contentContainerStyle={styles.content}>
+    <Text style={styles.title}>Chọn bài để luyện</Text><Text style={styles.copy}>Đề, đáp án và audio được quản trị viên chuẩn bị trên web. Bạn chỉ cần chọn bài có sẵn.</Text>
+    <Pressable disabled={loading} onPress={() => void load()} style={styles.secondary}><Text style={styles.secondaryText}>Tải lại kho bài</Text></Pressable>
+    {loading && <ActivityIndicator color={palette.primary} />}{!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    {!loading && !error && catalogue.lessons.length === 0 && <View style={styles.card}><Text style={styles.cardTitle}>Kho bài đang được chuẩn bị</Text><Text style={styles.copy}>Bạn vẫn có thể luyện ngẫu nhiên từ các câu hiện có theo Part.</Text></View>}
+    {catalogue.lessons.map((lesson) => <View key={lesson.id} style={styles.card}>
+      <Text style={styles.cardTitle}>{lesson.title} · Part {lesson.parts.join(', ')}</Text>
+      <Text style={styles.copy}>{lesson.questionCount > 50 ? 'Trên 50' : lesson.questionCount} câu{lesson.hasAudio ? ' · Có audio' : ''}{lesson.hasImage ? ' · Có hình ảnh' : ''}</Text>
+      <Pressable disabled={!lesson.playable || creating !== null} onPress={() => void start(lesson.id)} style={[styles.button, (!lesson.playable || creating !== null) && styles.disabled]}>
+        {creating === lesson.id ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>{lesson.playable ? 'Luyện bài này' : lesson.unavailableReason}</Text>}
+      </Pressable>
+    </View>)}
+    {catalogue.nextCursor && <Pressable disabled={loading} onPress={() => void load(true)} style={styles.secondary}><Text style={styles.secondaryText}>Xem thêm bài</Text></Pressable>}
+    <Pressable onPress={() => router.push('/practice')} style={styles.secondary}><Text style={styles.secondaryText}>Luyện ngẫu nhiên theo Part →</Text></Pressable>
+  </ScrollView></SafeAreaView>;
 }
-
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.canvas },
-  content: { padding: 18, gap: 12, paddingBottom: 36 },
-  kicker: { color: palette.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1.1 },
-  title: { color: palette.ink, fontSize: 26, lineHeight: 33, fontWeight: '800', marginTop: 5 },
-  subtitle: { color: palette.muted, fontSize: 14, lineHeight: 21, marginTop: 7 },
-  fileCard: { backgroundColor: palette.surface, borderWidth: 1, borderStyle: 'dashed', borderColor: palette.line, borderRadius: radius.medium, padding: 17 },
-  fileLabel: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  fileName: { color: palette.ink, fontSize: 15, fontWeight: '700', marginTop: 7 },
-  fileMeta: { color: palette.muted, fontSize: 12, marginTop: 4 },
-  progressCard: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: palette.surface, padding: 15, borderRadius: radius.medium },
-  progressCopy: { flex: 1 },
-  progressTitle: { color: palette.ink, fontSize: 13, fontWeight: '700' },
-  track: { height: 5, backgroundColor: palette.line, borderRadius: 5, marginTop: 8, overflow: 'hidden' },
-  fill: { height: 5, backgroundColor: palette.primary },
-  error: { color: palette.danger, fontSize: 13, lineHeight: 19 },
-  primaryButton: { minHeight: 50, borderRadius: radius.medium, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary, marginTop: 4 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  secondaryButton: { minHeight: 48, borderRadius: radius.medium, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.primary },
-  secondaryButtonText: { color: palette.primary, fontWeight: '800' },
-  disabled: { opacity: 0.4 },
-  reviewCard: { backgroundColor: palette.surface, borderRadius: radius.large, borderWidth: 1, borderColor: palette.line, padding: 16, gap: 9 },
-  reviewTitle: { color: palette.ink, fontSize: 20, fontWeight: '800' },
-  reviewCopy: { color: palette.muted, fontSize: 12, lineHeight: 18, marginBottom: 4 },
-  questionRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 8, borderTopWidth: 1, borderTopColor: palette.line },
-  questionPart: { color: palette.primary, fontSize: 11, fontWeight: '900', width: 27 },
-  questionText: { flex: 1, color: palette.ink, fontSize: 12, lineHeight: 17 },
-  answerKey: { color: palette.primaryDark, fontSize: 13, fontWeight: '900' },
-  success: { color: palette.primary, fontSize: 14, fontWeight: '800', textAlign: 'center', padding: 12 },
-  contributionBox: { gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: palette.line },
-  contributionRow: { gap: 5, paddingVertical: 8, borderTopWidth: 1, borderTopColor: palette.line },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 8 },
-  checkMark: { fontSize: 22, color: palette.primary },
-  checkText: { flex: 1, color: palette.ink, fontSize: 13, lineHeight: 19 },
-  noteInput: { borderWidth: 1, borderColor: palette.line, borderRadius: radius.medium, padding: 12, minHeight: 64, color: palette.ink },
-  pageInput: { borderWidth: 1, borderColor: palette.line, borderRadius: radius.medium, padding: 12, color: palette.ink },
+  safeArea: { flex: 1, backgroundColor: palette.canvas }, content: { padding: 20, gap: 16 },
+  title: { color: palette.ink, fontSize: 27, fontWeight: '800' },
+  copy: { color: palette.muted, fontSize: 14, lineHeight: 22 },
+  card: { padding: 18, gap: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: radius.large },
+  cardTitle: { color: palette.ink, fontSize: 18, fontWeight: '700' },
+  button: { backgroundColor: palette.primary, padding: 14, alignItems: 'center', borderRadius: radius.small },
+  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  secondary: { padding: 14, borderWidth: 1, borderColor: palette.line, borderRadius: radius.small },
+  secondaryText: { color: palette.primary, fontSize: 14, fontWeight: '700' },
+  error: { color: palette.danger, fontSize: 14, lineHeight: 21 }, disabled: { opacity: 0.45 },
 });

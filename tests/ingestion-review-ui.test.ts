@@ -19,7 +19,7 @@ it("starts with every extracted question awaiting a decision and saving disabled
   assert.match(html, /1 chưa duyệt/);
   assert.match(html, /aria-label="Đáp án đúng B"/);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Lưu 0 câu đã duyệt<\/button>/);
-  assert.match(html, /<button[^>]*disabled=""[^>]*>Gửi 0 câu đã duyệt để admin duyệt<\/button>/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Chuyển 0 câu sang bước xuất bản<\/button>/);
 });
 
 it("submits only approved edited questions and strips legacy media URLs", () => {

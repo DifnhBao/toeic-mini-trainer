@@ -29,7 +29,7 @@ export default function AppHeader() {
           <span className="brand-copy"><strong>TOEIC</strong><small>MINI TRAINER</small></span>
         </Link>
         <nav className="main-nav" aria-label="Điều hướng chính">
-          <Link href="/" className={pathname === "/" ? "is-active" : ""}>Luyện tập</Link><Link href="/history" className={pathname.startsWith("/history") ? "is-active" : ""}>Lịch sử</Link><Link href="/coach" className={pathname.startsWith("/coach") ? "is-active" : ""}>AI Coach</Link><Link href="/admin/extract" className={pathname === "/admin/extract" ? "is-active" : ""}>Kho đề</Link>{isAdmin ? <Link href="/admin" className={pathname === "/admin" || pathname.startsWith("/admin/") && pathname !== "/admin/extract" ? "is-active" : ""}>Quản trị</Link> : null}
+          <Link href="/" className={pathname === "/" ? "is-active" : ""}>Luyện tập</Link><Link href="/history" className={pathname.startsWith("/history") ? "is-active" : ""}>Lịch sử</Link><Link href="/coach" className={pathname.startsWith("/coach") ? "is-active" : ""}>AI Coach</Link><Link href="/library" className={pathname === "/library" ? "is-active" : ""}>Kho bài</Link>{isAdmin ? <Link href="/admin" className={pathname === "/admin" || pathname.startsWith("/admin/") ? "is-active" : ""}>Quản trị</Link> : null}
         </nav>
         <div className="account-area">
           {status === "loading" ? <span className="account-skeleton" aria-label="Đang tải tài khoản" /> : session?.user ? (
