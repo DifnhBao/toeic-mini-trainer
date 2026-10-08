@@ -18,7 +18,7 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 150 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN cho audio nhóm, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
+| Unit/regression | 156 kiểm thử đạt; không dùng DB/provider thật; gồm sáu guard runner HTTP, quyền ADMIN cho audio nhóm, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
 | PostgreSQL integration | 29 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê, Kho bài, upload/gắn/xuất bản ảnh và audio riêng theo nhóm, dedup và rollback với S3 loopback |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
@@ -45,6 +45,7 @@
 | Storage preflight | Cấu hình R2 cục bộ đạt HEAD bucket, OPTIONS 204 với origin domain chính/PUT/Content-Type; không ghi object, không sửa CORS, chưa xác minh upload từ Vercel |
 | Backup media R2 | Sau phê duyệt riêng: 16 object, 18.948.378 byte đã mã hóa và kiểm tra lại độc lập đạt; 15 asset READY có object/size khớp. Không ghi cloud; chưa diễn tập restore bucket hoặc snapshot DB/R2 đồng thời |
 | Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
+| HTTP tải local | Production build `0c21f9f`, 20 người học giả lập/đỉnh 40 request đồng thời, 1.800 request: p95 tổng 1.288,74 ms, không lỗi HTTP; đúng nhóm/quyền/retry và cleanup đạt. Chỉ Part 5 đã warmup, chưa phải staging/Vercel/thiết bị; xem `PERFORMANCE_HTTP_LOCAL_2026-10-08.md` |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
 
@@ -68,7 +69,7 @@ Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/ge
 | OPS-01 | Workflow và cổng dependency đã có, kiểm tra local đạt; chưa xác minh được remote CI hoặc branch protection bằng quyền GitHub hiện có |
 | OPS-02 | Backup DB thật mã hóa/restore cách ly và backup media R2 thật/kiểm tra giải mã đạt; snapshot DB/R2 nhất quán, restore bucket, định kỳ/offsite/PITR chưa hoàn tất |
 | OPS-03/04 | Đã có log/runbook/worker recovery nền; chưa nghiệm thu cảnh báo thực tế, tải worker và phục hồi khi ngắt |
-| CONTENT, UX, PERF | Cần nội dung có quyền dùng, nghiệm thu thiết bị và đo tải lớn; tối ưu truy vấn đã triển khai nhưng chưa phải báo cáo tải mục tiêu |
+| CONTENT, UX, PERF | Cần nội dung có quyền dùng và nghiệm thu thiết bị. SQL và HTTP local 20 người học đã có bằng chứng; tải staging, cache lạnh, media/mạng và thời gian dài hơn vẫn chưa đạt cổng PERF-01 |
 | Beta/phát hành rộng | Chưa bắt đầu; cần hoàn tất các cổng trước beta và theo dõi 10–20 người trong hai tuần |
 
 Hiện đã hoàn thành phần nền kỹ thuật và rollout API để bắt đầu nghiệm thu giai đoạn 1. Các việc bảo mật/kiểm thử của giai đoạn 2 được thực hiện sớm; không đồng nghĩa giai đoạn 2 đã đóng hoặc sản phẩm đã sẵn sàng phát hành rộng.
@@ -103,3 +104,5 @@ Cập nhật tiếp: `f0bc90f` đã rollout chức năng gắn ảnh vào tác v
 Chuẩn bị nghiệm thu nội dung thật: đã cắt/render và kiểm tra đủ 11 ảnh cần thiết từ PDF ETS người dùng cung cấp, đóng gói cục bộ theo số câu, kiểm tra SHA-256/PNG/ZIP đạt. Ảnh chưa được upload hoặc công khai; đáp án và audio khớp nhóm vẫn chờ hoàn thiện. Kết quả/đường dẫn tại `ETS_MEDIA_PREPARATION_2026-10-08.md`; không thay đổi runtime hoặc mở cổng beta.
 
 Cập nhật audio nhóm: `0c21f9f` đã rollout, 150 unit/29 integration/build/19 HTTP smoke trước và sau promote đạt. ADMIN có thể thay đoạn audio riêng của từng nhóm; APK hiện có nhận `group.audioUrl` như trước. Không tự cắt MP3, không thêm migration hoặc công khai bộ ETS. Đáp án, đoạn audio khớp nhóm, nghiệm thu ADMIN/R2/thiết bị và các cổng vận hành/beta vẫn còn mở; xem `GROUP_AUDIO_2026-10-08.md`.
+
+Bổ sung kiểm chứng HTTP: đã thêm runner chỉ nhận DB/API loopback, đo luồng học production thực với JWT giả lập và kiểm tra kết quả/quyền/retry. Lượt cuối 1.800 request/20 người học đạt, p95 tổng khoảng 1,29 giây; 156 unit/TypeScript/lint đạt. Fixture đã dọn, server và container test đã dừng. Không thay runtime hoặc triển khai lại; PERF-01 vẫn mở cho hạ tầng thật. Chi tiết tại [PERFORMANCE_HTTP_LOCAL_2026-10-08.md](PERFORMANCE_HTTP_LOCAL_2026-10-08.md).

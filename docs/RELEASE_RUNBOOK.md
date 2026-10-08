@@ -31,6 +31,12 @@ Các giá trị user/password trên chỉ là fixture Docker, không dùng cho c
 
 Backup smoke test tạo dữ liệu học mẫu, dump trong container, restore vào DB mới có tên ngẫu nhiên, kiểm tra số lượng và quan hệ user/question/attempt/answer, rồi dọn DB restore và fixture. Kết quả này chỉ chứng minh quy trình trên PostgreSQL local; không chứng minh backup Neon hoặc R2 đã được bật.
 
+### Đo HTTP cục bộ bổ sung
+
+Sau khi có production build đúng source và container test/migration ở trên, để port `127.0.0.1:3807` trống, dừng build/test khác rồi chạy `node --import tsx scripts/benchmark-http-learning.mts` với `TEST_DATABASE_URL` và opt-in như trên. Dùng `--quick` để kiểm tra nhanh trước lượt đầy đủ. Controller không chạy dưới `NODE_ENV=production`; server con tự chạy production với DB loopback, khóa ngẫu nhiên và AI/ingestion tắt. Không đặt URL Neon, R2 hoặc API cloud cho phép đo.
+
+Runner tạo 20 người học và nội dung Part 5 giả lập, thực hiện HTTP/JWT thật, kiểm tra quyền/đúng nhóm/chấm điểm/retry và dọn theo UUID trong `finally`. Xem `successful`, `cleaned`, `serverStopped` trong `Test/http-learning-full.json` và log tương ứng trước kết luận; nếu lỗi phải kiểm tra cleanup/port trước chạy lại. Dừng đúng container test khi xong. Phép đo này không thay staging, media, OAuth hoặc nghiệm thu Android; phương pháp và kết quả tại [PERFORMANCE_HTTP_LOCAL_2026-10-08.md](PERFORMANCE_HTTP_LOCAL_2026-10-08.md).
+
 ## 3. Cấu hình production/staging
 
 - API HTTPS, database và bucket private theo `.env.example`.

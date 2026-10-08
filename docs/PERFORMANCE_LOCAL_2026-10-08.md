@@ -43,6 +43,8 @@ EXPLAIN của truy vấn cũ ở lượt nền cho thấy parallel sequential sc
 
 Việc còn lại của PERF-01: đo HTTP/auth trên staging cách ly với cùng quy mô, thử dữ liệu phân bố đa dạng và cache lạnh, đo hàng đợi/pool/CPU, nghiệm thu media/group và cân nhắc index/aggregate khi có bằng chứng. Không chốt PERF-01 chỉ dựa vào bảng trên.
 
+Bổ sung sau báo cáo SQL: [phép đo HTTP production cục bộ](PERFORMANCE_HTTP_LOCAL_2026-10-08.md) đã chạy 20 người học giả lập, 1.800 request, gồm JWT/lookup tài khoản và hành trình Kho bài–làm–nộp–xem lịch sử. p95 tổng 1.288,74 ms, không lỗi HTTP; kiểm tra đúng nhóm, quyền và retry đạt. Đây vẫn là Part 5 đã warmup trên loopback, chưa thay thế staging/thiết bị thật; không so trực tiếp với các bảng SQL để kết luận cải thiện.
+
 ## Tái lập
 
 ```powershell
