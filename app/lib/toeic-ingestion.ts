@@ -64,6 +64,7 @@ async function extractQuestions(
 - Với câu đọc, chỉ suy luận đáp án khi quy tắc ngữ pháp/ngữ nghĩa đủ rõ; nếu không đủ dữ kiện cũng để correctAnswer rỗng. Quản trị viên phải bổ sung trước khi duyệt.
 - Không tạo câu hỏi không thấy trong các trang đã chọn. Nếu không có câu hỏi phù hợp, trả về mảng data rỗng.
 - Bỏ qua bìa, hướng dẫn và câu ví dụ. Part 1 có ảnh và số câu vẫn là câu hỏi: dùng lựa chọn A, B, C, D làm ký hiệu; Part 2 có số câu thì dùng A, B, C. Không bịa nội dung audio hoặc đáp án.
+- Mỗi câu Part 1 là một nhóm riêng để quản trị viên gắn đúng ảnh. Part 3/4 nhóm theo cùng hội thoại hoặc bài nói, thường ba câu một nhóm; không gộp tất cả các trang thành một nhóm.
 - groupType chỉ là AUDIO, TEXT hoặc MIXED.
 ${ocrBytes ? `PDF đính kèm chứa các trang gốc ${ocrPageNumbers.join(", ")}; hãy đọc cả chữ và ảnh trong PDF.` : ""}
 <document>\n${rawText}\n</document>`;

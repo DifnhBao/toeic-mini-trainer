@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
+import { validateUploadDescriptor, UPLOAD_RULES } from "@/app/lib/upload-policy";
 
 export type ExtractedGroup = {
   group?: {
@@ -94,6 +96,8 @@ export default function IngestionQuestionReview({
   forSharedLibrary?: boolean;
 }) {
   const [entries, setEntries] = useState(() => initialEntries(groups));
+  const [reviewGroups, setReviewGroups] = useState(groups);
+  const [imageUrls, setImageUrls] = useState<Record<number, string>>({});
   const [activeIndex, setActiveIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [imported, setImported] = useState(false);
@@ -108,10 +112,64 @@ export default function IngestionQuestionReview({
     pending: entries.filter((entry) => entry.decision === "PENDING").length,
   }), [entries]);
   const active = entries[activeIndex];
-  const activeGroup = active ? groups[active.groupIndex].group : null;
-  const activeError = active ? validationMessage(active.question) : null;
+  const activeGroup = active ? reviewGroups[active.groupIndex].group : null;
+  const activeError = active ? validationMessage(active.question) || (forSharedLibrary && active.question.part === 1 && !activeGroup?.imageAssetId ? "Câu Part 1 cần gắn ảnh trước khi duyệt cho Kho bài." : null) : null;
   const canSave = counts.pending === 0 && counts.approved > 0 && !busy && !imported;
   const canSubmit = counts.pending === 0 && counts.approved > 0 && rightsConfirmed && !busy && !submittedForReview;
+
+  async function readJson(response: Response) {
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.error?.message || "Không thể xử lý file ảnh.");
+    return data;
+  }
+
+  async function previewImage(groupIndex: number, assetId: string) {
+    const data = await readJson(await fetch(`/api/v1/uploads/${assetId}`, { cache: "no-store" }));
+    setImageUrls(current => ({ ...current, [groupIndex]: data.asset.url }));
+  }
+
+  async function attachImage(file: File | null) {
+    if (!active || busy || imported || submittedForReview) return;
+    const groupIndex = active.groupIndex;
+    if (file && !validateUploadDescriptor({ kind: "IMAGE", contentType: file.type, sizeBytes: file.size }).valid) {
+      setError("Chọn ảnh JPG, PNG hoặc WebP, tối đa 10 MiB.");
+      return;
+    }
+    setBusy(true); setError(""); setMessage("");
+    let attached = false;
+    try {
+      let imageAssetId: string | null = null;
+      if (file) {
+        const intent = await readJson(await fetch("/api/v1/uploads", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "IMAGE", fileName: file.name, contentType: file.type, sizeBytes: file.size }),
+        }));
+        const uploaded = await fetch(intent.upload.url, { method: "PUT", headers: intent.upload.headers, body: file });
+        if (!uploaded.ok) throw new Error("Upload ảnh thất bại. Hãy thử lại.");
+        await readJson(await fetch(`/api/v1/uploads/${intent.asset.id}/complete`, { method: "POST" }));
+        imageAssetId = intent.asset.id;
+      }
+      const result = await readJson(await fetch(`/api/v1/ingestions/${jobId}/image`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupIndex, imageAssetId }),
+      }));
+      attached = true;
+      setReviewGroups(current => current.map((group, index) => index === groupIndex ? { ...group, group: result.group } : group));
+      setEntries(current => current.map(entry => entry.groupIndex === groupIndex ? { ...entry, decision: "PENDING" } : entry));
+      setImageUrls(current => ({ ...current, [groupIndex]: "" }));
+      setMessage(imageAssetId ? "Đã lưu ảnh vào tác vụ. Kiểm tra ảnh và duyệt lại các câu trong nhóm; mở lại tài liệu vẫn giữ ảnh." : "Đã bỏ ảnh khỏi nhóm của tác vụ. File gốc vẫn riêng tư.");
+      if (imageAssetId) await previewImage(groupIndex, imageAssetId);
+    } catch (uploadError) {
+      setError((attached ? "Ảnh đã được lưu nhưng chưa mở được bản xem trước. " : "") + (uploadError instanceof Error ? uploadError.message : "Lỗi kết nối."));
+    } finally { setBusy(false); }
+  }
+
+  async function openImage() {
+    if (!active || !activeGroup?.imageAssetId || busy) return;
+    setBusy(true); setError("");
+    try { await previewImage(active.groupIndex, activeGroup.imageAssetId); }
+    catch (imageError) { setError(imageError instanceof Error ? imageError.message : "Không mở được ảnh."); }
+    finally { setBusy(false); }
+  }
 
   function editQuestion(update: (question: DraftQuestion) => DraftQuestion) {
     if (busy || imported || submittedForReview) return;
@@ -169,7 +227,7 @@ export default function IngestionQuestionReview({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jobId,
-          data: buildReviewedContribution(groups, entries),
+          data: buildReviewedContribution(reviewGroups, entries),
           rightsConfirmed: true,
         }),
       });
@@ -229,6 +287,19 @@ export default function IngestionQuestionReview({
                 <p className="mt-2 text-xs">Ngữ cảnh nhóm chưa chỉnh sửa ở bước này; nếu sai, hãy bỏ qua các câu liên quan.</p>
               </div>
             )}
+            <div className="mb-4 rounded-xl border border-slate-200 p-3 text-sm">
+              <p className="font-semibold">Ảnh Part 1 hoặc biểu đồ · Nhóm {active.groupIndex + 1}</p>
+              <p className="mt-1 text-xs text-slate-600">Chọn ảnh đã cắt từ tài liệu. Ảnh áp dụng cho toàn bộ {reviewGroups[active.groupIndex].questions.length} câu trong nhóm; nếu có nhiều ảnh, ghép đủ ảnh và giữ số câu để đối chiếu. Hệ thống chưa tự cắt ảnh từ PDF.</p>
+              <label className="mt-3 grid gap-1 font-semibold">{activeGroup?.imageAssetId ? "Thay ảnh của nhóm" : "Gắn ảnh cho nhóm"}
+                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || imported || submittedForReview} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachImage(file); }} />
+              </label>
+              <p className="mt-1 text-xs text-slate-500">JPG/PNG/WebP, tối đa {UPLOAD_RULES.IMAGE.maxBytes / 1024 / 1024} MiB. Ảnh đã gắn được lưu cùng tác vụ, không sửa câu hỏi đã nhập trước đó.</p>
+              {activeGroup?.imageAssetId && <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" disabled={busy} className="ghost-button" onClick={() => void openImage()}>Xem ảnh đã gắn</button>
+                <button type="button" disabled={busy || imported || submittedForReview} className="ghost-button" onClick={() => void attachImage(null)}>Bỏ ảnh khỏi nhóm</button>
+              </div>}
+              {imageUrls[active.groupIndex] && <Image unoptimized src={imageUrls[active.groupIndex]} alt={`Ảnh nhóm câu ${active.groupIndex + 1}`} width={1200} height={900} className="mt-3 max-h-[32rem] w-full object-contain" />}
+            </div>
             <div className="grid gap-4">
               <label className="grid gap-1 text-sm font-semibold" htmlFor="review-part">
                 Part

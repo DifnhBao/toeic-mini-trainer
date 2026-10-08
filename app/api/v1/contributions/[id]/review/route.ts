@@ -1,14 +1,14 @@
-import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { reviewContributionSchema, sharedQuestionDataSchema } from "@/app/lib/content-contributions";
 import { hasRole } from "@/app/lib/authorization";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
-import { deleteStoredObject, promoteStoredObject, verifyStoredObject } from "@/app/lib/object-storage";
 import { prisma } from "@/app/lib/prisma";
 import { importExtractedQuestions } from "@/app/lib/question-import";
 import { requestUser } from "@/app/lib/request-user";
 import { takeRateLimit } from "@/app/lib/rate-limit";
+import { ingestionImageIds, MAX_INGESTION_IMAGES } from "@/app/lib/ingestion-images";
+import { withContributionMedia, type SourceMediaAsset } from "@/app/lib/shared-media-copy";
 
 export const runtime = "nodejs";
 
@@ -34,9 +34,10 @@ export async function POST(
       id: true, ownerId: true, status: true, data: true,
       sourceJob: {
         select: {
+          result: true,
           audioAssetId: true,
           audioAsset: { select: {
-            ownerId: true, kind: true, status: true, objectKey: true, etag: true,
+            id: true, ownerId: true, kind: true, status: true, objectKey: true, etag: true,
             originalName: true, contentType: true, sizeBytes: true,
           } },
         },
@@ -71,6 +72,10 @@ export async function POST(
 
   const parsed = sharedQuestionDataSchema.safeParse(contribution.data);
   if (!parsed.success) return apiError("INVALID_CONTENT", "Nội dung đóng góp không còn hợp lệ.", 422);
+  if (parsed.data.data.some(item => item.questions.some(question =>
+    (question.part <= 4 && !item.group?.audioAssetId) || (question.part === 1 && !item.group?.imageAssetId)))) {
+    return apiError("MEDIA_REQUIRED", "Bài nghe cần audio; Part 1 cần thêm ảnh trước khi công khai.", 422);
+  }
 
   const submittedAudioIds = new Set(parsed.data.data.flatMap((item) => item.group?.audioAssetId ? [item.group.audioAssetId] : []));
   const sourceAudio = contribution.sourceJob.audioAsset;
@@ -81,39 +86,33 @@ export async function POST(
     return apiError("MEDIA_UNAVAILABLE", "Audio đóng góp không còn sẵn sàng.", 409);
   }
 
-  let sharedObjectKey: string | null = null;
-  let committed = false;
+  const imageIds = ingestionImageIds(parsed.data);
+  const attachedIds = new Set(ingestionImageIds(contribution.sourceJob.result));
+  if (imageIds.length > MAX_INGESTION_IMAGES || imageIds.some(id => !attachedIds.has(id))) {
+    return apiError("MEDIA_UNAVAILABLE", "Ảnh không thuộc tác vụ nhập đề.", 409);
+  }
+  const images = imageIds.length ? await prisma.uploadedAsset.findMany({
+    where: { id: { in: imageIds }, ownerId: contribution.ownerId, kind: "IMAGE", status: "READY", etag: { not: null } },
+    select: { id: true, objectKey: true, etag: true, originalName: true, contentType: true, sizeBytes: true },
+  }) : [];
+  if (images.length !== imageIds.length) return apiError("MEDIA_UNAVAILABLE", "Ảnh đóng góp không còn sẵn sàng.", 409);
+  const mediaSources: SourceMediaAsset[] = images.map(image => ({ ...image, kind: "IMAGE", etag: image.etag! }));
+  if (submittedAudioIds.size === 1 && sourceAudio?.etag) {
+    mediaSources.push({ ...sourceAudio, kind: "AUDIO", etag: sourceAudio.etag });
+  }
   try {
-    let sharedAsset: Parameters<typeof importExtractedQuestions>[4];
-    let approvedData = parsed.data;
-    if (submittedAudioIds.size === 1 && sourceAudio?.etag) {
-      const assetId = randomUUID();
-      const extension = sourceAudio.objectKey.match(/\.[a-z0-9]{1,8}$/i)?.[0] || "";
-      sharedObjectKey = `shared/audio/${contribution.id}/${assetId}${extension}`;
-      await promoteStoredObject(sourceAudio.objectKey, sharedObjectKey, `"${sourceAudio.etag}"`);
-      const verified = await verifyStoredObject({
-        objectKey: sharedObjectKey,
-        contentType: sourceAudio.contentType,
-        sizeBytes: sourceAudio.sizeBytes,
-      });
-      if (!verified.valid) throw new Error("SHARED_MEDIA_COPY_INVALID");
-      sharedAsset = {
-        id: assetId, ownerId: null, kind: "AUDIO", status: "READY",
-        objectKey: sharedObjectKey, originalName: sourceAudio.originalName,
-        contentType: sourceAudio.contentType, sizeBytes: sourceAudio.sizeBytes,
-        etag: verified.etag, verifiedAt: new Date(),
-      };
-      approvedData = {
-        data: parsed.data.data.map((item) => ({
-          ...item,
-          group: item.group?.audioAssetId ? { ...item.group, audioAssetId: assetId } : item.group,
-        })),
-      };
-    }
-    const questionsAdded = await importExtractedQuestions(
+    const questionsAdded = await withContributionMedia(contribution.id, parsed.data, mediaSources,
+      ({ sharedAssets, approvedData }) => importExtractedQuestions(
       contribution.ownerId,
       approvedData,
       async (tx) => {
+        if (mediaSources.length) {
+          const ready = await tx.uploadedAsset.count({ where: {
+            ownerId: contribution.ownerId, status: "READY",
+            OR: mediaSources.map(asset => ({ id: asset.id, kind: asset.kind, etag: asset.etag })),
+          } });
+          if (ready !== mediaSources.length) throw new Error("ASSET_OWNERSHIP_INVALID");
+        }
         const changed = await tx.contentContribution.updateMany({
           where: { id: id.data, status: "PENDING" },
           data: { status: "APPROVED", reviewedById: user.id, reviewedAt, reviewNote: body.data.note || null },
@@ -124,16 +123,12 @@ export async function POST(
         });
       },
       id.data,
-      sharedAsset,
+      sharedAssets,
+      ),
+      async keys => (await prisma.uploadedAsset.count({ where: { objectKey: { in: keys }, ownerId: null } })) === 0,
     );
-    committed = true;
     return apiJson({ status: "APPROVED", questionsAdded });
   } catch (error) {
-    if (sharedObjectKey && !committed) {
-      try { await deleteStoredObject(sharedObjectKey); } catch {
-        console.error("shared media cleanup failed", { contributionId: id.data });
-      }
-    }
     if (error instanceof Error && error.message === "ALREADY_REVIEWED") {
       return apiError("ALREADY_REVIEWED", "Đóng góp đã được xử lý.", 409);
     }

@@ -25,7 +25,7 @@ export async function POST(
   let reviewedResult: ReturnType<typeof buildReviewedImport> | null = null;
   const source = await prisma.ingestionJob.findFirst({
     where: { id: parsedId.data, ownerId: user.id },
-    select: { result: true, status: true, importedAt: true },
+    select: { result: true, status: true, importedAt: true, updatedAt: true },
   });
   if (source?.status === "IMPORTED" && source.importedAt) {
     return apiJson({ imported: true, alreadyImported: true });
@@ -50,6 +50,7 @@ export async function POST(
     where: {
       id: parsedId.data,
       ownerId: user.id,
+      updatedAt: source.updatedAt,
       importedAt: null,
       OR: [
         { status: "COMPLETED" },

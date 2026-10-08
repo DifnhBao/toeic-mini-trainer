@@ -91,20 +91,25 @@ export async function importExtractedQuestions(
   input: unknown,
   finalize?: (tx: Prisma.TransactionClient, questionsAdded: number) => Promise<void>,
   sharedContributionId?: string,
-  sharedAsset?: Prisma.UploadedAssetUncheckedCreateInput & { id: string },
+  sharedAssets: Array<Prisma.UploadedAssetUncheckedCreateInput & { id: string }> = [],
 ) {
   const parsed = extractedDataSchema.parse(input);
   const assetIds = new Set<string>();
+  const assetKinds = new Map<string, "AUDIO" | "IMAGE">();
   for (const item of parsed.data) {
-    if (item.group?.audioAssetId) assetIds.add(item.group.audioAssetId);
-    if (item.group?.imageAssetId) assetIds.add(item.group.imageAssetId);
+    for (const [id, kind] of [[item.group?.audioAssetId, "AUDIO"], [item.group?.imageAssetId, "IMAGE"]] as const) {
+      if (!id) continue;
+      if (assetKinds.has(id) && assetKinds.get(id) !== kind) throw new Error("ASSET_OWNERSHIP_INVALID");
+      assetIds.add(id);
+      assetKinds.set(id, kind);
+    }
   }
-  if (sharedContributionId && assetIds.size > 0 && !sharedAsset) {
+  if (sharedContributionId && assetIds.size > 0 && !sharedAssets.length) {
     throw new Error("SHARED_ASSET_REQUIRED");
   }
-  if (sharedAsset) {
-    if (!sharedContributionId || sharedAsset.kind !== "AUDIO" || sharedAsset.ownerId !== null ||
-      !assetIds.has(sharedAsset.id)) {
+  for (const sharedAsset of sharedAssets) {
+    if (!sharedContributionId || assetKinds.get(sharedAsset.id) !== sharedAsset.kind ||
+      sharedAsset.ownerId !== null || sharedAsset.status !== "READY" || !assetIds.has(sharedAsset.id)) {
       throw new Error("SHARED_ASSET_INVALID");
     }
     assetIds.delete(sharedAsset.id);
@@ -114,16 +119,16 @@ export async function importExtractedQuestions(
   if (assetIds.size > 0) {
     const ownedAssets = await prisma.uploadedAsset.findMany({
       where: { id: { in: [...assetIds] }, ownerId, status: "READY" },
-      select: { id: true },
+      select: { id: true, kind: true },
     });
-    if (ownedAssets.length !== assetIds.size) {
+    if (ownedAssets.length !== assetIds.size || ownedAssets.some(asset => assetKinds.get(asset.id) !== asset.kind)) {
       throw new Error("ASSET_OWNERSHIP_INVALID");
     }
   }
 
   return prisma.$transaction(
     async (tx) => {
-      if (sharedAsset) await tx.uploadedAsset.create({ data: sharedAsset });
+      for (const sharedAsset of sharedAssets) await tx.uploadedAsset.create({ data: sharedAsset });
       let questionsAdded = 0;
       for (const item of parsed.data) {
         let groupId: string | null = null;

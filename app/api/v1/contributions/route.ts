@@ -10,6 +10,7 @@ import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { requestUser } from "@/app/lib/request-user";
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
+import { ingestionImageIds, MAX_INGESTION_IMAGES } from "@/app/lib/ingestion-images";
 
 export const runtime = "nodejs";
 
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
 
   const job = await prisma.ingestionJob.findFirst({
     where: { id: body.data.jobId, ownerId: user.id, status: { in: ["COMPLETED", "IMPORTED"] } },
-    select: { id: true, audioAssetId: true, result: true },
+    select: { id: true, audioAssetId: true, result: true, updatedAt: true },
   });
   if (!job?.result) return apiError("JOB_NOT_READY", "Bộ đề chưa sẵn sàng để gửi.", 409);
 
@@ -75,9 +76,18 @@ export async function POST(request: Request) {
   // The user can correct text/answers, but cannot attach arbitrary media from
   // another ingestion or publish a source PDF.
   if (reviewedData.data.some(({ group }) =>
-    Boolean(group?.imageAssetId) || Boolean(group?.audioAssetId && group.audioAssetId !== job.audioAssetId)
+    Boolean(group?.audioAssetId && group.audioAssetId !== job.audioAssetId)
   )) {
     return apiError("MEDIA_NOT_ALLOWED", "Media không thuộc bộ đề này.", 400);
+  }
+  const imageIds = ingestionImageIds(reviewedData);
+  const attachedIds = new Set(ingestionImageIds(job.result));
+  if (imageIds.length > MAX_INGESTION_IMAGES || imageIds.some(id => !attachedIds.has(id))) {
+    return apiError("MEDIA_NOT_ALLOWED", "Hãy gắn ảnh vào đúng tác vụ trước khi gửi duyệt.", 400);
+  }
+  if (imageIds.length) {
+    const ready = await prisma.uploadedAsset.count({ where: { id: { in: imageIds }, ownerId: user.id, kind: "IMAGE", status: "READY" } });
+    if (ready !== imageIds.length) return apiError("MEDIA_NOT_ALLOWED", "Ảnh không còn sẵn sàng hoặc không thuộc tài khoản này.", 400);
   }
 
   const existing = await prisma.contentContribution.findUnique({
@@ -87,12 +97,22 @@ export async function POST(request: Request) {
   if (existing) return apiError("ALREADY_SUBMITTED", "Bộ đề này đã được gửi đóng góp.", 409);
 
   try {
-    const contribution = await prisma.contentContribution.create({
-      data: { ownerId: user.id, sourceJobId: job.id, data: reviewedData },
-      select: { id: true, status: true, createdAt: true },
+    const contribution = await prisma.$transaction(async tx => {
+      const locked = await tx.ingestionJob.updateMany({
+        where: { id: job.id, ownerId: user.id, updatedAt: job.updatedAt, status: { in: ["COMPLETED", "IMPORTED"] }, contribution: { is: null } },
+        data: { updatedAt: new Date(Math.max(Date.now(), job.updatedAt.getTime() + 1)) },
+      });
+      if (locked.count !== 1) throw new Error("JOB_CHANGED");
+      return tx.contentContribution.create({
+        data: { ownerId: user.id, sourceJobId: job.id, data: reviewedData },
+        select: { id: true, status: true, createdAt: true },
+      });
     });
     return apiJson({ contribution, questionsSubmitted: contributionQuestionCount(reviewedData) }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === "JOB_CHANGED") {
+      return apiError("JOB_CHANGED", "Tài liệu vừa thay đổi hoặc đã gửi duyệt. Hãy mở lại trước khi gửi.", 409);
+    }
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
       return apiError("ALREADY_SUBMITTED", "Bộ đề này đã được gửi đóng góp.", 409);
     }
