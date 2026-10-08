@@ -6,6 +6,7 @@ import { extractedDataSchema, type ExtractedData } from "@/app/lib/question-impo
 import { readStoredObject } from "@/app/lib/object-storage";
 import { prisma } from "@/app/lib/prisma";
 import { consumeGlobalAiCall } from "@/app/lib/ai-usage";
+import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
 
 const ai = new GoogleGenAI({});
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
@@ -65,69 +66,75 @@ async function extractQuestions(
 ${needsOcr ? "Đây là PDF scan; hãy đọc chữ từ ảnh trong PDF." : `\n<document>\n${rawText}\n</document>`}`;
 
   let responseText: string;
-  if (process.env.INGESTION_ENABLED === "false" || !(await consumeGlobalAiCall())) {
+  if (process.env.INGESTION_ENABLED === "false") {
     throw new IngestionProcessingError("AI_DAILY_LIMIT");
   }
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: needsOcr
-        ? [{ text: prompt }, { inlineData: { mimeType: "application/pdf", data: Buffer.from(section.bytes).toString("base64") } }]
-        : prompt,
-      config: {
-        maxOutputTokens: 16_384,
-        httpOptions: { timeout: 240_000 },
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            data: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  group: {
-                    type: Type.OBJECT,
-                    nullable: true,
-                    properties: {
-                      groupType: { type: Type.STRING },
-                      passageText: { type: Type.STRING, nullable: true },
-                    },
-                  },
-                  questions: {
-                    type: Type.ARRAY,
-                    items: {
+    const response = await withAiProviderCapacity({
+      timeoutMs: 240_000,
+      allow: consumeGlobalAiCall,
+      generate: (providerConfig) => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: needsOcr
+          ? [{ text: prompt }, { inlineData: { mimeType: "application/pdf", data: Buffer.from(section.bytes).toString("base64") } }]
+          : prompt,
+        config: {
+          ...providerConfig,
+          maxOutputTokens: 16_384,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              data: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    group: {
                       type: Type.OBJECT,
+                      nullable: true,
                       properties: {
-                        part: { type: Type.INTEGER },
-                        content: { type: Type.STRING, nullable: true },
-                        options: {
-                          type: Type.OBJECT,
-                          properties: {
-                            A: { type: Type.STRING },
-                            B: { type: Type.STRING },
-                            C: { type: Type.STRING },
-                            D: { type: Type.STRING },
-                          },
-                          required: ["A", "B", "C", "D"],
-                        },
-                        correctAnswer: { type: Type.STRING },
+                        groupType: { type: Type.STRING },
+                        passageText: { type: Type.STRING, nullable: true },
                       },
-                      required: ["part", "options", "correctAnswer"],
+                    },
+                    questions: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          part: { type: Type.INTEGER },
+                          content: { type: Type.STRING, nullable: true },
+                          options: {
+                            type: Type.OBJECT,
+                            properties: {
+                              A: { type: Type.STRING },
+                              B: { type: Type.STRING },
+                              C: { type: Type.STRING },
+                              D: { type: Type.STRING },
+                            },
+                            required: ["A", "B", "C", "D"],
+                          },
+                          correctAnswer: { type: Type.STRING },
+                        },
+                        required: ["part", "options", "correctAnswer"],
+                      },
                     },
                   },
+                  required: ["questions"],
                 },
-                required: ["questions"],
               },
             },
+            required: ["data"],
           },
-          required: ["data"],
         },
-      },
+      }),
     });
 
     responseText = response.text || "";
   } catch (error) {
+    if (error instanceof AiCapacityError) throw error;
+    if (error instanceof AiQuotaExceededError) throw new IngestionProcessingError("AI_DAILY_LIMIT");
     const status = typeof error === "object" && error !== null && "status" in error
       ? Number(error.status) : 0;
     if (status === 429) throw new IngestionProcessingError("AI_RATE_LIMITED");
@@ -162,15 +169,20 @@ ${needsOcr ? "Đây là PDF scan; hãy đọc chữ từ ảnh trong PDF." : `\n
   }
 }
 
-export async function processIngestionJob(jobId: string) {
-  const claimed = await prisma.ingestionJob.updateMany({
+export async function processIngestionJob(jobId: string, dependencies = {
+  database: prisma,
+  readDocument: readStoredObject,
+  extract: extractQuestions,
+}) {
+  const { database, readDocument, extract } = dependencies;
+  const claimed = await database.ingestionJob.updateMany({
     where: { id: jobId, status: "PENDING" },
     data: { status: "PROCESSING", startedAt: new Date(), attemptCount: { increment: 1 } },
   });
   if (claimed.count !== 1) return;
 
   try {
-    const job = await prisma.ingestionJob.findUnique({
+    const job = await database.ingestionJob.findUnique({
       where: { id: jobId },
       include: { documentAsset: true, audioAsset: true },
     });
@@ -181,14 +193,14 @@ export async function processIngestionJob(jobId: string) {
       throw new IngestionProcessingError("AUDIO_ASSET_INVALID");
     }
 
-    const documentBytes = await readStoredObject(job.documentAsset.objectKey, MAX_PDF_BYTES);
-    const result: ExtractedData = await extractQuestions(
+    const documentBytes = await readDocument(job.documentAsset.objectKey, MAX_PDF_BYTES);
+    const result: ExtractedData = await extract(
       documentBytes,
       job.audioAssetId,
       job.pageStart,
       job.pageEnd,
     );
-    await prisma.ingestionJob.update({
+    await database.ingestionJob.update({
       where: { id: job.id },
       data: {
         status: "COMPLETED",
@@ -198,12 +210,21 @@ export async function processIngestionJob(jobId: string) {
       },
     });
   } catch (error) {
+    if (error instanceof AiCapacityError && error.code === "AI_BUSY") {
+      // No provider call or daily reservation occurred. Keep the uploaded
+      // document and let a later worker trigger retry without spending an attempt.
+      await database.ingestionJob.updateMany({
+        where: { id: jobId, status: "PROCESSING" },
+        data: { status: "PENDING", startedAt: null, completedAt: null, errorCode: null, attemptCount: { decrement: 1 } },
+      });
+      return;
+    }
     const code = error instanceof IngestionProcessingError ? error.code : "INGESTION_FAILED";
     console.error("ingestion job failed", {
       jobId,
       errorType: error instanceof Error ? error.name : "unknown",
     });
-    await prisma.ingestionJob.updateMany({
+    await database.ingestionJob.updateMany({
       where: { id: jobId, status: "PROCESSING" },
       data: { status: "FAILED", errorCode: code, completedAt: new Date() },
     });

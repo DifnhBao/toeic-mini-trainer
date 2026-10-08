@@ -18,8 +18,8 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 93 kiểm thử đạt; không dùng DB/provider thật |
-| PostgreSQL integration | 11 kiểm thử đạt trên DB loopback `toeic_release_test` |
+| Unit/regression | 111 kiểm thử đạt; không dùng DB/provider thật |
+| PostgreSQL integration | 14 kiểm thử đạt trên DB loopback `toeic_release_test` |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
@@ -47,7 +47,7 @@ Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra 
 | BASE-02, E2E-01 | API `5107b97` đã lên domain chính, 7 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
 | E2E-02…05 | APK mới đã build xong; chờ nghiệm thu Samsung S23 FE Android 16 / One UI 8.5 và thiết bị thứ hai |
 | SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
-| SAFE-03 | Đã có limiter chung, quota provider/ngày và công tắc dừng; giới hạn đồng thời và ngân sách tiền/cảnh báo chưa hoàn tất |
+| SAFE-03 | Đã có limiter, quota/ngày, công tắc dừng và giới hạn AI đồng thời qua PostgreSQL; đã kiểm chứng local, chờ rollout; ngân sách tiền/cảnh báo chưa hoàn tất |
 | OPS-01 | Workflow và cổng dependency đã có, kiểm tra local đạt; chưa xác minh được remote CI hoặc branch protection bằng quyền GitHub hiện có |
 | OPS-02 | Backup DB thật mã hóa và restore cách ly đạt; backup định kỳ/offsite/PITR và R2 chưa hoàn tất |
 | OPS-03/04 | Đã có log/runbook/worker recovery nền; chưa nghiệm thu cảnh báo thực tế, tải worker và phục hồi khi ngắt |
@@ -60,7 +60,7 @@ Hiện đã hoàn thành phần nền kỹ thuật và rollout API để bắt �
 
 1. Kiểm tra readiness có xác thực và worker/storage trên hạ tầng: Vercel không cho pull worker secret qua CLI. Không thay/đọc lén secret để bỏ qua giới hạn này.
 2. Đăng nhập trên API mới; kiểm tra ingestion protocol và AI trên tài khoản test.
-3. Cài APK trên Samsung S23 FE và nghiệm thu luồng học/Google/upload/OCR/audio/phục hồi lỗi khi Metro tắt; biên bản/link build tại `ANDROID_ACCEPTANCE_2026-10-08.md`. Cần thiết bị Android thứ hai trước khi đóng các cổng E2E.
+3. Samsung S23 FE đã báo A-01/A-02/A-07 đạt; A-03/A-04/A-08 có lỗi, đã sửa mã và cần APK mới để thử lại (`SAMSUNG_FIXES_2026-10-08.md`). A-05 thiếu dữ liệu media, A-06 chờ thử. Cần thiết bị Android thứ hai trước khi đóng các cổng E2E.
 4. Cấu hình cảnh báo, ngân sách, backup Neon định kỳ/offsite và R2; chỉ định người vận hành và kiểm duyệt nội dung.
 5. Chuẩn bị bộ nội dung có quyền sử dụng, hướng dẫn/support/chính sách dữ liệu, rồi chạy beta 10–20 người trong hai tuần và xử lý lỗi trước mở rộng.
 

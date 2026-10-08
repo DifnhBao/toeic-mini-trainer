@@ -35,6 +35,7 @@ Backup smoke test tạo dữ liệu học mẫu, dump trong container, restore v
 
 - API HTTPS, database và bucket private theo `.env.example`.
 - `AI_DAILY_GLOBAL_CALL_LIMIT`: số lượt provider tối đa/ngày UTC trên toàn ứng dụng; mặc định 200. Lỗi cấu hình hoặc không ghi được counter phải chặn tác vụ.
+- `AI_MAX_CONCURRENT_CALLS`: tối đa request AI đồng thời dùng chung DB, mặc định 3 (1–20). SDK chỉ một HTTP attempt; deadline/lease và job bận chờ lại được mô tả trong `AI_CAPACITY_2026-10-08.md`.
 - `AI_ENABLED=false`: tạm ngừng gọi model; `INGESTION_ENABLED=false`: dừng phân tích tài liệu. Cache lời giải sẵn có vẫn có thể được đọc sau kiểm tra quyền.
 - Quota cá nhân: coach/explain 20/ngày mỗi loại, ingestion 3 job/ngày (ADMIN 10). Worker dự trữ thêm lượt toàn hệ thống trước mỗi gọi Gemini, gồm retry. Lượt thất bại có thể vẫn tiêu thụ quota để tránh retry tạo chi phí không giới hạn.
 - Giới hạn số lượt không phải trần tiền. Người vận hành phải đặt cảnh báo/ngân sách tại provider, đo token/cost thực tế và thống nhất mức chi tiêu trước mở rộng.

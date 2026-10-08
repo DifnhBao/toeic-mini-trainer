@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
+import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { takeRateLimit } from "@/app/lib/rate-limit";
@@ -33,6 +34,7 @@ const coachSchema = z
 
 const SYSTEM_PROMPT = `Bạn là giáo viên TOEIC người Việt, chắc kiến thức và hướng dẫn thực tế.
 Trả lời bằng tiếng Việt, tối đa 350 từ. Đi thẳng vào điều người học cần hiểu.
+Chỉ dùng văn bản thường: đoạn ngắn và danh sách đánh số. Không dùng Markdown, dấu **, tiêu đề # hoặc bảng.
 - Nếu là ngữ pháp/từ vựng: giải thích quy tắc, chỉ ra dấu hiệu nhận biết và cho 1 ví dụ TOEIC ngắn.
 - Nếu là chiến thuật: đưa quy trình 2-4 bước áp dụng ngay và một lỗi thường gặp.
 - Nếu người học đưa câu hỏi trắc nghiệm: phân tích đáp án đúng và vì sao các đáp án nhiễu sai.
@@ -56,28 +58,30 @@ export async function POST(request: Request) {
 
   const focus = body.data.part?.trim() || "Tổng hợp";
 
-  if (!(await consumeDailyAiCall(user.id, "coach", 20))) {
-    return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt hỏi AI hôm nay.", 429);
-  }
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: body.data.messages.map((message) => ({
-        role: message.role === "assistant" ? "model" : "user",
-        parts: [{ text: message.content }],
-      })),
-      config: {
-        maxOutputTokens: 4_096,
-        httpOptions: { timeout: 45_000 },
-        systemInstruction: `${SYSTEM_PROMPT}\nNgười học đang tập trung vào: ${focus}.`,
-      },
+    const response = await withAiProviderCapacity({
+      timeoutMs: 45_000,
+      allow: () => consumeDailyAiCall(user.id, "coach", 20),
+      generate: (providerConfig) => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: body.data.messages.map((message) => ({
+          role: message.role === "assistant" ? "model" : "user",
+          parts: [{ text: message.content }],
+        })),
+        config: {
+          ...providerConfig,
+          maxOutputTokens: 4_096,
+          systemInstruction: `${SYSTEM_PROMPT}\nNgười học đang tập trung vào: ${focus}.`,
+        },
+      }),
     });
 
     const answer = response.text?.trim();
     if (!answer) throw new Error("AI returned an empty answer");
     return apiJson({ answer });
   } catch (error) {
+    if (error instanceof AiQuotaExceededError) return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt hỏi AI hôm nay.", 429);
+    if (error instanceof AiCapacityError) return apiError(error.code, "AI Coach đang bận. Vui lòng thử lại sau.", 503, { "Retry-After": String(error.retryAfterSeconds) });
     console.error("v1 AI coach error", { errorType: error instanceof Error ? error.name : "unknown" });
     return apiError("AI_UNAVAILABLE", "AI Coach đang bận. Vui lòng thử lại sau ít phút.", 503);
   }

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette, radius } from '@/constants/design';
 import { useAuth } from '@/providers/auth-provider';
+import { UnfinishedPractice } from '@/components/unfinished-practice';
 
 const counts = [10, 20, 30, 50];
 const parts = [1, 2, 3, 4, 5, 6, 7];
@@ -34,6 +35,7 @@ export default function PracticeScreen() {
       router.push(`/test/${response.test.id}`);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : 'Không thể tạo bài luyện.');
+    } finally {
       setCreating(false);
     }
   };
@@ -41,6 +43,7 @@ export default function PracticeScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
+        <UnfinishedPractice />
         <View>
           <Text style={styles.title}>Thiết kế buổi luyện</Text>
           <Text style={styles.subtitle}>Chọn số câu và những phần bạn muốn tập trung.</Text>

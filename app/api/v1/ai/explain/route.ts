@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
+import { AiCapacityError, AiQuotaExceededError } from "@/app/lib/ai-provider-capacity";
 import {
   canonicalExplanationSchema,
   EXPLANATION_LOCALE,
@@ -93,20 +94,8 @@ export async function POST(request: Request) {
     if (claimed.count !== 1) return apiError("EXPLANATION_PENDING", "Lời giải đang được tạo, hãy thử lại sau.", 409);
   }
 
-  let quotaAllowed = false;
   try {
-    quotaAllowed = await consumeDailyAiCall(user.id, "explain", 20);
-  } catch {
-    await prisma.questionExplanationCache.updateMany({ where: { id: cache.id, status: "GENERATING" }, data: { status: "FAILED" } });
-    return apiError("AI_UNAVAILABLE", "Chưa thể kiểm tra hạn mức AI.", 503);
-  }
-  if (!quotaAllowed) {
-    await prisma.questionExplanationCache.updateMany({ where: { id: cache.id, status: "GENERATING" }, data: { status: "FAILED" } });
-    return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt tạo lời giải hôm nay.", 429);
-  }
-
-  try {
-    const generated = await generateCanonicalExplanation(question);
+    const generated = await generateCanonicalExplanation(question, () => consumeDailyAiCall(user.id, "explain", 20));
     const saved = await prisma.questionExplanationCache.updateMany({
       where: { id: cache.id, status: "GENERATING" },
       data: { status: "READY", explanation: generated, generatedAt: new Date() },
@@ -121,6 +110,8 @@ export async function POST(request: Request) {
     return apiJson({ explanation: { explanationText, suggestedSkills: null, cached: false } });
   } catch (error) {
     await prisma.questionExplanationCache.updateMany({ where: { id: cache.id, status: "GENERATING" }, data: { status: "FAILED" } });
+    if (error instanceof AiQuotaExceededError) return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt tạo lời giải hôm nay.", 429);
+    if (error instanceof AiCapacityError) return apiError(error.code, "AI đang bận. Vui lòng thử lại sau.", 503, { "Retry-After": String(Math.max(60, error.retryAfterSeconds)) });
     console.error("canonical explanation failed", { errorType: error instanceof Error ? error.name : "unknown" });
     return apiError("AI_UNAVAILABLE", "Chưa tạo được lời giải. Vui lòng thử lại sau.", 503);
   }

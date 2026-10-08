@@ -1,11 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   Pressable,
   SafeAreaView,
@@ -18,13 +18,9 @@ import {
 import { palette, radius } from '@/constants/design';
 import { useAuth } from '@/providers/auth-provider';
 import type { TestData } from '@/types/learning';
-
-type Draft = {
-  answers: Record<string, string>;
-  currentIndex: number;
-  startedAt: number;
-  clientSubmissionId: string;
-};
+import { getApiBaseUrl } from '@/lib/api';
+import { practiceNamespace, restorePracticeDraft, type PracticeDraft } from '@/lib/practice-drafts';
+import { practiceDrafts } from '@/lib/practice-storage';
 
 function formatDuration(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -79,6 +75,12 @@ function AudioPanel({ url }: { url: string }) {
 export default function TestScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const testId = Array.isArray(id) ? id[0] : id;
+  const { user } = useAuth();
+  if (!user) return <Redirect href="/sign-in" />;
+  return <TestSession key={`${getApiBaseUrl()}:${user.id}:${testId}`} testId={testId} />;
+}
+
+function TestSession({ testId }: { testId: string }) {
   const { user, authorizedFetch } = useAuth();
   const [test, setTest] = useState<TestData | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -87,10 +89,30 @@ export default function TestScreen() {
   const [submissionId, setSubmissionId] = useState(() => Crypto.randomUUID());
   const [elapsed, setElapsed] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [draftReady, setDraftReady] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const draftKey = `toeic.draft.${testId}`;
+  const [draftWarning, setDraftWarning] = useState('');
+  const draftRef = useRef<PracticeDraft | null>(null);
+  const submittingRef = useRef(false);
+  const completedRef = useRef(false);
+  const namespace = user ? practiceNamespace(getApiBaseUrl(), user.id) : '';
+
+  const persistDraft = useCallback((draft: PracticeDraft) => {
+    if (completedRef.current) return;
+    draftRef.current = draft;
+    void practiceDrafts.save(namespace, draft).then(() => setDraftWarning(''))
+      .catch(() => setDraftWarning('Chưa lưu được bản nháp trên thiết bị. Hãy kiểm tra dung lượng trước khi thoát.'));
+  }, [namespace]);
+  const changeIndex = useCallback((index: number) => {
+    setCurrentIndex(index);
+    if (draftRef.current) persistDraft({ ...draftRef.current, currentIndex: index, updatedAt: Date.now() });
+  }, [persistDraft]);
+  const chooseAnswer = useCallback((questionId: string, choice: string) => {
+    if (!draftRef.current || submittingRef.current) return;
+    const next = { ...draftRef.current.answers, [questionId]: choice };
+    setAnswers(next);
+    persistDraft({ ...draftRef.current, answers: next, updatedAt: Date.now() });
+  }, [persistDraft]);
 
   useEffect(() => {
     setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }).catch(
@@ -105,25 +127,22 @@ export default function TestScreen() {
       try {
         const [response, saved] = await Promise.all([
           authorizedFetch<{ test: TestData }>(`/api/v1/tests/${testId}`),
-          AsyncStorage.getItem(draftKey),
+          practiceDrafts.read(namespace, testId),
         ]);
         if (!active) return;
+        if (response.test.ownerId !== user.id) throw new Error('Phiên đăng nhập đã thay đổi hoặc API cần cập nhật. Hãy mở lại bài luyện.');
         setTest(response.test);
-        if (saved) {
-          const draft = JSON.parse(saved) as Partial<Draft>;
-          if (draft.answers && typeof draft.answers === 'object') setAnswers(draft.answers);
-          if (Number.isInteger(draft.currentIndex)) {
-            setCurrentIndex(Math.max(0, Math.min(response.test.questions.length - 1, draft.currentIndex!)));
-          }
-          if (typeof draft.startedAt === 'number') setStartedAt(draft.startedAt);
-          else setStartedAt(Date.now());
-          if (typeof draft.clientSubmissionId === 'string') setSubmissionId(draft.clientSubmissionId);
-        } else setStartedAt(Date.now());
+        const draft = restorePracticeDraft(saved, response.test, Crypto.randomUUID);
+        draftRef.current = draft;
+        setAnswers(draft.answers); setCurrentIndex(draft.currentIndex);
+        setStartedAt(draft.startedAt); setSubmissionId(draft.clientSubmissionId);
+        setElapsed(Math.max(0, Math.floor((Date.now() - draft.startedAt) / 1000)));
+        try { await practiceDrafts.save(namespace, draft); }
+        catch { if (active) setDraftWarning('Chưa lưu được bản nháp. Kiểm tra dung lượng trước khi thoát.'); }
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : 'Không thể mở bài luyện.');
       } finally {
         if (active) {
-          setDraftReady(true);
           setLoading(false);
         }
       }
@@ -131,7 +150,7 @@ export default function TestScreen() {
     return () => {
       active = false;
     };
-  }, [authorizedFetch, draftKey, testId, user]);
+  }, [authorizedFetch, namespace, testId, user]);
 
   useEffect(() => {
     if (startedAt <= 0) return;
@@ -140,15 +159,13 @@ export default function TestScreen() {
   }, [startedAt]);
 
   useEffect(() => {
-    if (!draftReady || !test || startedAt <= 0) return;
-    const draft: Draft = {
-      answers,
-      currentIndex,
-      startedAt,
-      clientSubmissionId: submissionId,
-    };
-    AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(() => undefined);
-  }, [answers, currentIndex, draftKey, draftReady, startedAt, submissionId, test]);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' && draftRef.current && !completedRef.current) {
+        void practiceDrafts.save(namespace, draftRef.current).catch(() => setDraftWarning('Chưa lưu được bản nháp trên thiết bị.'));
+      }
+    });
+    return () => subscription.remove();
+  }, [namespace]);
 
   const answeredCount = Object.keys(answers).length;
   const question = test?.questions[currentIndex]?.question;
@@ -160,7 +177,8 @@ export default function TestScreen() {
   if (!user) return <Redirect href="/sign-in" />;
 
   const performSubmit = async () => {
-    if (!test || submitting) return;
+    if (!test || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError('');
     try {
@@ -177,11 +195,15 @@ export default function TestScreen() {
           }),
         },
       );
-      await AsyncStorage.removeItem(draftKey);
+      completedRef.current = true;
+      // A local storage error must not turn an accepted submission into a
+      // failed one. The stable submission UUID makes any later retry safe.
+      await practiceDrafts.remove(namespace, test.id).catch(() => undefined);
       router.replace(`/result/${response.attemptId}`);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Không thể nộp bài.');
-      setSubmitting(false);
+    } finally {
+      submittingRef.current = false; setSubmitting(false);
     }
   };
 
@@ -203,9 +225,14 @@ export default function TestScreen() {
   };
 
   const exit = () => {
-    Alert.alert('Thoát bài luyện?', 'Đáp án hiện tại đã được tự động lưu trên thiết bị.', [
+    Alert.alert('Thoát bài luyện?', draftWarning || 'Bạn có thể mở lại bài trong mục “Bài đang luyện”.', [
       { text: 'Ở lại', style: 'cancel' },
-      { text: 'Thoát', onPress: () => router.replace('/(tabs)') },
+      { text: 'Lưu và thoát', onPress: async () => {
+        try {
+          if (draftRef.current) await practiceDrafts.save(namespace, draftRef.current);
+          router.replace('/(tabs)');
+        } catch { setDraftWarning('Chưa lưu được bản nháp. Hãy thử lại trước khi thoát.'); }
+      } },
     ]);
   };
 
@@ -247,7 +274,7 @@ export default function TestScreen() {
           return (
             <Pressable
               key={item.question.id}
-              onPress={() => setCurrentIndex(index)}
+              onPress={() => changeIndex(index)}
               style={[styles.number, answered && styles.numberAnswered, selected && styles.numberCurrent]}>
               <Text style={[styles.numberText, (answered || selected) && styles.numberTextActive]}>{index + 1}</Text>
             </Pressable>
@@ -286,7 +313,7 @@ export default function TestScreen() {
                   accessibilityRole="radio"
                   accessibilityState={{ selected }}
                   key={key}
-                  onPress={() => setAnswers((current) => ({ ...current, [question.id]: key }))}
+                  onPress={() => chooseAnswer(question.id, key)}
                   style={[styles.answer, selected && styles.answerSelected]}>
                   <View style={[styles.optionKey, selected && styles.optionKeySelected]}>
                     <Text style={[styles.optionKeyText, selected && styles.optionKeyTextSelected]}>{key}</Text>
@@ -297,6 +324,7 @@ export default function TestScreen() {
             })}
           </View>
         </View>
+        {!!draftWarning && <Text accessibilityRole="alert" style={styles.error}>{draftWarning}</Text>}
         {!!error && <Text style={styles.error}>{error}</Text>}
         <Text style={styles.partsNote}>Bài này gồm {parts.map((part) => `Part ${part}`).join(', ')}</Text>
       </ScrollView>
@@ -304,12 +332,12 @@ export default function TestScreen() {
       <View style={styles.footer}>
         <Pressable
           disabled={currentIndex === 0}
-          onPress={() => setCurrentIndex((value) => Math.max(0, value - 1))}
+          onPress={() => changeIndex(Math.max(0, currentIndex - 1))}
           style={[styles.secondaryButton, currentIndex === 0 && styles.disabled]}>
           <Text style={styles.secondaryButtonText}>← Câu trước</Text>
         </Pressable>
         {currentIndex < test.questions.length - 1 ? (
-          <Pressable onPress={() => setCurrentIndex((value) => value + 1)} style={styles.primaryButton}>
+          <Pressable onPress={() => changeIndex(currentIndex + 1)} style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>Câu tiếp →</Text>
           </Pressable>
         ) : (

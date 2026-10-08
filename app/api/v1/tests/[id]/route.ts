@@ -63,5 +63,5 @@ export async function GET(
       },
     })),
   );
-  return apiJson({ test: { ...test, questions } });
+  return apiJson({ test: { ...test, ownerId: user.id, questions } });
 }

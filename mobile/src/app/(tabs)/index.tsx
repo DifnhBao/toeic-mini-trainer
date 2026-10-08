@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette, radius } from '@/constants/design';
 import { useAuth } from '@/providers/auth-provider';
+import { UnfinishedPractice } from '@/components/unfinished-practice';
 import type { ProgressSummary } from '@/types/learning';
 
 export default function DashboardScreen() {
@@ -33,6 +34,7 @@ export default function DashboardScreen() {
           <Text style={styles.subtitle}>Một bài ngắn 10–20 câu là đủ để giữ nhịp mỗi ngày.</Text>
         </View>
 
+        <UnfinishedPractice limit={2} />
         <Pressable
           onPress={() => router.push('/practice')}
           style={({ pressed }) => [styles.heroCard, pressed && styles.pressed]}>

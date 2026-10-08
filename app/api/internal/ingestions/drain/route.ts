@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { prisma } from "@/app/lib/prisma";
+import { AI_LEASE_PREFIX } from "@/app/lib/ai-provider-capacity";
 import {
   isAuthorizedIngestionWorker,
   isIngestionWorkerConfigured,
@@ -28,7 +29,8 @@ export async function POST(request: Request) {
     // counters; neither table contains learning history.
     await Promise.all([
       prisma.guestUsage.deleteMany({ where: { expiresAt: { lt: now } } }),
-      prisma.userAiUsage.deleteMany({ where: { expiresAt: { lt: now } } }),
+      // Active provider leases are expired by their own database-clock sweep.
+      prisma.userAiUsage.deleteMany({ where: { expiresAt: { lt: now }, NOT: { key: { startsWith: AI_LEASE_PREFIX } } } }),
     ]);
     await prisma.ingestionJob.updateMany({
       where: { status: "PROCESSING", startedAt: { lt: staleBefore }, attemptCount: { lt: 3 } },

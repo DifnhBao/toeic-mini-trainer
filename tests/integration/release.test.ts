@@ -80,7 +80,9 @@ describe("PostgreSQL release acceptance", () => {
   it("keeps answers private before submit and excludes another account", async () => {
     const response = await getTest.GET(await request(userA), context);
     assert.equal(response.status, 200);
-    const text = JSON.stringify(await response.json());
+    const payload = await response.json();
+    assert.equal(payload.test.ownerId, userA);
+    const text = JSON.stringify(payload);
     assert.ok(!text.includes("correctAnswer"));
     assert.equal((await getTest.GET(await request(userB), context)).status, 404);
   });

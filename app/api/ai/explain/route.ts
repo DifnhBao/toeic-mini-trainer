@@ -7,7 +7,11 @@ export async function POST(request: Request) {
   const response = await explainWithSharedCache(request);
   const payload = await response.json();
   if (!response.ok) {
-    return NextResponse.json({ error: payload.error?.message || "Không thể tạo lời giải." }, { status: response.status });
+    const retryAfter = response.headers.get("Retry-After");
+    return NextResponse.json({ error: payload.error?.message || "Không thể tạo lời giải." }, {
+      status: response.status,
+      ...(retryAfter ? { headers: { "Retry-After": retryAfter } } : {}),
+    });
   }
   return NextResponse.json({
     explanationText: payload.explanation.explanationText,

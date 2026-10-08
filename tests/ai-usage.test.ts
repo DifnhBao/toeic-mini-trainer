@@ -24,7 +24,7 @@ after(() => {
 });
 
 describe("AI quotas and emergency switches", () => {
-  it("bounds concurrent calls from different users by one app-wide ceiling", async () => {
+  it("bounds daily reservations from different users by one app-wide ceiling", async () => {
     const results = await Promise.all(Array.from({ length: 12 }, (_, index) => usage.consumeDailyAiCall(`user-${index}`, "coach", 20)));
     assert.equal(results.filter(Boolean).length, 3);
   });

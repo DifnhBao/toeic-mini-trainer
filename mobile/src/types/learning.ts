@@ -16,6 +16,7 @@ export type TestQuestion = {
 
 export type TestData = {
   id: string;
+  ownerId?: string;
   title: string;
   createdAt: string;
   questions: Array<{ orderIndex: number; question: TestQuestion }>;

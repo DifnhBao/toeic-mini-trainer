@@ -5,8 +5,11 @@ import path from "path";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 import { randomUUID } from "crypto";
 import { currentWebUser } from "@/app/lib/request-user";
+import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
+import { consumeDailyAiCall, consumeGlobalAiCall } from "@/app/lib/ai-usage";
 
 const ai = new GoogleGenAI({});
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
@@ -88,67 +91,73 @@ export async function POST(request: Request) {
     `;
 
     // Gọi AI với responseSchema chặt chẽ, vì đây là tác vụ Admin nên ta cần độ chuẩn xác 100% của JSON
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: promptContext,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            data: {
-              type: Type.ARRAY,
-              description: "Danh sách các nhóm câu hỏi hoặc câu hỏi đơn lẻ",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  group: {
-                    type: Type.OBJECT,
-                    nullable: true,
-                    description:
-                      "Đoạn văn chung hoặc Audio dùng cho nhiều câu hỏi. Để null nếu là câu hỏi ngữ pháp đơn lẻ Part 5.",
-                    properties: {
-                      groupType: {
-                        type: Type.STRING,
-                        description: "'TEXT' hoặc 'AUDIO'",
-                      },
-                      passageText: { type: Type.STRING, nullable: true },
-                      audioUrl: { type: Type.STRING, nullable: true },
-                    },
-                  },
-                  questions: {
-                    type: Type.ARRAY,
-                    items: {
+    const response = await withAiProviderCapacity({
+      timeoutMs: 240_000,
+      allow: async () => (await consumeDailyAiCall(user.id, "ingestion", 3)) && consumeGlobalAiCall(),
+      generate: (providerConfig) => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: promptContext,
+        config: {
+          ...providerConfig,
+          maxOutputTokens: 16_384,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              data: {
+                type: Type.ARRAY,
+                description: "Danh sách các nhóm câu hỏi hoặc câu hỏi đơn lẻ",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    group: {
                       type: Type.OBJECT,
+                      nullable: true,
+                      description:
+                        "Đoạn văn chung hoặc Audio dùng cho nhiều câu hỏi. Để null nếu là câu hỏi ngữ pháp đơn lẻ Part 5.",
                       properties: {
-                        part: {
-                          type: Type.INTEGER,
-                          description: "Part của TOEIC (1-7)",
-                        },
-                        content: {
+                        groupType: {
                           type: Type.STRING,
-                          description: "Nội dung câu hỏi",
+                          description: "'TEXT' hoặc 'AUDIO'",
                         },
-                        options: {
-                          type: Type.OBJECT,
-                          description:
-                            "Ví dụ: {'A':'Từ 1', 'B':'Từ 2', 'C':'Từ 3', 'D':'Từ 4'}",
-                        },
-                        correctAnswer: {
-                          type: Type.STRING,
-                          description: "Chỉ một ký tự: 'A', 'B', 'C' hoặc 'D'",
-                        },
+                        passageText: { type: Type.STRING, nullable: true },
+                        audioUrl: { type: Type.STRING, nullable: true },
                       },
-                      required: ["part", "content", "options", "correctAnswer"],
+                    },
+                    questions: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          part: {
+                            type: Type.INTEGER,
+                            description: "Part của TOEIC (1-7)",
+                          },
+                          content: {
+                            type: Type.STRING,
+                            description: "Nội dung câu hỏi",
+                          },
+                          options: {
+                            type: Type.OBJECT,
+                            description:
+                              "Ví dụ: {'A':'Từ 1', 'B':'Từ 2', 'C':'Từ 3', 'D':'Từ 4'}",
+                          },
+                          correctAnswer: {
+                            type: Type.STRING,
+                            description: "Chỉ một ký tự: 'A', 'B', 'C' hoặc 'D'",
+                          },
+                        },
+                        required: ["part", "content", "options", "correctAnswer"],
+                      },
                     },
                   },
+                  required: ["questions"],
                 },
-                required: ["questions"],
               },
             },
           },
         },
-      },
+      }),
     });
 
     const resultObj = JSON.parse(response.text || "{}");
@@ -161,7 +170,9 @@ export async function POST(request: Request) {
       { status: 200 },
     );
   } catch (error) {
-    console.error("Lỗi extract AI:", error);
+    if (error instanceof AiQuotaExceededError) return NextResponse.json({ error: "Bạn đã dùng hết lượt nhập tài liệu hôm nay." }, { status: 429 });
+    if (error instanceof AiCapacityError) return NextResponse.json({ error: "AI đang bận. Vui lòng thử lại sau." }, { status: 503, headers: { "Retry-After": String(error.retryAfterSeconds) } });
+    console.error("Lỗi extract AI:", { errorType: error instanceof Error ? error.name : "unknown" });
     return NextResponse.json(
       { error: "Xảy ra lỗi trong quá trình xử lý." },
       { status: 500 },
