@@ -47,6 +47,7 @@ export function ContributionControls({ id, hasAudio, hasImages = false }: { id: 
   const [notice, setNotice] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
+  const [audios, setAudios] = useState<Array<{ assetId: string; groupNumbers: number[]; url: string; fileName?: string }>>([]);
   const [images, setImages] = useState<Array<{ assetId: string; groupNumbers: number[]; url: string }>>([]);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
 
@@ -62,14 +63,15 @@ export function ContributionControls({ id, hasAudio, hasImages = false }: { id: 
   }
 
   async function openAudio() {
-    setBusy(true); setNotice("");
+    setBusy(true); setNotice(""); setAudioUrl(""); setAudios([]); setImages([]);
     try {
       const response = await fetch(`/api/v1/contributions/${id}/media`, { cache: "no-store" });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error?.message || "Không thể lấy media.");
-      setAudioUrl(payload.audioUrl || "");
+      setAudios(payload.audios || []);
+      setAudioUrl(payload.audios?.length ? "" : payload.audioUrl || "");
       setImages(payload.images || []);
-      if (!payload.audioUrl && !payload.images?.length) throw new Error("Không có media sẵn sàng. Kiểm tra lại trước khi công khai.");
+      if (!payload.audios?.length && !payload.audioUrl && !payload.images?.length) throw new Error("Không có media sẵn sàng. Kiểm tra lại trước khi công khai.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Không thể mở audio."); }
     finally { setBusy(false); }
   }
@@ -93,6 +95,10 @@ export function ContributionControls({ id, hasAudio, hasImages = false }: { id: 
       {hasAudio || hasImages ? <button type="button" disabled={busy} onClick={() => void openAudio()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50">Lấy audio và ảnh</button> : null}
     </div>
     {audioUrl ? <audio className="mt-3 w-full" controls preload="none" src={audioUrl}>Trình duyệt không hỗ trợ phát audio.</audio> : null}
+    {audios.map(audio => <figure key={audio.assetId} className="mt-4 rounded-lg border border-slate-200 p-3">
+      <figcaption className="mb-2 break-words text-sm font-semibold">Audio nhóm {audio.groupNumbers.join(", ")}{audio.fileName ? ` · ${audio.fileName}` : ""} · link 5 phút</figcaption>
+      <audio className="w-full" controls preload="none" src={audio.url}>Trình duyệt không hỗ trợ phát audio.</audio>
+    </figure>)}
     {images.map(image => <figure key={image.assetId} className="mt-4 rounded-lg border border-slate-200 p-3">
       <figcaption className="mb-2 text-sm font-semibold">Ảnh nhóm {image.groupNumbers.join(", ")} · link 5 phút</figcaption>
       <Image unoptimized src={image.url} alt={`Ảnh nhóm ${image.groupNumbers.join(", ")}`} width={1200} height={900} className="max-h-[32rem] w-full object-contain" />

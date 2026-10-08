@@ -4,6 +4,16 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import IngestionQuestionReview, { buildReviewedContribution } from "../app/components/IngestionQuestionReview";
 
+it("offers group audio preview/upload and blocks listening approval without audio", () => {
+  const html = renderToStaticMarkup(createElement(IngestionQuestionReview, {
+    groups: [{ questions: [{ part: 2, options: { A: "A", B: "B", C: "C" }, correctAnswer: "B" }] }],
+    jobId: "00000000-0000-0000-0000-000000000001", pageRange: null, forSharedLibrary: true,
+  }));
+  assert.match(html, /Gắn audio riêng cho nhóm/);
+  assert.match(html, /Câu nghe cần gắn audio/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Duyệt câu này/);
+});
+
 it("requires an image before approving Part 1 for the shared library", () => {
   const html = renderToStaticMarkup(createElement(IngestionQuestionReview, {
     groups: [{ questions: [{ part: 1, options: { A: "A", B: "B", C: "C", D: "D" }, correctAnswer: "B" }] }],

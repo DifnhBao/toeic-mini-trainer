@@ -11,6 +11,7 @@ import { requestUser } from "@/app/lib/request-user";
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { ingestionImageIds, MAX_INGESTION_IMAGES } from "@/app/lib/ingestion-images";
+import { allowedIngestionAudioIds, ingestionAudioIds, MAX_INGESTION_AUDIO } from "@/app/lib/ingestion-audio";
 
 export const runtime = "nodejs";
 
@@ -75,10 +76,14 @@ export async function POST(request: Request) {
 
   // The user can correct text/answers, but cannot attach arbitrary media from
   // another ingestion or publish a source PDF.
-  if (reviewedData.data.some(({ group }) =>
-    Boolean(group?.audioAssetId && group.audioAssetId !== job.audioAssetId)
-  )) {
-    return apiError("MEDIA_NOT_ALLOWED", "Media không thuộc bộ đề này.", 400);
+  const audioIds = ingestionAudioIds(reviewedData);
+  const attachedAudio = allowedIngestionAudioIds(job.result, job.audioAssetId);
+  if (audioIds.length > MAX_INGESTION_AUDIO || audioIds.some(id => !attachedAudio.has(id))) {
+    return apiError("MEDIA_NOT_ALLOWED", "Hãy gắn audio vào đúng tác vụ trước khi gửi duyệt.", 400);
+  }
+  if (audioIds.length) {
+    const ready = await prisma.uploadedAsset.count({ where: { id: { in: audioIds }, ownerId: user.id, kind: "AUDIO", status: "READY" } });
+    if (ready !== audioIds.length) return apiError("MEDIA_NOT_ALLOWED", "Audio không còn sẵn sàng hoặc không thuộc tài khoản này.", 400);
   }
   const imageIds = ingestionImageIds(reviewedData);
   const attachedIds = new Set(ingestionImageIds(job.result));

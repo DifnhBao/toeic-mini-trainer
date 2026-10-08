@@ -14,6 +14,7 @@ let importRoute: typeof import('../app/api/v1/ingestions/[id]/import/route');
 let listRoute: typeof import('../app/api/v1/ingestions/route');
 let contributionRoute: typeof import('../app/api/v1/contributions/route');
 let imageRoute: typeof import('../app/api/v1/ingestions/[id]/image/route');
+let audioRoute: typeof import('../app/api/v1/ingestions/[id]/audio/route');
 let prisma: PrismaClient;
 let contentWriters: Array<(request: Request) => Promise<Response>>;
 const priorSecret = process.env.MOBILE_JWT_SECRET;
@@ -39,13 +40,14 @@ before(async () => {
   listRoute = await import('../app/api/v1/ingestions/route');
   contributionRoute = await import('../app/api/v1/contributions/route');
   imageRoute = await import('../app/api/v1/ingestions/[id]/image/route');
+  audioRoute = await import('../app/api/v1/ingestions/[id]/audio/route');
   const upload = await import('../app/api/v1/uploads/route');
   const complete = await import('../app/api/v1/uploads/[id]/complete/route');
   const retry = await import('../app/api/v1/ingestions/[id]/retry/route');
   const jsonImport = await import('../app/api/import/questions-json/route');
   const invalidId = { params: Promise.resolve({ id: 'invalid' }) };
   contentWriters = [(req) => upload.POST(req), (req) => complete.POST(req, invalidId),
-    (req) => listRoute.POST(req), (req) => retry.POST(req, invalidId), (req) => contributionRoute.POST(req), (req) => jsonImport.POST(req), (req) => imageRoute.POST(req, invalidId)];
+    (req) => listRoute.POST(req), (req) => retry.POST(req, invalidId), (req) => contributionRoute.POST(req), (req) => jsonImport.POST(req), (req) => imageRoute.POST(req, invalidId), (req) => audioRoute.POST(req, invalidId)];
 });
 
 describe('admin-prepared content policy at the real API entry points', () => {
@@ -253,6 +255,7 @@ describe('real reviewed contribution route with mocked database', () => {
     const audioId = '00000000-0000-4000-8000-000000000002';
     const source = { data: [{ ...groups[0], group: { groupType: 'AUDIO', audioAssetId: audioId, audioUrl: '/uploads/private.mp3' } }] };
     fakeDatabase(source, audioId);
+    mock.method(prisma.uploadedAsset, 'count', async () => 1);
     let existing = false;
     mock.method(prisma.contentContribution, 'findUnique', async () => existing ? { id: 'existing', status: 'PENDING' } : null);
     const created = mock.method(prisma.contentContribution, 'create', async () => { existing = true; return { id: 'created', status: 'PENDING', createdAt: new Date() }; });
@@ -288,10 +291,56 @@ describe('real reviewed contribution route with mocked database', () => {
   });
   it('never publishes foreign audio preserved in an unshareable AI result', async () => {
     fakeDatabase({ data: [{ ...groups[0], group: { groupType: 'AUDIO', audioAssetId: '00000000-0000-4000-8000-000000000003' } }] });
+    mock.method(prisma.uploadedAsset, 'count', async () => 0);
     const entries = initialEntries(groups); entries.forEach((entry) => { entry.decision = 'APPROVE'; });
     const response = await contributionRoute.POST(await request(JSON.stringify({ jobId, ...buildReviewPayload(entries), rightsConfirmed: true })));
     assert.equal(response.status, 400);
     assert.equal((await response.json()).error.code, 'MEDIA_NOT_ALLOWED');
+  });
+});
+
+describe('audio attachment entry point', () => {
+  const audioId = '00000000-0000-4000-8000-000000000002';
+  const stamp = new Date('2026-10-08T01:00:00Z');
+  const context = { params: Promise.resolve({ id: jobId }) };
+  it('uses an owned READY audio and version guard, and does not mutate the original draft', async () => {
+    fakeDatabase();
+    const source = { data: groups };
+    mock.method(prisma.ingestionJob, 'findFirst', async () => ({ result: source, audioAssetId: null, updatedAt: stamp }));
+    const check = mock.method(prisma.uploadedAsset, 'findFirst', async () => ({ id: audioId }));
+    const update = mock.method(prisma.ingestionJob, 'updateMany', async () => ({ count: 1 }));
+    const response = await audioRoute.POST(await request(JSON.stringify({ groupIndex: 0, audioAssetId: audioId })), context);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).group.audioAssetId, audioId);
+    assert.deepEqual(check.mock.calls[0].arguments[0]?.where, { id: audioId, ownerId: 'owner', kind: 'AUDIO', status: 'READY' });
+    assert.equal(update.mock.calls[0].arguments[0]?.where?.updatedAt, stamp);
+    assert.deepEqual(update.mock.calls[0].arguments[0]?.where?.contribution, { is: null });
+    assert.equal('group' in source.data[0], false);
+  });
+  it('reports a conflicting update and restores only a verified source audio', async () => {
+    fakeDatabase();
+    mock.method(prisma.ingestionJob, 'findFirst', async () => ({ result: { data: groups }, audioAssetId: audioId, updatedAt: stamp }));
+    const asset = mock.method(prisma.uploadedAsset, 'findFirst', async () => null as { id: string } | null);
+    const update = mock.method(prisma.ingestionJob, 'updateMany', async () => ({ count: 0 }));
+    const req = () => request(JSON.stringify({ groupIndex: 0, audioAssetId: null }));
+    assert.equal((await audioRoute.POST(await req(), context)).status, 409);
+    assert.equal(update.mock.callCount(), 0);
+    asset.mock.mockImplementation(async () => ({ id: audioId }));
+    const conflict = await audioRoute.POST(await req(), context);
+    assert.equal((await conflict.json()).error.code, 'JOB_CHANGED');
+    update.mock.mockImplementation(async () => ({ count: 1 }));
+    const restored = await audioRoute.POST(await req(), context);
+    assert.equal(restored.status, 200); assert.equal((await restored.json()).group.audioAssetId, audioId);
+  });
+  it('bounds distinct clips on a draft before writing it', async () => {
+    fakeDatabase();
+    const data = Array.from({ length: 65 }, (_, n) => ({ ...groups[0], group: { groupType: 'AUDIO', audioAssetId: `00000000-0000-4000-8000-${String(n + 100).padStart(12, '0')}` } }));
+    mock.method(prisma.ingestionJob, 'findFirst', async () => ({ result: { data }, audioAssetId: null, updatedAt: stamp }));
+    mock.method(prisma.uploadedAsset, 'findFirst', async () => ({ id: audioId }));
+    const update = mock.method(prisma.ingestionJob, 'updateMany', async () => ({ count: 1 }));
+    const response = await audioRoute.POST(await request(JSON.stringify({ groupIndex: 0, audioAssetId: audioId })), context);
+    assert.equal(response.status, 400); assert.equal((await response.json()).error.code, 'TOO_MANY_AUDIO');
+    assert.equal(update.mock.callCount(), 0);
   });
 });
 

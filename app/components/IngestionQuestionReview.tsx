@@ -98,6 +98,7 @@ export default function IngestionQuestionReview({
   const [entries, setEntries] = useState(() => initialEntries(groups));
   const [reviewGroups, setReviewGroups] = useState(groups);
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({});
+  const [audioUrls, setAudioUrls] = useState<Record<number, string>>({});
   const [activeIndex, setActiveIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [imported, setImported] = useState(false);
@@ -113,61 +114,70 @@ export default function IngestionQuestionReview({
   }), [entries]);
   const active = entries[activeIndex];
   const activeGroup = active ? reviewGroups[active.groupIndex].group : null;
-  const activeError = active ? validationMessage(active.question) || (forSharedLibrary && active.question.part === 1 && !activeGroup?.imageAssetId ? "Câu Part 1 cần gắn ảnh trước khi duyệt cho Kho bài." : null) : null;
+  const activeError = active ? validationMessage(active.question)
+    || (forSharedLibrary && active.question.part === 1 && !activeGroup?.imageAssetId ? "Câu Part 1 cần gắn ảnh trước khi duyệt cho Kho bài." : null)
+    || (forSharedLibrary && active.question.part <= 4 && !activeGroup?.audioAssetId ? "Câu nghe cần gắn audio trước khi duyệt cho Kho bài." : null) : null;
   const canSave = counts.pending === 0 && counts.approved > 0 && !busy && !imported;
   const canSubmit = counts.pending === 0 && counts.approved > 0 && rightsConfirmed && !busy && !submittedForReview;
 
   async function readJson(response: Response) {
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.error?.message || "Không thể xử lý file ảnh.");
+    if (!response.ok) throw new Error(data?.error?.message || "Không thể xử lý media.");
     return data;
   }
 
-  async function previewImage(groupIndex: number, assetId: string) {
+  async function previewMedia(groupIndex: number, assetId: string, kind: "IMAGE" | "AUDIO") {
     const data = await readJson(await fetch(`/api/v1/uploads/${assetId}`, { cache: "no-store" }));
-    setImageUrls(current => ({ ...current, [groupIndex]: data.asset.url }));
+    (kind === "IMAGE" ? setImageUrls : setAudioUrls)(current => ({ ...current, [groupIndex]: data.asset.url }));
   }
 
-  async function attachImage(file: File | null) {
+  async function attachMedia(file: File | null, kind: "IMAGE" | "AUDIO") {
     if (!active || busy || imported || submittedForReview) return;
     const groupIndex = active.groupIndex;
-    if (file && !validateUploadDescriptor({ kind: "IMAGE", contentType: file.type, sizeBytes: file.size }).valid) {
-      setError("Chọn ảnh JPG, PNG hoặc WebP, tối đa 10 MiB.");
+    const contentType = file?.type || (kind === "AUDIO" ? ({ mp3: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav" }[file?.name.split(".").pop()?.toLowerCase() as "mp3" | "m4a" | "wav"] || "") : "");
+    if (file && !validateUploadDescriptor({ kind, contentType, sizeBytes: file.size }).valid) {
+      setError(kind === "IMAGE" ? "Chọn ảnh JPG, PNG hoặc WebP, tối đa 10 MiB." : "Chọn audio MP3, M4A hoặc WAV, tối đa 100 MiB.");
       return;
     }
     setBusy(true); setError(""); setMessage("");
     let attached = false;
     try {
-      let imageAssetId: string | null = null;
+      let assetId: string | null = null;
       if (file) {
         const intent = await readJson(await fetch("/api/v1/uploads", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "IMAGE", fileName: file.name, contentType: file.type, sizeBytes: file.size }),
+          body: JSON.stringify({ kind, fileName: file.name, contentType, sizeBytes: file.size }),
         }));
         const uploaded = await fetch(intent.upload.url, { method: "PUT", headers: intent.upload.headers, body: file });
-        if (!uploaded.ok) throw new Error("Upload ảnh thất bại. Hãy thử lại.");
+        if (!uploaded.ok) throw new Error("Upload media thất bại. Hãy thử lại.");
         await readJson(await fetch(`/api/v1/uploads/${intent.asset.id}/complete`, { method: "POST" }));
-        imageAssetId = intent.asset.id;
+        assetId = intent.asset.id;
       }
-      const result = await readJson(await fetch(`/api/v1/ingestions/${jobId}/image`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupIndex, imageAssetId }),
+      const field = kind === "IMAGE" ? "imageAssetId" : "audioAssetId";
+      const result = await readJson(await fetch(`/api/v1/ingestions/${jobId}/${kind.toLowerCase()}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupIndex, [field]: assetId }),
       }));
       attached = true;
       setReviewGroups(current => current.map((group, index) => index === groupIndex ? { ...group, group: result.group } : group));
       setEntries(current => current.map(entry => entry.groupIndex === groupIndex ? { ...entry, decision: "PENDING" } : entry));
-      setImageUrls(current => ({ ...current, [groupIndex]: "" }));
-      setMessage(imageAssetId ? "Đã lưu ảnh vào tác vụ. Kiểm tra ảnh và duyệt lại các câu trong nhóm; mở lại tài liệu vẫn giữ ảnh." : "Đã bỏ ảnh khỏi nhóm của tác vụ. File gốc vẫn riêng tư.");
-      if (imageAssetId) await previewImage(groupIndex, imageAssetId);
+      setRightsConfirmed(false);
+      (kind === "IMAGE" ? setImageUrls : setAudioUrls)(current => ({ ...current, [groupIndex]: "" }));
+      const selectedId = result.group[field] as string | null;
+      setMessage(kind === "IMAGE"
+        ? (assetId ? "Đã lưu ảnh vào tác vụ. Kiểm tra ảnh và duyệt lại các câu trong nhóm; mở lại tài liệu vẫn giữ ảnh." : "Đã bỏ ảnh khỏi nhóm của tác vụ. File gốc vẫn riêng tư.")
+        : (assetId ? "Đã lưu audio riêng của nhóm. Nghe đối chiếu và duyệt lại các câu; mở lại tài liệu vẫn giữ audio." : selectedId ? "Đã dùng lại audio nguồn của tác vụ. Nghe đối chiếu và duyệt lại nhóm." : "Tác vụ không có audio nguồn. Hãy gắn audio cho nhóm trước khi duyệt."));
+      if (selectedId) await previewMedia(groupIndex, selectedId, kind);
     } catch (uploadError) {
-      setError((attached ? "Ảnh đã được lưu nhưng chưa mở được bản xem trước. " : "") + (uploadError instanceof Error ? uploadError.message : "Lỗi kết nối."));
+      setError((attached ? "Media đã được lưu nhưng chưa mở được bản xem trước. " : "") + (uploadError instanceof Error ? uploadError.message : "Lỗi kết nối."));
     } finally { setBusy(false); }
   }
 
-  async function openImage() {
-    if (!active || !activeGroup?.imageAssetId || busy) return;
+  async function openMedia(kind: "IMAGE" | "AUDIO") {
+    const assetId = kind === "IMAGE" ? activeGroup?.imageAssetId : activeGroup?.audioAssetId;
+    if (!active || !assetId || busy) return;
     setBusy(true); setError("");
-    try { await previewImage(active.groupIndex, activeGroup.imageAssetId); }
-    catch (imageError) { setError(imageError instanceof Error ? imageError.message : "Không mở được ảnh."); }
+    try { await previewMedia(active.groupIndex, assetId, kind); }
+    catch (mediaError) { setError(mediaError instanceof Error ? mediaError.message : "Không mở được media."); }
     finally { setBusy(false); }
   }
 
@@ -284,22 +294,35 @@ export default function IngestionQuestionReview({
                 <strong>Ngữ cảnh nhóm ({activeGroup.groupType || "TEXT"})</strong>
                 {activeGroup.passageText && <p className="mt-2 whitespace-pre-wrap">{activeGroup.passageText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}</p>}
                 {activeGroup.audioUrl && <audio className="mt-2 w-full" controls preload="metadata" src={activeGroup.audioUrl} />}
-                <p className="mt-2 text-xs">Ngữ cảnh nhóm chưa chỉnh sửa ở bước này; nếu sai, hãy bỏ qua các câu liên quan.</p>
+                <p className="mt-2 text-xs">Đoạn văn và cách chia nhóm chưa chỉnh sửa ở bước này; nếu sai, hãy bỏ qua các câu liên quan.</p>
               </div>
             )}
             <div className="mb-4 rounded-xl border border-slate-200 p-3 text-sm">
               <p className="font-semibold">Ảnh Part 1 hoặc biểu đồ · Nhóm {active.groupIndex + 1}</p>
               <p className="mt-1 text-xs text-slate-600">Chọn ảnh đã cắt từ tài liệu. Ảnh áp dụng cho toàn bộ {reviewGroups[active.groupIndex].questions.length} câu trong nhóm; nếu có nhiều ảnh, ghép đủ ảnh và giữ số câu để đối chiếu. Hệ thống chưa tự cắt ảnh từ PDF.</p>
               <label className="mt-3 grid gap-1 font-semibold">{activeGroup?.imageAssetId ? "Thay ảnh của nhóm" : "Gắn ảnh cho nhóm"}
-                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || imported || submittedForReview} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachImage(file); }} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || imported || submittedForReview} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachMedia(file, "IMAGE"); }} />
               </label>
               <p className="mt-1 text-xs text-slate-500">JPG/PNG/WebP, tối đa {UPLOAD_RULES.IMAGE.maxBytes / 1024 / 1024} MiB. Ảnh đã gắn được lưu cùng tác vụ, không sửa câu hỏi đã nhập trước đó.</p>
               {activeGroup?.imageAssetId && <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" disabled={busy} className="ghost-button" onClick={() => void openImage()}>Xem ảnh đã gắn</button>
-                <button type="button" disabled={busy || imported || submittedForReview} className="ghost-button" onClick={() => void attachImage(null)}>Bỏ ảnh khỏi nhóm</button>
+                <button type="button" disabled={busy} className="ghost-button" onClick={() => void openMedia("IMAGE")}>Xem ảnh đã gắn</button>
+                <button type="button" disabled={busy || imported || submittedForReview} className="ghost-button" onClick={() => void attachMedia(null, "IMAGE")}>Bỏ ảnh khỏi nhóm</button>
               </div>}
               {imageUrls[active.groupIndex] && <Image unoptimized src={imageUrls[active.groupIndex]} alt={`Ảnh nhóm câu ${active.groupIndex + 1}`} width={1200} height={900} className="mt-3 max-h-[32rem] w-full object-contain" />}
             </div>
+            {entries.some(entry => entry.groupIndex === active.groupIndex && entry.question.part <= 4) && <div className="mb-4 rounded-xl border border-slate-200 p-3 text-sm">
+              <p className="font-semibold">Audio · Nhóm {active.groupIndex + 1}</p>
+              <p className="mt-1 text-xs text-slate-600">Gắn đoạn audio khớp toàn bộ câu trong nhóm để người học không phải tìm câu trong file nguyên bài. Hệ thống chưa tự xác định điểm cắt audio.</p>
+              <label className="mt-3 grid gap-1 font-semibold">Gắn audio riêng cho nhóm
+                <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,.mp3,.m4a,.wav" disabled={busy || imported || submittedForReview} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachMedia(file, "AUDIO"); }} />
+              </label>
+              <p className="mt-1 text-xs text-slate-500">MP3/M4A/WAV, tối đa {UPLOAD_RULES.AUDIO.maxBytes / 1024 / 1024} MiB. Audio lưu cùng tác vụ, không sửa câu hỏi đã nhập trước đó.</p>
+              {activeGroup?.audioAssetId && <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" disabled={busy} className="ghost-button" onClick={() => void openMedia("AUDIO")}>Nghe audio của nhóm</button>
+                <button type="button" disabled={busy || imported || submittedForReview} className="ghost-button" onClick={() => void attachMedia(null, "AUDIO")}>Dùng audio nguồn</button>
+              </div>}
+              {audioUrls[active.groupIndex] && <audio key={audioUrls[active.groupIndex]} className="mt-3 w-full" controls preload="none" src={audioUrls[active.groupIndex]}>Trình duyệt không hỗ trợ phát audio.</audio>}
+            </div>}
             <div className="grid gap-4">
               <label className="grid gap-1 text-sm font-semibold" htmlFor="review-part">
                 Part

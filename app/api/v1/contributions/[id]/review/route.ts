@@ -8,6 +8,7 @@ import { importExtractedQuestions } from "@/app/lib/question-import";
 import { requestUser } from "@/app/lib/request-user";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { ingestionImageIds, MAX_INGESTION_IMAGES } from "@/app/lib/ingestion-images";
+import { allowedIngestionAudioIds, ingestionAudioIds, MAX_INGESTION_AUDIO } from "@/app/lib/ingestion-audio";
 import { withContributionMedia, type SourceMediaAsset } from "@/app/lib/shared-media-copy";
 
 export const runtime = "nodejs";
@@ -36,10 +37,6 @@ export async function POST(
         select: {
           result: true,
           audioAssetId: true,
-          audioAsset: { select: {
-            id: true, ownerId: true, kind: true, status: true, objectKey: true, etag: true,
-            originalName: true, contentType: true, sizeBytes: true,
-          } },
         },
       },
     },
@@ -77,12 +74,16 @@ export async function POST(
     return apiError("MEDIA_REQUIRED", "Bài nghe cần audio; Part 1 cần thêm ảnh trước khi công khai.", 422);
   }
 
-  const submittedAudioIds = new Set(parsed.data.data.flatMap((item) => item.group?.audioAssetId ? [item.group.audioAssetId] : []));
-  const sourceAudio = contribution.sourceJob.audioAsset;
-  if (submittedAudioIds.size > 1 || (submittedAudioIds.size === 1 &&
-    (submittedAudioIds.has(contribution.sourceJob.audioAssetId || "") === false ||
-      !sourceAudio || sourceAudio.ownerId !== contribution.ownerId ||
-      sourceAudio.kind !== "AUDIO" || sourceAudio.status !== "READY" || !sourceAudio.etag))) {
+  const audioIds = ingestionAudioIds(parsed.data);
+  const attachedAudio = allowedIngestionAudioIds(contribution.sourceJob.result, contribution.sourceJob.audioAssetId);
+  if (audioIds.length > MAX_INGESTION_AUDIO || audioIds.some(id => !attachedAudio.has(id))) {
+    return apiError("MEDIA_UNAVAILABLE", "Audio không thuộc tác vụ nhập đề.", 409);
+  }
+  const audios = audioIds.length ? await prisma.uploadedAsset.findMany({
+    where: { id: { in: audioIds }, ownerId: contribution.ownerId, kind: "AUDIO", status: "READY", etag: { not: null } },
+    select: { id: true, objectKey: true, etag: true, originalName: true, contentType: true, sizeBytes: true },
+  }) : [];
+  if (audios.length !== audioIds.length) {
     return apiError("MEDIA_UNAVAILABLE", "Audio đóng góp không còn sẵn sàng.", 409);
   }
 
@@ -97,9 +98,7 @@ export async function POST(
   }) : [];
   if (images.length !== imageIds.length) return apiError("MEDIA_UNAVAILABLE", "Ảnh đóng góp không còn sẵn sàng.", 409);
   const mediaSources: SourceMediaAsset[] = images.map(image => ({ ...image, kind: "IMAGE", etag: image.etag! }));
-  if (submittedAudioIds.size === 1 && sourceAudio?.etag) {
-    mediaSources.push({ ...sourceAudio, kind: "AUDIO", etag: sourceAudio.etag });
-  }
+  mediaSources.push(...audios.map(audio => ({ ...audio, kind: "AUDIO" as const, etag: audio.etag! })));
   try {
     const questionsAdded = await withContributionMedia(contribution.id, parsed.data, mediaSources,
       ({ sharedAssets, approvedData }) => importExtractedQuestions(
