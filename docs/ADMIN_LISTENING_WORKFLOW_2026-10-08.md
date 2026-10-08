@@ -2,13 +2,13 @@
 
 Quyết định của người dùng ngày 08/10/2026: quản trị viên chuẩn bị nội dung trên web; người học không nhập tài liệu trên điện thoại. R-01…R-05 của APK `dcb6524` đã được người thử ghi đạt; R-06 chưa hoàn tất, cần nghiệm thu lại luồng dưới đây.
 
-Source mobile `dee15f2`, API `4242017` bổ sung kiểm tra ADMIN cho đường import JSON cũ. APK preview EAS `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`; theo dõi tại [trang build](https://expo.dev/accounts/dinhbao05s-team/projects/dinhbao05/builds/f66fc9a6-cd3a-4985-9fb4-8664eff8db32). Không dùng APK `dcb6524` để kết luận đã thử giao diện Kho bài mới.
+Source mobile `dee15f2`, API `d02f05d` nhận PDF nguồn tối đa 50 MiB; guard ADMIN cho đường JSON cũ đã có từ `4242017`. APK preview EAS `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`; theo dõi tại [trang build](https://expo.dev/accounts/dinhbao05s-team/projects/dinhbao05/builds/f66fc9a6-cd3a-4985-9fb4-8664eff8db32). Không dùng APK `dcb6524` để kết luận đã thử giao diện Kho bài mới. Bản sửa PDF nằm trên web/API, không cần build lại APK Kho bài.
 
 APK đã FINISHED ngày 08/10/2026: [tải bản Kho bài mới](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3MFgJZZvscfO6I_4V-yLGumPGtErk.apk). Bản cục bộ `Test/release-dee15f2.apk`, 114.429.599 byte; SHA-256 `702AEF922860D9066FA8CFB085340A38F34B9E2983BE64EACAB19CEDA50D21E4`. Kiểm tra CRC toàn bộ 1.698 mục, manifest, classes.dex và bốn ABI đạt, có arm64-v8a cho S23 FE. Đây là kiểm tra tính toàn vẹn gói, chưa xác nhận cài/chạy trên điện thoại. Cài cập nhật bằng APK này để giữ dữ liệu ứng dụng hiện có; nếu máy báo lỗi cài đặt, ghi lại thông báo trước khi gỡ app.
 
-API `4242017` đã promote lên domain chính, deployment `dpl_5vUvcFhZJiVXy1uxu6PgfaQeLSVm`; 15/15 smoke trước và sau promote đạt. Người dùng đã xác nhận đăng nhập ADMIN và thấy trang “Nhập đề và audio cho người học”. Bản API trước để rollback là `35e9e44`, deployment `dpl_2BN16pCYioxSoiE4ypKfAnoKiKst`.
+API `d02f05d` đã promote lên domain chính, deployment `dpl_6QLsfejWfeqwCgUg6qKF545p2aEm`; 15/15 smoke trước và sau promote đạt. Bundle quản trị lấy từ HTML thực của deployment riêng và domain chính đều xác nhận giới hạn 52.428.800 byte. Người dùng đã xác nhận truy cập ADMIN ở bản trước và báo PDF 19,1 MB bị giới hạn 15 MB; đang chờ thử lại file thật sau Ctrl+F5. Bản API trước để rollback là `4242017`, deployment `dpl_5vUvcFhZJiVXy1uxu6PgfaQeLSVm`.
 
-Đã kiểm tra 115 unit, 19 integration PostgreSQL cách ly, TypeScript/lint, production build và Android export 1.320 source. Archive EAS kiểm tra 270 tệp, không có env/backup/APK/dữ liệu thử. Kiểm tra tự động không upload hay công khai tài liệu trên DB thật.
+Đã kiểm tra 125 unit, 19 integration PostgreSQL cách ly, TypeScript/lint, production build; Android export của APK Kho bài có 1.320 source. Archive EAS kiểm tra 270 tệp, không có env/backup/APK/dữ liệu thử. Kiểm tra tự động không upload hay công khai tài liệu trên DB thật.
 
 R2 theo cấu hình cục bộ đã đạt HEAD bucket và OPTIONS preflight từ origin domain chính: HTTP 204, cho phép PUT và Content-Type. Đây chỉ là kiểm tra đọc bằng khóa cục bộ, không chứng minh secret Vercel giống cấu hình này hoặc upload thật đã thành công; không tạo object hay sửa CORS. Bằng chứng: `Test/storage-browser-readonly.json`.
 

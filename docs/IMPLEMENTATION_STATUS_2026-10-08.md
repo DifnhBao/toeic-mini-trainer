@@ -31,14 +31,15 @@
 | OAuth preflight | Google provider đã bật; sign-in/callback URL đúng domain chính; chưa xác minh đăng nhập thật |
 | API cũ trước rollout | 6/7 smoke đạt; GET ingestion list trả 405 |
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
-| Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.337 source của bundle Android mới |
+| Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.320 source của bundle APK Kho bài |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
-| Vercel | Deployment `dpl_5vUvcFhZJiVXy1uxu6PgfaQeLSVm`, source `4242017`, Ready và đã promote; 15/15 smoke trước/sau promote; giữ `35e9e44` để rollback |
+| Vercel | Deployment `dpl_6QLsfejWfeqwCgUg6qKF545p2aEm`, source `d02f05d`, Ready và đã promote; 15/15 smoke trước/sau promote; giữ `4242017` để rollback |
 | Payload Vercel | 143 tệp, đủ 119 tệp app/types/prisma; không có env/APK/dữ liệu test; có lệnh kiểm tra source không bị thiếu |
 | APK `5107b97` | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` FINISHED; người thử S23 FE báo A-01/02/06/07 đạt và ba lỗi A-03/04/08 |
 | APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; người thử ghi R-01…R-05 đạt trên S23 FE; R-06 đang vướng quy trình nhập đề nghe/audio |
 | APK Kho bài mới | Build `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`, source mobile `dee15f2`, FINISHED; APK 114.429.599 byte, CRC 1.698 mục/manifest/dex/bốn ABI đạt; chưa có biên bản điện thoại cho bản này |
 | Truy cập quản trị | Người dùng xác nhận đăng nhập ADMIN thấy trang nhập đề/audio sau rollout `4242017`; chưa xác nhận upload và xuất bản |
+| PDF listening quá 15 MB | Người dùng báo PDF 19,1 MB/MP3 42,2 MB bị chặn. Bản `d02f05d` nâng PDF nguồn lên 50 MiB ở UI/policy/worker; bundle thực trên domain chính xác nhận 52.428.800 byte. Chưa có kết quả thử lại file thật; bốn trang/lượt và 5 MiB OCR giữ nguyên |
 | Storage preflight | Cấu hình R2 cục bộ đạt HEAD bucket, OPTIONS 204 với origin domain chính/PUT/Content-Type; không ghi object, không sửa CORS, chưa xác minh upload từ Vercel |
 | Backup media R2 | Sau phê duyệt riêng: 16 object, 18.948.378 byte đã mã hóa và kiểm tra lại độc lập đạt; 15 asset READY có object/size khớp. Không ghi cloud; chưa diễn tập restore bucket hoặc snapshot DB/R2 đồng thời |
 | Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
@@ -47,7 +48,7 @@ Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra 
 
 Luồng R-06 mới đã triển khai API/web: ADMIN nhập PDF/audio, duyệt và công khai trên web; người học chọn nhóm câu đã công khai trong Kho bài web/Android. Giữ dữ liệu cá nhân cũ, chặn tạo nội dung mới cho USER/REVIEWER tại sáu API server, gồm import JSON cũ. Hướng dẫn và giới hạn tại `ADMIN_LISTENING_WORKFLOW_2026-10-08.md`. Người dùng xác nhận đã truy cập trang ADMIN; chưa nghiệm thu upload/audio thật của luồng này. Truy vấn READ ONLY chỉ đếm được một ADMIN đang ACTIVE trên DB cấu hình; không đọc định danh hoặc thay quyền. AI chỉ đọc PDF, không nghe audio để suy đáp án.
 
-APK mới: [tải bản Kho bài](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3MFgJZZvscfO6I_4V-yLGumPGtErk.apk), SHA-256 `702AEF922860D9066FA8CFB085340A38F34B9E2983BE64EACAB19CEDA50D21E4`. API `4242017` bổ sung guard import JSON cũ phía server, không thay runtime mobile so với source APK `dee15f2`. Log kiểm chứng cục bộ: `Test/apk-dee15f2-verification.json`, `Test/vercel-protected-smoke-4242017.txt`, `Test/vercel-promoted-smoke-4242017.txt`; không đưa APK hoặc log chứa metadata cloud lên Git.
+APK mới: [tải bản Kho bài](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3MFgJZZvscfO6I_4V-yLGumPGtErk.apk), SHA-256 `702AEF922860D9066FA8CFB085340A38F34B9E2983BE64EACAB19CEDA50D21E4`. API `4242017` bổ sung guard JSON cũ; API `d02f05d` sửa giới hạn PDF của web/worker, không thay runtime mobile Kho bài so với source APK `dee15f2`. Log kiểm chứng cục bộ: `Test/apk-dee15f2-verification.json`, `Test/vercel-protected-smoke-d02f05d.txt`, `Test/vercel-promoted-smoke-d02f05d.txt`, `Test/vercel-pdf50-canonical-bundle.json`; không đưa APK hoặc log chứa metadata cloud lên Git.
 
 Một lượt integration chạy cùng build bị timeout khóa AI và kéo theo lỗi lease của test kế tiếp. Đã để các tệp integration chạy tuần tự, giữ 20 request đồng thời trong test capacity; release lease trong finally của test đầu. Lượt chạy độc lập hoàn chỉnh sau đó đạt 19/19, không nới timeout hoặc bỏ assertion capacity.
 
@@ -58,7 +59,7 @@ Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/ge
 | Nhóm công việc | Trạng thái thực tế |
 | --- | --- |
 | BUILD-01, BASE-01 | Production build đã đạt local và Vercel; source được chốt/push, không có secret hoặc dữ liệu thử nghiệm |
-| BASE-02, E2E-01 | API `4242017` đã lên domain chính, 15 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
+| BASE-02, E2E-01 | API `d02f05d` đã lên domain chính, 15 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
 | E2E-02…05 | APK sửa Samsung được người thử ghi R-01…R-05 đạt; R-06 media chưa đạt nghiệm thu; còn thiết bị thứ hai |
 | SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
 | SAFE-03 | Đã rollout limiter, quota/ngày, công tắc dừng và giới hạn AI đồng thời qua PostgreSQL; kiểm chứng local đạt, chưa thử provider/tải thật; ngân sách tiền/cảnh báo chưa hoàn tất |
