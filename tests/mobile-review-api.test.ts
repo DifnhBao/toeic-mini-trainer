@@ -39,9 +39,10 @@ before(async () => {
   const upload = await import('../app/api/v1/uploads/route');
   const complete = await import('../app/api/v1/uploads/[id]/complete/route');
   const retry = await import('../app/api/v1/ingestions/[id]/retry/route');
+  const jsonImport = await import('../app/api/import/questions-json/route');
   const invalidId = { params: Promise.resolve({ id: 'invalid' }) };
   contentWriters = [(req) => upload.POST(req), (req) => complete.POST(req, invalidId),
-    (req) => listRoute.POST(req), (req) => retry.POST(req, invalidId), (req) => contributionRoute.POST(req)];
+    (req) => listRoute.POST(req), (req) => retry.POST(req, invalidId), (req) => contributionRoute.POST(req), (req) => jsonImport.POST(req)];
 });
 
 describe('admin-prepared content policy at the real API entry points', () => {

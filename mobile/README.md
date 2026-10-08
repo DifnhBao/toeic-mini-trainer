@@ -86,7 +86,19 @@ standalone/development build identifiers before release.
 - Refresh token reuse revokes the full session family server-side.
 - The app bundle contains no private OAuth or AI secrets.
 
-## Reviewed document imports (2026-10-01)
+## Shared lesson library (2026-10-08)
+
+Administrators prepare PDF/audio on the web, review the questions, then approve
+publication. Learners use the Library tab to choose an existing lesson; each test
+contains the complete eligible group and retains its media/context. Android no
+longer offers new document imports. Old private questions and local practice
+drafts are preserved. An older APK's content creation requests receive
+`403 ADMIN_CONTENT_ONLY` for USER/REVIEWER accounts, including legacy JSON imports.
+
+Deploy the library API before installing this APK. See the
+[admin listening workflow and device acceptance](../docs/ADMIN_LISTENING_WORKFLOW_2026-10-08.md).
+
+## Previous reviewed import flow (2026-10-01, historical)
 
 The Library screen now supports editing and approving/skipping each extracted
 question before saving or contributing. Local drafts and recent ingestion jobs

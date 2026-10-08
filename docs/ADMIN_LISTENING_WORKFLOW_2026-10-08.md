@@ -20,13 +20,13 @@ Mở **Kho bài → Tải lại kho bài → Luyện bài này**. Ứng dụng t
 
 Không thấy bài: quản trị viên phải hoàn tất **Duyệt & công khai**, không chỉ phân tích PDF hoặc gửi vào hàng chờ. Kho trống có hướng dẫn và lối vào luyện ngẫu nhiên theo Part. Các câu cá nhân và nháp bài luyện đã lưu trước đây không bị xóa.
 
-APK cũ vẫn có thể hiện nút nhập tài liệu, nhưng USER/REVIEWER gọi API tạo upload, xác nhận upload, tạo/retry ingestion hoặc gửi nội dung mới sẽ nhận `403 ADMIN_CONTENT_ONLY`. Quyền được kiểm tra lại ở server; UI không thay thế kiểm tra quyền. ADMIN dùng luồng web; API vẫn kiểm tra role và sở hữu media, không dựa vào tên thiết bị/client.
+APK cũ vẫn có thể hiện nút nhập tài liệu, nhưng USER/REVIEWER gọi API tạo upload, xác nhận upload, tạo/retry ingestion, gửi nội dung mới hoặc import JSON sẽ nhận `403 ADMIN_CONTENT_ONLY`. Quyền được kiểm tra lại ở server; UI không thay thế kiểm tra quyền. ADMIN dùng luồng web; API vẫn kiểm tra role và sở hữu media, không dựa vào tên thiết bị/client. Luồng JSON cũ chỉ lưu kho cá nhân của ADMIN, không thay thế xuất bản bài chung kèm audio.
 
 ## Nghiệm thu còn phải ghi
 
 | Mã | Kiểm tra | Tiêu chí |
 | --- | --- | --- |
-| L-01 | USER và REVIEWER gọi năm API ghi nội dung mới | 403; không upload/gọi AI/tạo job |
+| L-01 | USER và REVIEWER gọi sáu API ghi nội dung mới, gồm JSON cũ | 403; không upload/gọi AI/tạo job |
 | L-02 | ADMIN tải PDF/audio, duyệt và công khai trên web thật | Đúng câu/đáp án/nhóm, nghe được audio; PDF nguồn không công khai |
 | L-03 | USER mở Kho bài trên web và APK mới qua Wi-Fi/4G | Thấy bài công khai, luyện/nghe lại/nộp đúng; không cần nhập file |
 | L-04 | Thử nhóm riêng tư/chưa duyệt/đã ẩn, media bị thu hồi | Không tạo được bài; không lộ nội dung/đáp án nguồn |

@@ -18,7 +18,7 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 115 kiểm thử đạt; không dùng DB/provider thật; kiểm tra quyền ADMIN tại năm API ghi nội dung |
+| Unit/regression | 115 kiểm thử đạt; không dùng DB/provider thật; kiểm tra quyền ADMIN tại sáu API ghi nội dung, gồm JSON cũ |
 | PostgreSQL integration | 19 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê, kho bài phân trang và tạo bài chỉ từ nhóm đã công khai |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |

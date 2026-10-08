@@ -10,7 +10,7 @@
 - Chấm điểm, lưu lịch sử, thống kê độ chính xác theo Part.
 - Chữa từng câu sai và sinh giải thích AI có cache trong database.
 - AI Coach cho câu hỏi ngữ pháp, từ vựng và chiến thuật TOEIC.
-- Nhập JSON hoặc tải PDF + audio, dùng AI cấu trúc dữ liệu rồi kiểm duyệt trước khi lưu.
+- Quản trị viên nhập PDF + audio trên web, sửa/duyệt và công khai; người học chọn bài có sẵn trong Kho bài trên web/Android.
 
 ## Chạy trên máy
 
@@ -74,7 +74,7 @@ gọi, kể cả retry phân tích tài liệu, không phải giới hạn chi p
 
 ## Lưu ý trước khi đưa lên Internet
 
-Luồng nhập PDF/audio trên web và mobile dùng chung object storage private tương thích S3/R2. Thư mục `public/uploads` chỉ còn để tương thích dữ liệu cũ, đã bị Git bỏ qua và không được dùng cho tài liệu mới hoặc production.
+Quản trị viên nhập PDF/audio trên web vào object storage private tương thích S3/R2. Android dành cho chọn bài và luyện, không nhập file mới. Thư mục `public/uploads` chỉ còn để tương thích dữ liệu cũ, đã bị Git bỏ qua và không được dùng cho tài liệu mới hoặc production.
 
 ### Object storage riêng tư — Giai đoạn 5
 
@@ -97,4 +97,4 @@ Không commit `.env`, file audio/PDF riêng tư hoặc khóa API lên Git.
 
 Đăng nhập bằng tài khoản có vai trò `ADMIN`, rồi mở `/admin`. Dashboard và các trang quản trị mới kiểm tra vai trò đang lưu trong database ở mỗi request; API thay đổi quyền, trạng thái tài khoản, duyệt đóng góp và xuất bản/ẩn câu hỏi tiếp tục kiểm tra quyền độc lập và ghi audit. Admin có thể tìm user, xem trạng thái PDF/audio và job xử lý, duyệt tài liệu kèm PDF nguồn và audio, rà soát câu hỏi `LEGACY`, và xem nhật ký phân trang. Mọi thay đổi quyền/trạng thái hay xuất bản câu hỏi cần lý do.
 
-Trang `/admin/extract` cũ vẫn là luồng nhập PDF riêng tư cho mọi người dùng đăng nhập. Sau khi kiểm tra kết quả trích xuất, người gửi có thể chọn lưu vào kho cá nhân hoặc xác nhận quyền chia sẻ để gửi kho chung; chỉ khi được duyệt thì nội dung mới công khai. Không tự động xuất bản toàn bộ câu hỏi `LEGACY`.
+Trang `/admin/extract` dành cho ADMIN chuẩn bị PDF/audio, kiểm tra từng câu rồi chuyển sang `/admin/contributions` để duyệt và công khai. Người học vào `/library` hoặc tab Kho bài trên Android; chọn trọn nhóm câu đã công khai cùng media/ngữ cảnh. Sáu API tạo nội dung mới, kể cả JSON cũ, chặn USER/REVIEWER. Các câu và nháp cá nhân đã lưu trước đây không bị xóa. Không tự động xuất bản câu hỏi `LEGACY`. Xem [hướng dẫn nhập bài nghe và nghiệm thu](docs/ADMIN_LISTENING_WORKFLOW_2026-10-08.md).

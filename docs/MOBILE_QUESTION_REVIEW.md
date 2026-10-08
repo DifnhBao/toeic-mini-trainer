@@ -1,6 +1,8 @@
 # Mobile: sửa, duyệt câu hỏi và khôi phục tác vụ
 
 Ngày triển khai source: 2026-10-01. Nhánh: `codex/mobile-question-review`.
+
+**Lưu ý ngày 08/10/2026:** người dùng đã chọn ADMIN nhập đề/audio trên web, người học chọn bài sẵn. APK kho bài mới thay màn nhập mobile; tài liệu dưới đây giữ bằng chứng và ca kiểm thử của luồng cũ. Nghiệm thu hiện tại theo `ADMIN_LISTENING_WORKFLOW_2026-10-08.md`; không yêu cầu người học upload PDF/audio trên điện thoại. Dữ liệu cá nhân đã lưu vẫn được giữ.
 Đây là bản thay đổi local, chưa commit/push/deploy và chưa xác nhận trên điện thoại thật.
 
 ## Phạm vi đã triển khai

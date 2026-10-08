@@ -4,6 +4,10 @@ if (base.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(
 }
 const tests = [
   ['GET', '/', 200],
+  ['GET', '/library', 200],
+  ['GET', '/api/v1/library', 401],
+  ['POST', '/api/v1/library/00000000-0000-4000-8000-000000000001/test', 401],
+  ['POST', '/api/import/questions-json', 401],
   ['GET', '/api/internal/ready', 401],
   ['POST', '/api/v1/tests', 401],
   ['POST', '/api/mini-tests/00000000-0000-4000-8000-000000000001/submit', 401],
