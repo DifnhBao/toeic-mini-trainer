@@ -18,26 +18,27 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 156 kiểm thử đạt; không dùng DB/provider thật; gồm sáu guard runner HTTP, quyền ADMIN cho audio nhóm, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
+| Unit/regression | 177 kiểm thử đạt; không dùng DB/provider thật; bổ sung 21 kiểm thử phiên Android đến muộn/storage/đổi tài khoản, cùng các guard HTTP, audio nhóm, PDF 50 MiB và backup R2 đã có |
 | PostgreSQL integration | 44 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm chín kiểm thử refresh/logout/reuse/rollback, sáu race timeout/retry worker, thống kê, Kho bài, upload/gắn/xuất bản ảnh và audio riêng theo nhóm, dedup và rollback với S3 loopback |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
 | Production build | Next.js 16.3.8 Webpack đạt trên Windows ngoài sandbox |
-| Android bundle | Expo export Android đạt, 1.320 source; đây chưa phải nghiệm thu APK trên thiết bị |
+| Android bundle | Source mobile `3cbde63`: Expo export Android đạt, 1.322 source; đây chưa phải nghiệm thu APK trên thiết bị |
 | Backup/restore | DB Neon thật đã backup DPAPI và restore cách ly, 22 bảng khớp snapshot trong 24,657 giây; R2 thật đã backup mã hóa 16 file/18.948.378 byte và giải mã đối chiếu SHA-256; chưa restore bucket/backup định kỳ/offsite |
 | Smoke local | 7 kiểm tra public/không đăng nhập đạt; không xác minh Google OAuth hoặc AI thật |
 | Smoke sau promote | 23/23 kiểm tra đạt tại `https://toeic-mini-trainer.vercel.app`, gồm phương thức auth, trạng thái job/worker, kho bài, API chặn request chưa đăng nhập và trang admin hiển thị từ chối quyền; bundle thực có UI audio riêng; chưa phải nghiệm thu OAuth/media/AI thật |
 | OAuth preflight | Google provider đã bật; sign-in/callback URL đúng domain chính; chưa xác minh đăng nhập thật |
 | API cũ trước rollout | 6/7 smoke đạt; GET ingestion list trả 405 |
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
-| Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.320 source của bundle APK Kho bài |
+| Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.322 source của bundle mobile `3cbde63` |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
 | Vercel | Deployment `dpl_AByFEsgTytEtXqdCk63cXsQFUwA7`, source `ff80432`, READY và đã promote; 23/23 smoke trước/sau promote; bản trước `f7bb8c2`, hạn chế rollback auth tại `MOBILE_SESSION_FAMILY_2026-10-08.md` |
 | Payload Vercel | 149 tệp, đủ 125 tệp app/types/prisma; không có env/APK/nguồn ETS/ảnh local/backup/dữ liệu test |
 | APK `5107b97` | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` FINISHED; người thử S23 FE báo A-01/02/06/07 đạt và ba lỗi A-03/04/08 |
 | APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; người thử ghi R-01…R-05 đạt trên S23 FE; R-06 đang vướng quy trình nhập đề nghe/audio |
 | APK Kho bài mới | Build `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`, source mobile `dee15f2`, FINISHED; APK 114.429.599 byte, CRC 1.698 mục/manifest/dex/bốn ABI đạt; chưa có biên bản điện thoại cho bản này |
+| APK sửa phiên/điều hướng | Source `3cbde63`, EAS build `88bbd6b1-ca59-4153-9bfd-cf43e06661f4`, IN_QUEUE lúc 01:51 ngày 09/10 giờ Việt Nam; chưa có artifact/hash/nghiệm thu thiết bị. Build `b6092a3` trước đó đã CANCELED, không dùng nghiệm thu |
 | Truy cập quản trị | Người dùng xác nhận đăng nhập ADMIN thấy trang nhập đề/audio sau rollout `4242017`; chưa xác nhận upload và xuất bản |
 | PDF listening quá 15 MB | Người dùng báo PDF 19,1 MB/MP3 42,2 MB bị chặn. Bản `d02f05d` nâng PDF nguồn lên 50 MiB ở UI/policy/worker; bundle thực trên domain chính xác nhận 52.428.800 byte. Người dùng đã qua upload, phát hiện tiếp lỗi OCR PDF scan (hàng dưới); bốn trang/lượt và 5 MiB OCR giữ nguyên |
 | PDF scan có chữ ở bìa | File ETS thật 14 trang: bìa 47 ký tự, các trang sau scan; worker cũ gửi mỗi chữ bìa nên không thấy câu. `aea97e2` sửa theo từng trang, chuẩn bị OCR cả bốn cụm đạt; draft thiếu key phải duyệt bổ sung. Chưa nghiệm thu Gemini thật, ảnh chưa tự tách nhưng `f0bc90f` đã cho gắn và xuất bản ảnh riêng; xem `PDF_SCAN_RELEASE_2026-10-08.md` và `LISTENING_IMAGES_2026-10-08.md` |
@@ -62,9 +63,9 @@ Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/ge
 | Nhóm công việc | Trạng thái thực tế |
 | --- | --- |
 | BUILD-01, BASE-01 | Production build đã đạt local và Vercel; source được chốt/push, không có secret hoặc dữ liệu thử nghiệm |
-| BASE-02, E2E-01 | API `0c21f9f` đã lên domain chính, 19 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
+| BASE-02, E2E-01 | API `ff80432` đã lên domain chính, 23 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
 | E2E-02…05 | APK sửa Samsung được người thử ghi R-01…R-05 đạt; R-06 media chưa đạt nghiệm thu; còn thiết bị thứ hai |
-| SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
+| SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly; 21 regression client về phiên/storage đạt. Native/OAuth/đổi tài khoản trên APK mới vẫn cần nghiệm thu |
 | SAFE-03 | Đã rollout limiter, quota/ngày, công tắc dừng và giới hạn AI đồng thời qua PostgreSQL; kiểm chứng local đạt, chưa thử provider/tải thật; ngân sách tiền/cảnh báo chưa hoàn tất |
 | OPS-01 | Workflow và cổng dependency đã có, kiểm tra local đạt; chưa xác minh được remote CI hoặc branch protection bằng quyền GitHub hiện có |
 | OPS-02 | Backup DB thật mã hóa/restore cách ly và backup media R2 thật/kiểm tra giải mã đạt; snapshot DB/R2 nhất quán, restore bucket, định kỳ/offsite/PITR chưa hoàn tất |
@@ -110,3 +111,5 @@ Bổ sung kiểm chứng HTTP: đã thêm runner chỉ nhận DB/API loopback, �
 Bổ sung recovery OCR: `f7bb8c2` đã rollout, 156 unit/35 integration/build và 21 HTTP smoke trước/sau promote đạt. Chặn worker cũ ghi đè draft/kết quả IMPORTED hoặc đổi trạng thái/giảm lượt thử của retry mới; timeout từ snapshot GET cũ cũng không tác động lượt mới. Không thêm migration hoặc APK. OPS-04 vẫn mở cho cron, ngắt worker và đo thời gian phục hồi trên hạ tầng; đáp án ETS, media và nghiệm thu Android vẫn chờ. Chi tiết tại [INGESTION_WORKER_RECOVERY_2026-10-08.md](INGESTION_WORKER_RECOVERY_2026-10-08.md).
 
 Bổ sung auth server: `ff80432` đã rollout, 156 unit/44 integration/build và 23 HTTP smoke trước/sau promote đạt. Refresh/logout/reuse cùng family được tuần tự hóa và đọc lại trạng thái để không bỏ sót token thay thế vừa commit; lỗi lưu/ký rollback, logout lỗi DB trả 503. Không thu hồi session thật để thử. Access JWT vẫn có TTL 15 phút; phản hồi đến muộn, ghi/xóa SecureStore và đổi tài khoản trên client vẫn cần sửa/kiểm chứng, chưa đóng cổng SAFE-01/E2E. Chi tiết tại [MOBILE_SESSION_FAMILY_2026-10-08.md](MOBILE_SESSION_FAMILY_2026-10-08.md).
+
+Bổ sung client 09/10: `3cbde63` chặn nhận/trả/retry bằng phiên cũ, tuần tự hóa storage, giữ một refresh chung, có cảnh báo và retry logout, bỏ màn hình riêng tư khi đổi tài khoản và cho cuộn đăng nhập. 177 unit/21 regression controller mới, TypeScript/lint/dependency/export 1.322 source đạt; bảo vệ navigator mới chỉ qua kiểm tra tĩnh/export, cần nghiệm thu native. Build EAS thay thế đang IN_QUEUE như bảng trên; API không triển khai lại. MS-01…MS-08, giới hạn thu hồi offline và bằng chứng tại [MOBILE_SESSION_CLIENT_2026-10-09.md](MOBILE_SESSION_CLIENT_2026-10-09.md). Chưa có đường dẫn đáp án ETS hoặc bằng chứng đóng cổng Android/beta.

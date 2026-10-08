@@ -55,4 +55,6 @@ Phản hồi refresh/login đến muộn trong `mobile/src/providers/auth-provid
 
 Việc tiếp theo ở mobile: chặn nhận token/response của phiên đã hết hiệu lực; tuần tự hóa ghi/xóa SecureStore; lỗi 401 của tài khoản cũ không được xóa phiên mới; request cũ không retry bằng token của tài khoản vừa chuyển. Cần kiểm thử phản hồi đến muộn, ghi storage chậm/lỗi, restore đồng thời logout/login và nghiệm thu APK mới sau sửa.
 
+Cập nhật 09/10: source mobile `3cbde63` đã thực hiện các chặn client, hàng đợi storage và bảo vệ navigator; 21 kiểm thử controller mới/177 unit toàn bộ, TypeScript/lint/dependency/export Android đạt. Chưa thay bằng chứng nghiệm thu native/OAuth/điện thoại. Chi tiết và ma trận MS-01…MS-08 tại [MOBILE_SESSION_CLIENT_2026-10-09.md](MOBILE_SESSION_CLIENT_2026-10-09.md).
+
 Khóa advisory chỉ bảo vệ khi mọi phiên bản worker/API đều dùng quy tắc mới. Khi rollout/rollback có invocation cũ đang chạy, không coi đó là bảo đảm tuần tự tuyệt đối giữa hai phiên bản. Rollback về bản trước mở lại race; ưu tiên sửa tiến tới, không tự thu hồi toàn bộ session thật để nghiệm thu.

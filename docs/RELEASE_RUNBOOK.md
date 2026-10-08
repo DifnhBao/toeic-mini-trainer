@@ -83,6 +83,8 @@ Từ bản vá `f7bb8c2`, worker chỉ được lưu kết quả/lỗi hoặc tr
 
 Bản sửa auth `ff80432` tuần tự hóa refresh/logout/reuse theo family bằng khóa transaction; timeout/DB lỗi trả 503. Logout 200 xác nhận thu hồi refresh hoặc token không tồn tại, không có nghĩa access JWT cũ bị thu hồi ngay (TTL 15 phút). Không thử bằng cách thu hồi toàn bộ session thật. Không retry refresh vô hạn khi mất phản hồi; reuse token đã xoay vòng vẫn thu hồi family và yêu cầu đăng nhập lại. Chín kiểm thử DB/handler mới cùng các giới hạn mobile được ghi tại [MOBILE_SESSION_FAMILY_2026-10-08.md](MOBILE_SESSION_FAMILY_2026-10-08.md).
 
+Client `3cbde63` chặn phản hồi phiên cũ, tuần tự hóa SecureStore và bỏ màn hình riêng tư theo tài khoản. Nếu logout offline/lỗi server, yêu cầu người thử bật mạng rồi bấm thử logout lại; xóa phiên ở thiết bị chưa chứng minh server đã thu hồi. Không yêu cầu chỉnh token thật để thử. Nghiệm thu cập nhật APK, đổi tài khoản, restore, Back/deep link, chữ lớn và vòng học theo MS-01…MS-08 tại [MOBILE_SESSION_CLIENT_2026-10-09.md](MOBILE_SESSION_CLIENT_2026-10-09.md). Danh sách chờ thu hồi chỉ trong bộ nhớ nên có thể mất khi app bị đóng; access TTL server giữ nguyên.
+
 Quy trình backup media mã hóa cục bộ, inventory chỉ đọc và kiểm tra giải mã: [R2_BACKUP_2026-10-08.md](R2_BACKUP_2026-10-08.md). Chỉ chạy backup nội dung thật sau phê duyệt tương ứng; kiểm thử fixture không thay backup R2, khôi phục bucket cách ly hoặc phương án mất máy/offsite.
 
 ## 6. Những điều chưa được coi là hoàn tất
