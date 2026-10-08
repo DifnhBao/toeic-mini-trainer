@@ -57,7 +57,10 @@ export async function readInventory(client: S3Client, bucket: string, limits: Li
 export async function readObject(client: S3Client, bucket: string, entry: Entry): Promise<ObjectData> {
   const signal = AbortSignal.timeout(120000);
   const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: entry.key, IfMatch: entry.etag }), { abortSignal: signal });
-  if (!object.Body || object.ContentLength !== entry.size || object.ETag !== entry.etag || object.LastModified?.toISOString() !== entry.modified) {
+  // ListObjectsV2 preserves milliseconds; the GET HTTP Last-Modified header has second precision.
+  // ETag/size remain exact, and the final inventory comparison retains full timestamp precision.
+  const sameModifiedSecond = object.LastModified && Math.floor(object.LastModified.getTime() / 1000) === Math.floor(Date.parse(entry.modified) / 1000);
+  if (!object.Body || object.ContentLength !== entry.size || object.ETag !== entry.etag || !sameModifiedSecond) {
     if (object.Body && 'destroy' in object.Body) object.Body.destroy();
     fail('SourceChanged');
   }

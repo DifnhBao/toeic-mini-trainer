@@ -131,12 +131,12 @@ test('Windows DPAPI key protection and whole backup verification work offline', 
   });
 });
 
-test('R2 object reader sends IfMatch and preserves exact bytes and restore metadata', async () => {
-  const item = entry('ready/private/audio', 4);
+test('R2 object reader sends IfMatch and handles HTTP timestamp precision while preserving exact bytes', async () => {
+  const item = { ...entry('ready/private/audio', 4), modified: '2026-10-08T10:00:00.061Z' };
   let input: Record<string, unknown> | undefined;
   const client = { send: async (command: { input: Record<string, unknown> }) => {
     input = command.input;
-    return { Body: Readable.from([Buffer.from('ab'), Buffer.from('cd')]), ContentLength: 4, ETag: item.etag, LastModified: new Date(item.modified), Metadata: { owner: 'fixture' }, ContentType: 'audio/wav', ContentDisposition: 'inline', CacheControl: 'private' };
+    return { Body: Readable.from([Buffer.from('ab'), Buffer.from('cd')]), ContentLength: 4, ETag: item.etag, LastModified: new Date('2026-10-08T10:00:00.000Z'), Metadata: { owner: 'fixture' }, ContentType: 'audio/wav', ContentDisposition: 'inline', CacheControl: 'private' };
   } } as unknown as S3Client;
   const result = await readObject(client, 'fixture', item);
   assert.deepEqual(input, { Bucket: 'fixture', Key: item.key, IfMatch: item.etag });
