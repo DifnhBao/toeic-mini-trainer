@@ -25,22 +25,42 @@
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
 | Production build | Next.js 16.3.8 Webpack đạt trên Windows ngoài sandbox |
 | Android bundle | Expo export Android đạt; đây chưa phải APK được nghiệm thu |
-| Backup/restore | Dump/restore dữ liệu học mẫu và quan hệ đạt trên PostgreSQL Docker; không phải backup cloud hoặc file R2 |
+| Backup/restore | Fixture local đạt; DB Neon thật đã backup mã hóa DPAPI và restore cách ly, 22 bảng khớp snapshot trong 24,657 giây; chưa backup R2/định kỳ/offsite |
 | Smoke local | 7 kiểm tra public/không đăng nhập đạt; không xác minh Google OAuth hoặc AI thật |
-| API công khai cũ | 6/7 smoke đạt; GET ingestion list trả 405, cần deploy API mới trước mobile |
+| Smoke sau promote | 7/7 kiểm tra public đạt tại `https://toeic-mini-trainer.vercel.app`; chưa phải nghiệm thu tài khoản thật |
+| API cũ trước rollout | 6/7 smoke đạt; GET ingestion list trả 405 |
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
 | Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.337 source của bundle Android mới |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
-| Vercel | CLI đã đăng nhập thành công; project/env names được kiểm tra; dry-run sau sửa ignore xác minh 136 tệp, đủ 112 tệp app/types/prisma và không có env/APK/dữ liệu test |
+| Vercel | Deployment `dpl_pkxkgnfd37piBSPEairecse3Bgs8`, source `5107b97`, build Ready; 7/7 smoke qua Vercel CLI đạt trước promote; domain chính đã chuyển theo chấp thuận của chủ dự án |
+| Payload Vercel | 136 tệp, đủ 112 tệp app/types/prisma; không có env/APK/dữ liệu test; có lệnh kiểm tra source không bị thiếu |
+| APK mới | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` từ `5107b97` đang build; dùng signing sẵn có |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
 
+## Đối chiếu với kế hoạch tổng thể
+
+| Nhóm công việc | Trạng thái thực tế |
+| --- | --- |
+| BUILD-01, BASE-01 | Production build đã đạt local và Vercel; source được chốt/push, không có secret hoặc dữ liệu thử nghiệm |
+| BASE-02, E2E-01 | API `5107b97` đã lên domain chính, 7 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
+| E2E-02…05 | APK mới đang build; chưa nghiệm thu đăng nhập/học/upload và phục hồi lỗi trên Android thật |
+| SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
+| SAFE-03 | Đã có limiter chung, quota provider/ngày và công tắc dừng; giới hạn đồng thời và ngân sách tiền/cảnh báo chưa hoàn tất |
+| OPS-01 | Workflow và cổng dependency đã có, kiểm tra local đạt; chưa xác minh được remote CI hoặc branch protection bằng quyền GitHub hiện có |
+| OPS-02 | Backup DB thật mã hóa và restore cách ly đạt; backup định kỳ/offsite/PITR và R2 chưa hoàn tất |
+| OPS-03/04 | Đã có log/runbook/worker recovery nền; chưa nghiệm thu cảnh báo thực tế, tải worker và phục hồi khi ngắt |
+| CONTENT, UX, PERF | Cần nội dung có quyền dùng, nghiệm thu thiết bị và đo tải lớn; tối ưu truy vấn đã triển khai nhưng chưa phải báo cáo tải mục tiêu |
+| Beta/phát hành rộng | Chưa bắt đầu; cần hoàn tất các cổng trước beta và theo dõi 10–20 người trong hai tuần |
+
+Hiện đã hoàn thành phần nền kỹ thuật và rollout API để bắt đầu nghiệm thu giai đoạn 1. Các việc bảo mật/kiểm thử của giai đoạn 2 được thực hiện sớm; không đồng nghĩa giai đoạn 2 đã đóng hoặc sản phẩm đã sẵn sàng phát hành rộng.
+
 ## Các cổng còn lại trước sử dụng thực tế
 
-1. Xác minh backup và deploy commit mới lên project Vercel đã đăng nhập. Không chạy seed hoặc migration tùy tiện vào DB thật.
-2. Smoke và đăng nhập trên API mới; kiểm tra ingestion protocol, worker, storage và AI trên tài khoản test.
-3. Build APK preview từ cùng commit, cài điện thoại Android thật và nghiệm thu luồng học/Google/upload/OCR/audio/phục hồi lỗi khi Metro tắt.
-4. Cấu hình cảnh báo, ngân sách, backup Neon và R2; chỉ định người vận hành và kiểm duyệt nội dung.
+1. Kiểm tra readiness có xác thực và worker/storage trên hạ tầng: Vercel không cho pull worker secret qua CLI. Không thay/đọc lén secret để bỏ qua giới hạn này.
+2. Đăng nhập trên API mới; kiểm tra ingestion protocol và AI trên tài khoản test.
+3. Khi APK từ cùng commit build xong, cài điện thoại Android thật và nghiệm thu luồng học/Google/upload/OCR/audio/phục hồi lỗi khi Metro tắt.
+4. Cấu hình cảnh báo, ngân sách, backup Neon định kỳ/offsite và R2; chỉ định người vận hành và kiểm duyệt nội dung.
 5. Chuẩn bị bộ nội dung có quyền sử dụng, hướng dẫn/support/chính sách dữ liệu, rồi chạy beta 10–20 người trong hai tuần và xử lý lỗi trước mở rộng.
 
-Nguồn đã được sửa và kiểm tra không đồng nghĩa hệ thống đang chạy ngoài Internet đã được cập nhật. Không có cơ sở để tuyên bố toàn bộ sản phẩm hoàn tất hoặc nâng tỷ lệ sẵn sàng chỉ vì build/test đạt.
+API ngoài Internet đã được cập nhật như bằng chứng ở trên. APK/device QA, vận hành đầy đủ và beta vẫn chưa hoàn tất; không nâng tỷ lệ sẵn sàng chỉ vì build/test đạt.
