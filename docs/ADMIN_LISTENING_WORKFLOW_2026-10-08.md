@@ -2,7 +2,7 @@
 
 Quyết định của người dùng ngày 08/10/2026: quản trị viên chuẩn bị nội dung trên web; người học không nhập tài liệu trên điện thoại. R-01…R-05 của APK `dcb6524` đã được người thử ghi đạt; R-06 chưa hoàn tất, cần nghiệm thu lại luồng dưới đây.
 
-Source mobile `dee15f2`, API `d02f05d` nhận PDF nguồn tối đa 50 MiB; guard ADMIN cho đường JSON cũ đã có từ `4242017`. APK preview EAS `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`; theo dõi tại [trang build](https://expo.dev/accounts/dinhbao05s-team/projects/dinhbao05/builds/f66fc9a6-cd3a-4985-9fb4-8664eff8db32). Không dùng APK `dcb6524` để kết luận đã thử giao diện Kho bài mới. Bản sửa PDF nằm trên web/API, không cần build lại APK Kho bài.
+Source mobile `dee15f2`, API `aea97e2` sửa nhận diện PDF scan từng trang và draft thiếu answer key; PDF nguồn tối đa 50 MiB. Guard ADMIN cho đường JSON cũ đã có từ `4242017`. APK preview EAS `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`; theo dõi tại [trang build](https://expo.dev/accounts/dinhbao05s-team/projects/dinhbao05/builds/f66fc9a6-cd3a-4985-9fb4-8664eff8db32). Không dùng APK `dcb6524` để kết luận đã thử giao diện Kho bài mới. Bản sửa PDF nằm trên web/API, không cần build lại APK Kho bài.
 
 APK đã FINISHED ngày 08/10/2026: [tải bản Kho bài mới](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3MFgJZZvscfO6I_4V-yLGumPGtErk.apk). Bản cục bộ `Test/release-dee15f2.apk`, 114.429.599 byte; SHA-256 `702AEF922860D9066FA8CFB085340A38F34B9E2983BE64EACAB19CEDA50D21E4`. Kiểm tra CRC toàn bộ 1.698 mục, manifest, classes.dex và bốn ABI đạt, có arm64-v8a cho S23 FE. Đây là kiểm tra tính toàn vẹn gói, chưa xác nhận cài/chạy trên điện thoại. Cài cập nhật bằng APK này để giữ dữ liệu ứng dụng hiện có; nếu máy báo lỗi cài đặt, ghi lại thông báo trước khi gỡ app.
 
@@ -47,3 +47,5 @@ APK cũ vẫn có thể hiện nút nhập tài liệu, nhưng USER/REVIEWER g�
 | L-05 | Đóng trang quản trị rồi mở tài liệu gần đây | Tìm lại đúng job; GET không gọi AI mới; không gửi/xuất bản trùng |
 
 Các kiểm thử tự động chỉ chứng minh trên dữ liệu cách ly. Chưa thay thế L-02/L-03/L-05 với tài khoản, R2, provider và thiết bị thật. Không seed/import bộ mẫu vào DB thật bằng script trong đợt triển khai mã.
+
+Cập nhật OCR: bản `aea97e2` đã promote, 133 unit/19 integration/15 smoke trước và sau promote đạt. File ETS 14 trang thật đã kiểm chứng bước chuẩn bị OCR cả bốn cụm, chưa nghiệm thu Gemini thật. Xem `PDF_SCAN_RELEASE_2026-10-08.md`; draft thiếu key cần bổ sung trước khi lưu.

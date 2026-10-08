@@ -18,7 +18,7 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 125 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
+| Unit/regression | 133 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
 | PostgreSQL integration | 19 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê, kho bài phân trang và tạo bài chỉ từ nhóm đã công khai |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
@@ -33,13 +33,14 @@
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
 | Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.320 source của bundle APK Kho bài |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
-| Vercel | Deployment `dpl_6QLsfejWfeqwCgUg6qKF545p2aEm`, source `d02f05d`, Ready và đã promote; 15/15 smoke trước/sau promote; giữ `4242017` để rollback |
-| Payload Vercel | 143 tệp, đủ 119 tệp app/types/prisma; không có env/APK/dữ liệu test; có lệnh kiểm tra source không bị thiếu |
+| Vercel | Deployment `dpl_7WjBJYxSd87J4CWMgEWC8XzR83HS`, source `aea97e2`, READY và đã promote; 15/15 smoke trước/sau promote; hạn chế rollback draft thiếu key tại `PDF_SCAN_RELEASE_2026-10-08.md` |
+| Payload Vercel | 144 tệp, đủ 120 tệp app/types/prisma; không có env/APK/dữ liệu test; có lệnh kiểm tra source không bị thiếu |
 | APK `5107b97` | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` FINISHED; người thử S23 FE báo A-01/02/06/07 đạt và ba lỗi A-03/04/08 |
 | APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; người thử ghi R-01…R-05 đạt trên S23 FE; R-06 đang vướng quy trình nhập đề nghe/audio |
 | APK Kho bài mới | Build `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`, source mobile `dee15f2`, FINISHED; APK 114.429.599 byte, CRC 1.698 mục/manifest/dex/bốn ABI đạt; chưa có biên bản điện thoại cho bản này |
 | Truy cập quản trị | Người dùng xác nhận đăng nhập ADMIN thấy trang nhập đề/audio sau rollout `4242017`; chưa xác nhận upload và xuất bản |
-| PDF listening quá 15 MB | Người dùng báo PDF 19,1 MB/MP3 42,2 MB bị chặn. Bản `d02f05d` nâng PDF nguồn lên 50 MiB ở UI/policy/worker; bundle thực trên domain chính xác nhận 52.428.800 byte. Chưa có kết quả thử lại file thật; bốn trang/lượt và 5 MiB OCR giữ nguyên |
+| PDF listening quá 15 MB | Người dùng báo PDF 19,1 MB/MP3 42,2 MB bị chặn. Bản `d02f05d` nâng PDF nguồn lên 50 MiB ở UI/policy/worker; bundle thực trên domain chính xác nhận 52.428.800 byte. Người dùng đã qua upload, phát hiện tiếp lỗi OCR PDF scan (hàng dưới); bốn trang/lượt và 5 MiB OCR giữ nguyên |
+| PDF scan có chữ ở bìa | File ETS thật 14 trang: bìa 47 ký tự, các trang sau scan; worker cũ gửi mỗi chữ bìa nên không thấy câu. `aea97e2` sửa theo từng trang, chuẩn bị OCR cả bốn cụm đạt; draft thiếu key phải duyệt bổ sung. Chưa nghiệm thu Gemini thật, ảnh Part 1/biểu đồ chưa tự tách; xem `PDF_SCAN_RELEASE_2026-10-08.md` |
 | Storage preflight | Cấu hình R2 cục bộ đạt HEAD bucket, OPTIONS 204 với origin domain chính/PUT/Content-Type; không ghi object, không sửa CORS, chưa xác minh upload từ Vercel |
 | Backup media R2 | Sau phê duyệt riêng: 16 object, 18.948.378 byte đã mã hóa và kiểm tra lại độc lập đạt; 15 asset READY có object/size khớp. Không ghi cloud; chưa diễn tập restore bucket hoặc snapshot DB/R2 đồng thời |
 | Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
@@ -59,7 +60,7 @@ Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/ge
 | Nhóm công việc | Trạng thái thực tế |
 | --- | --- |
 | BUILD-01, BASE-01 | Production build đã đạt local và Vercel; source được chốt/push, không có secret hoặc dữ liệu thử nghiệm |
-| BASE-02, E2E-01 | API `d02f05d` đã lên domain chính, 15 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
+| BASE-02, E2E-01 | API `aea97e2` đã lên domain chính, 15 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
 | E2E-02…05 | APK sửa Samsung được người thử ghi R-01…R-05 đạt; R-06 media chưa đạt nghiệm thu; còn thiết bị thứ hai |
 | SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
 | SAFE-03 | Đã rollout limiter, quota/ngày, công tắc dừng và giới hạn AI đồng thời qua PostgreSQL; kiểm chứng local đạt, chưa thử provider/tải thật; ngân sách tiền/cảnh báo chưa hoàn tất |
@@ -93,3 +94,5 @@ Mốc dưới đây là thời lượng dự kiến khi có đủ tài khoản, 
 | 4. Beta mời riêng, tối thiểu 14 ngày | 10–20 người học, kênh phản hồi, theo dõi lỗi và chi phí hằng ngày; sửa và nghiệm thu lại P0/P1; chốt hỗ trợ/chính sách dữ liệu/xóa tài khoản trước mở rộng | Chủ dự án + Dev + vận hành | Đạt ngưỡng beta trong kế hoạch tổng thể, không còn P0/P1; chỉ khi đó quyết định phát hành rộng |
 
 Việc tiếp theo ngay lúc bàn giao: quản trị viên hoàn tất một bài nghe có đáp án đã đối chiếu trên web, rồi người học mở bài đó trên APK Kho bài mới. Không dùng tài khoản ADMIN hoặc kết quả test cách ly để kết luận trải nghiệm người học thật đã đạt.
+
+Cập nhật sau báo lỗi PDF scan: `aea97e2` đã rollout; 133 unit/19 integration/build/15 smoke trước và sau promote đạt. Người dùng xác nhận có file đáp án và sẽ cung cấp đường dẫn. Bước chuẩn bị OCR dùng đúng file 14 trang đã đạt; OCR provider và công khai có kiểm duyệt vẫn cần nghiệm thu. Chi tiết và giới hạn rollback tại `PDF_SCAN_RELEASE_2026-10-08.md`.
