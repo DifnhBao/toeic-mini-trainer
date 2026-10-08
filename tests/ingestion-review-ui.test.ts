@@ -4,6 +4,16 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import IngestionQuestionReview, { buildReviewedContribution } from "../app/components/IngestionQuestionReview";
 
+it("shows the missing-key warning and disables approval for an unresolved listening draft", () => {
+  const html = renderToStaticMarkup(createElement(IngestionQuestionReview, {
+    groups: [{ questions: [{ part: 2, content: "Question 7", options: { A: "A", B: "B", C: "C" }, correctAnswer: "" }] }],
+    jobId: "00000000-0000-0000-0000-000000000001", pageRange: null,
+  }));
+  assert.match(html, /Chưa có đáp án từ tài liệu/);
+  assert.doesNotMatch(html, /checked=""/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Duyệt câu này/);
+});
+
 it("starts with every extracted question awaiting a decision and saving disabled", () => {
   const html = renderToStaticMarkup(createElement(IngestionQuestionReview, {
     groups: [{ questions: [{

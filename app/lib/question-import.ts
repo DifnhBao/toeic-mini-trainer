@@ -16,17 +16,25 @@ const optionsSchema = z
     return optionCount >= 2 && optionCount <= 4;
   }, "Each question must have between 2 and 4 options");
 
+const questionFields = {
+  part: z.number().int().min(1).max(7),
+  content: z.string().trim().max(10_000).nullable().optional(),
+  options: optionsSchema,
+  correctAnswer: z.string().trim().toUpperCase().regex(/^[A-D]$/),
+};
 const questionSchema = z
-  .object({
-    part: z.number().int().min(1).max(7),
-    content: z.string().trim().max(10_000).nullable().optional(),
-    options: optionsSchema,
-    correctAnswer: z.string().trim().toUpperCase().regex(/^[A-D]$/),
-  })
+  .object(questionFields)
   .strict()
   .refine((question) => question.correctAnswer in question.options, {
     message: "The correct answer must exist in options",
   });
+
+const draftQuestionSchema = z.object({
+  ...questionFields,
+  correctAnswer: z.string().trim().toUpperCase().regex(/^(?:[A-D])?$/),
+}).strict().refine((question) => !question.correctAnswer || question.correctAnswer in question.options, {
+  message: "A known draft answer must exist in options",
+});
 
 const groupSchema = z
   .object({
@@ -57,6 +65,24 @@ export const extractedDataSchema = z
   .refine((value) => value.data.reduce((sum, item) => sum + item.questions.length, 0) <= 500, {
     message: "A single import cannot exceed 500 questions",
   });
+
+// An AI draft can lack an answer key. Persistence and publication continue to
+// use extractedDataSchema, so an unresolved draft cannot become a question.
+export const extractionDraftSchema = extractedDataSchema.safeExtend({
+  data: z.array(z.object({
+    group: groupSchema.nullable().optional(),
+    questions: z.array(draftQuestionSchema).min(1).max(100),
+  }).strict()).min(1).max(250),
+});
+
+export const generatedQuestionsSchema = extractionDraftSchema.superRefine((value, context) => {
+  value.data.forEach((group, groupIndex) => group.questions.forEach((question, questionIndex) => {
+    const expected = question.part === 2 ? ["A", "B", "C"] : ["A", "B", "C", "D"];
+    if (Object.keys(question.options).length !== expected.length || expected.some(key => !question.options[key])) {
+      context.addIssue({ code: "custom", path: ["data", groupIndex, "questions", questionIndex, "options"], message: "Generated options must match the TOEIC Part" });
+    }
+  }));
+});
 
 export type ExtractedData = z.infer<typeof extractedDataSchema>;
 

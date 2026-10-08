@@ -104,6 +104,26 @@ function fakeDatabase(source: unknown = { data: groups }, audioAssetId: string |
 }
 
 describe('real mobile import route with mocked database', () => {
+  it('requires review for a bodyless unresolved draft without claiming or saving it', async () => {
+    const db = fakeDatabase({ data: [{ questions: [{ ...groups[0].questions[0], part: 2, options: { A: 'A', B: 'B', C: 'C' }, correctAnswer: '' }] }] });
+    const response = await importRoute.POST(await request(), { params: Promise.resolve({ id: jobId }) });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error.code, 'REVIEW_REQUIRED');
+    assert.equal(db.claims(), 0);
+    assert.equal(db.saved.length, 0);
+  });
+  it('persists a listening draft only after the reviewer supplies an answer key', async () => {
+    const question = { part: 2, content: 'Question 7', options: { A: 'A', B: 'B', C: 'C' }, correctAnswer: '' };
+    const db = fakeDatabase({ data: [{ questions: [question] }] });
+    const payload = (answer: string) => JSON.stringify({ reviews: [{ groupIndex: 0, questionIndex: 0, decision: 'APPROVE', question: { ...question, correctAnswer: answer } }] });
+    const invalid = await importRoute.POST(await request(payload('')), { params: Promise.resolve({ id: jobId }) });
+    assert.equal(invalid.status, 400);
+    assert.equal(db.claims(), 0);
+    const valid = await importRoute.POST(await request(payload('C')), { params: Promise.resolve({ id: jobId }) });
+    assert.equal(valid.status, 200);
+    assert.equal(db.saved[0].correctAnswer, 'C');
+    assert.deepEqual(db.saved[0].options, { A: 'A', B: 'B', C: 'C' });
+  });
   it('persists approved corrected content, excludes skipped questions, and is idempotent', async () => {
     const db = fakeDatabase(); const entries = initialEntries(groups);
     entries[0] = { ...entries[0], decision: 'APPROVE', question: { ...entries[0].question, content: 'Edited first', correctAnswer: 'B' } };

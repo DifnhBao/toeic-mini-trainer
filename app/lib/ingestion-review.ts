@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { extractedDataSchema, type ExtractedData } from "@/app/lib/question-import";
+import { extractedDataSchema, extractionDraftSchema, type ExtractedData } from "@/app/lib/question-import";
 
 const locationSchema = {
   groupIndex: z.number().int().min(0).max(249),
@@ -27,7 +27,7 @@ export class InvalidIngestionReviewError extends Error {
 }
 
 export function buildReviewedImport(source: unknown, input: unknown): ExtractedData {
-  const original = extractedDataSchema.parse(source);
+  const original = extractionDraftSchema.parse(source);
   const parsed = reviewPayloadSchema.safeParse(input);
   if (!parsed.success) throw new InvalidIngestionReviewError();
 

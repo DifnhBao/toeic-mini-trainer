@@ -8,6 +8,9 @@ declare module "pdf-parse/lib/pdf-parse.js" {
     version: string;
   };
 
-  function pdfParse(dataBuffer: Buffer): Promise<PdfResult>;
+  type PdfPage = {
+    getTextContent(): Promise<{ items: Array<{ str: string; transform: number[] }> }>;
+  };
+  function pdfParse(dataBuffer: Buffer, options?: { pagerender?: (page: PdfPage) => Promise<string> }): Promise<PdfResult>;
   export default pdfParse;
 }

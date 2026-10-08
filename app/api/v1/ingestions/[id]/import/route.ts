@@ -3,7 +3,7 @@ import { apiError, apiJson } from "@/app/lib/api-response";
 import { IMPORT_STALE_MS } from "@/app/lib/ingestion-status";
 import { buildReviewedImport, InvalidIngestionReviewError, requiresQuestionReview, reviewPayloadSchema } from "@/app/lib/ingestion-review";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
-import { importExtractedQuestions } from "@/app/lib/question-import";
+import { extractedDataSchema, importExtractedQuestions } from "@/app/lib/question-import";
 import { prisma } from "@/app/lib/prisma";
 import { requestUser } from "@/app/lib/request-user";
 
@@ -23,25 +23,27 @@ export async function POST(
 
   // New mobile and web clients review explicitly; bodyless old APKs remain compatible.
   let reviewedResult: ReturnType<typeof buildReviewedImport> | null = null;
+  const source = await prisma.ingestionJob.findFirst({
+    where: { id: parsedId.data, ownerId: user.id },
+    select: { result: true, status: true, importedAt: true },
+  });
+  if (source?.status === "IMPORTED" && source.importedAt) {
+    return apiJson({ imported: true, alreadyImported: true });
+  }
+  if (!source?.result) return apiError("JOB_NOT_IMPORTABLE", "Tác vụ chưa sẵn sàng để lưu.", 409);
   if (requiresQuestionReview(request)) {
-    const source = await prisma.ingestionJob.findFirst({
-      where: { id: parsedId.data, ownerId: user.id },
-      select: { result: true, status: true, importedAt: true },
-    });
-    if (source?.status === "IMPORTED" && source.importedAt) {
-      return apiJson({ imported: true, alreadyImported: true });
-    }
-    if (!source?.result) return apiError("JOB_NOT_IMPORTABLE", "Tác vụ chưa sẵn sàng để lưu.", 409);
     const payload = await parseBoundedJson(request, reviewPayloadSchema, 512 * 1024);
     if (!payload.success) return payload.response;
     try {
       reviewedResult = buildReviewedImport(source.result, payload.data);
     } catch (error) {
-      if (error instanceof InvalidIngestionReviewError) {
-        return apiError("REVIEW_INVALID", error.message, 400);
+      if (error instanceof InvalidIngestionReviewError || error instanceof z.ZodError) {
+        return apiError("REVIEW_INVALID", new InvalidIngestionReviewError().message, 400);
       }
       throw error;
     }
+  } else if (!extractedDataSchema.safeParse(source.result).success) {
+    return apiError("REVIEW_REQUIRED", "Bản nháp còn thiếu đáp án. Hãy mở trang web để bổ sung và duyệt từng câu trước khi lưu.", 400);
   }
 
   const claimed = await prisma.ingestionJob.updateMany({

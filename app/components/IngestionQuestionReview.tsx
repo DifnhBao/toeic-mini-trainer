@@ -242,6 +242,7 @@ export default function IngestionQuestionReview({
               </label>
               <fieldset className="grid gap-3">
                 <legend className="mb-2 text-sm font-semibold">Phương án và đáp án đúng</legend>
+                {!active.question.correctAnswer && <p className="text-sm text-amber-800">Chưa có đáp án từ tài liệu. Đối chiếu answer key hoặc nguồn hợp lệ rồi chọn đáp án trước khi duyệt; AI không nghe audio để xác định đáp án.</p>}
                 {OPTION_KEYS.map((key) => (
                   <div className="flex items-center gap-2" key={key}>
                     <input type="radio" name={`review-answer-${activeIndex}`} aria-label={`Đáp án đúng ${key}`} checked={active.question.correctAnswer === key} disabled={busy || imported || submittedForReview || !active.question.options[key]?.trim()} onChange={() => editQuestion((question) => ({ ...question, correctAnswer: key }))} />
