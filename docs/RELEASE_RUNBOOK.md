@@ -6,9 +6,10 @@ Ngày cập nhật: 08/10/2026. Dành cho Android + web/API của TOEIC Mini Tra
 
 1. `npm ci` và `npx prisma generate`.
 2. `npm test`, `npm run typecheck`, `npm run typecheck:mobile`, `npm run lint`.
-3. `npm run build` (Webpack); `cd mobile` rồi `npx expo export --platform android --output-dir dist-android`.
-4. Chạy test tích hợp theo mục 2; chỉ sau khi đạt mới deploy/build APK.
-5. Ghi Git SHA, migration status, deployment ID, EAS build ID và kết quả vào biên bản. Bundle export chưa phải APK hoặc nghiệm thu thiết bị.
+3. Kiểm tra dependency: `npm run audit:dependencies -- --project web`, `npm run audit:dependencies -- --project mobile`, `npm audit --omit=dev --audit-level=high`. Các ngoại lệ công cụ có hạn đến 22/10/2026 trong `DEPENDENCY_SECURITY_2026-10-08.md`.
+4. `npm run build` (Webpack); `cd mobile` rồi `npx expo export --platform android --source-maps --output-dir dist-android` và `npm --prefix .. run check:mobile-bundle`.
+5. Chạy test tích hợp theo mục 2; chỉ sau khi đạt mới deploy/build APK.
+6. Ghi Git SHA, migration status, deployment ID, EAS build ID và kết quả vào biên bản. Bundle export chưa phải APK hoặc nghiệm thu thiết bị.
 
 Workflow `quality.yml` có ba job web/integration/mobile; không dùng secret production. PostgreSQL service chỉ tồn tại trong job. CI phải được bật và kiểm tra trên GitHub; có file workflow chưa chứng minh CI đã chạy hoặc branch protection đã được cấu hình.
 

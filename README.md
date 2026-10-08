@@ -24,7 +24,7 @@ Yêu cầu Node.js, PostgreSQL và một Google OAuth app.
 
 Kiểm tra bản production bằng `npm run build` rồi `npm start`.
 
-Production build dùng Webpack theo tùy chọn chính thức của Next.js 16.3.5;
+Production build dùng Webpack theo tùy chọn chính thức của Next.js 16.3.8;
 Turbopack trên Windows hiện dừng ở tiến trình PostCSS. `npm run build:turbo`
 giữ lại cách tái hiện để chẩn đoán. Không dùng build chẩn đoán để phát hành.
 
@@ -33,6 +33,10 @@ Kiểm tra trước phát hành: `npm test`, `npm run typecheck`,
 Workflow `.github/workflows/quality.yml` kiểm tra web/mobile và chạy migration,
 test tích hợp trên PostgreSQL CI riêng. Hướng dẫn staging, hạn mức, backup và
 nghiệm thu ở `docs/RELEASE_RUNBOOK.md`.
+
+Kiểm tra dependency trước phát hành bằng `npm run audit:dependencies -- --project web`,
+`npm run audit:dependencies -- --project mobile` và `npm audit --omit=dev --audit-level=high`.
+Các ngoại lệ công cụ build hết hạn ngày 22/10/2026; xem `docs/DEPENDENCY_SECURITY_2026-10-08.md`.
 
 Web và mobile dùng chung kiểm tra nộp bài. Web lưu mã lần nộp cùng câu trả lời,
 thời gian và vị trí câu trên thiết bị để retry không tạo attempt trùng. Khi bộ

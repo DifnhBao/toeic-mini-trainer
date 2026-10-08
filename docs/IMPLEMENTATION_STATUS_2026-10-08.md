@@ -18,22 +18,26 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 88 kiểm thử đạt; không dùng DB/provider thật |
+| Unit/regression | 93 kiểm thử đạt; không dùng DB/provider thật |
 | PostgreSQL integration | 11 kiểm thử đạt trên DB loopback `toeic_release_test` |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
-| Production build | Webpack đạt trên Windows ngoài sandbox |
+| Production build | Next.js 16.3.8 Webpack đạt trên Windows ngoài sandbox |
 | Android bundle | Expo export Android đạt; đây chưa phải APK được nghiệm thu |
 | Backup/restore | Dump/restore dữ liệu học mẫu và quan hệ đạt trên PostgreSQL Docker; không phải backup cloud hoặc file R2 |
 | Smoke local | 7 kiểm tra public/không đăng nhập đạt; không xác minh Google OAuth hoặc AI thật |
 | API công khai cũ | 6/7 smoke đạt; GET ingestion list trả 405, cần deploy API mới trước mobile |
+| Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
+| Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.337 source của bundle Android mới |
+| APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
+| Vercel | CLI đã đăng nhập thành công; project/env names được kiểm tra; dry-run xác minh 130 tệp không có env, APK hoặc dữ liệu test |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
 
 ## Các cổng còn lại trước sử dụng thực tế
 
-1. Đăng nhập Vercel CLI hợp lệ, xác minh project/env/backup và deploy commit mới. Không chạy seed hoặc migration tùy tiện vào DB thật.
+1. Xác minh backup và deploy commit mới lên project Vercel đã đăng nhập. Không chạy seed hoặc migration tùy tiện vào DB thật.
 2. Smoke và đăng nhập trên API mới; kiểm tra ingestion protocol, worker, storage và AI trên tài khoản test.
 3. Build APK preview từ cùng commit, cài điện thoại Android thật và nghiệm thu luồng học/Google/upload/OCR/audio/phục hồi lỗi khi Metro tắt.
 4. Cấu hình cảnh báo, ngân sách, backup Neon và R2; chỉ định người vận hành và kiểm duyệt nội dung.

@@ -1,0 +1,24 @@
+{
+  "web": [
+    {
+      "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "expiresOn": "2026-10-22",
+      "devOnly": true,
+      "reason": "ESLint file globs are repository-controlled. No HTTP input reaches braces. No upstream patch exists; fail if it moves to production dependencies."
+    }
+  ],
+  "mobile": [
+    {
+      "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "expiresOn": "2026-10-22",
+      "devOnly": false,
+      "reason": "Metro/Expo CLI globs are build tooling; verify braces is absent from Android release source maps. No upstream patch exists."
+    },
+    {
+      "url": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+      "expiresOn": "2026-10-22",
+      "devOnly": false,
+      "reason": "Expo CLI certificate tooling; OTA code signing is not configured. Verify node-forge is absent from Android release source maps. Native Google auth does not use this package. No upstream patch exists."
+    }
+  ]
+}
