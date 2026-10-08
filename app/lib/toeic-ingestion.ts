@@ -179,18 +179,23 @@ export async function processIngestionJob(jobId: string, dependencies = {
   extract: extractQuestions,
 }) {
   const { database, readDocument, extract } = dependencies;
-  const claimed = await database.ingestionJob.updateMany({
-    where: { id: jobId, status: "PENDING" },
+  const claimed = await database.ingestionJob.updateManyAndReturn({
+    where: { id: jobId, status: "PENDING", attemptCount: { lt: 3 } },
     data: { status: "PROCESSING", startedAt: new Date(), attemptCount: { increment: 1 } },
+    select: { startedAt: true, attemptCount: true },
   });
-  if (claimed.count !== 1) return;
+  if (claimed.length !== 1) return;
+  // A timeout/retry may replace this invocation while document/provider work
+  // is still running. Every write must retain the exact claim returned by DB.
+  const claim = { id: jobId, status: "PROCESSING" as const, startedAt: claimed[0].startedAt, attemptCount: claimed[0].attemptCount };
 
   try {
     const job = await database.ingestionJob.findUnique({
-      where: { id: jobId },
+      where: claim,
       include: { documentAsset: true, audioAsset: true },
     });
-    if (!job || job.documentAsset.status !== "READY" || job.documentAsset.kind !== "DOCUMENT") {
+    if (!job) return;
+    if (job.documentAsset.status !== "READY" || job.documentAsset.kind !== "DOCUMENT") {
       throw new IngestionProcessingError("DOCUMENT_ASSET_INVALID");
     }
     if (job.audioAsset && (job.audioAsset.status !== "READY" || job.audioAsset.kind !== "AUDIO")) {
@@ -204,8 +209,8 @@ export async function processIngestionJob(jobId: string, dependencies = {
       job.pageStart,
       job.pageEnd,
     );
-    await database.ingestionJob.update({
-      where: { id: job.id },
+    await database.ingestionJob.updateMany({
+      where: claim,
       data: {
         status: "COMPLETED",
         result,
@@ -218,7 +223,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
       // No provider call or daily reservation occurred. Keep the uploaded
       // document and let a later worker trigger retry without spending an attempt.
       await database.ingestionJob.updateMany({
-        where: { id: jobId, status: "PROCESSING" },
+        where: claim,
         data: { status: "PENDING", startedAt: null, completedAt: null, errorCode: null, attemptCount: { decrement: 1 } },
       });
       return;
@@ -229,7 +234,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
       errorType: error instanceof Error ? error.name : "unknown",
     });
     await database.ingestionJob.updateMany({
-      where: { id: jobId, status: "PROCESSING" },
+      where: claim,
       data: { status: "FAILED", errorCode: code, completedAt: new Date() },
     });
   }

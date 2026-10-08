@@ -43,7 +43,7 @@ export async function GET(
     job.startedAt.getTime() < now - 6 * 60_000;
   if (processingTimedOut) {
     await prisma.ingestionJob.updateMany({
-      where: { id: job.id, ownerId: user.id, status: job.status },
+      where: { id: job.id, ownerId: user.id, status: job.status, startedAt: job.startedAt, attemptCount: job.attemptCount },
       data: { status: "FAILED", errorCode: "WORKER_TIMEOUT", completedAt: new Date() },
     });
     job = await prisma.ingestionJob.findFirstOrThrow({
