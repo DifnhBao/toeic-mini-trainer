@@ -1,15 +1,7 @@
-const REQUEST_TIMEOUT_MS = 15_000;
+import { ApiError } from './api-error';
+export { ApiError } from './api-error';
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+const REQUEST_TIMEOUT_MS = 15_000;
 
 export function getApiBaseUrl() {
   const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
