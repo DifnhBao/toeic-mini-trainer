@@ -18,7 +18,7 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 115 kiểm thử đạt; không dùng DB/provider thật; kiểm tra quyền ADMIN tại sáu API ghi nội dung, gồm JSON cũ |
+| Unit/regression | 124 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN tại sáu API ghi nội dung và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
 | PostgreSQL integration | 19 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê, kho bài phân trang và tạo bài chỉ từ nhóm đã công khai |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
@@ -40,6 +40,7 @@
 | APK Kho bài mới | Build `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`, source mobile `dee15f2`, FINISHED; APK 114.429.599 byte, CRC 1.698 mục/manifest/dex/bốn ABI đạt; chưa có biên bản điện thoại cho bản này |
 | Truy cập quản trị | Người dùng xác nhận đăng nhập ADMIN thấy trang nhập đề/audio sau rollout `4242017`; chưa xác nhận upload và xuất bản |
 | Storage preflight | Cấu hình R2 cục bộ đạt HEAD bucket, OPTIONS 204 với origin domain chính/PUT/Content-Type; không ghi object, không sửa CORS, chưa xác minh upload từ Vercel |
+| Backup media R2 | Script mã hóa/kiểm tra giải mã và guard đã qua fixture; inventory thật chỉ đọc: 16 object, 18.948.378 byte. Chưa tải nội dung R2 thật; phê duyệt DB trước không bao gồm R2 |
 | Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
@@ -49,6 +50,8 @@ Luồng R-06 mới đã triển khai API/web: ADMIN nhập PDF/audio, duyệt v�
 APK mới: [tải bản Kho bài](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3MFgJZZvscfO6I_4V-yLGumPGtErk.apk), SHA-256 `702AEF922860D9066FA8CFB085340A38F34B9E2983BE64EACAB19CEDA50D21E4`. API `4242017` bổ sung guard import JSON cũ phía server, không thay runtime mobile so với source APK `dee15f2`. Log kiểm chứng cục bộ: `Test/apk-dee15f2-verification.json`, `Test/vercel-protected-smoke-4242017.txt`, `Test/vercel-promoted-smoke-4242017.txt`; không đưa APK hoặc log chứa metadata cloud lên Git.
 
 Một lượt integration chạy cùng build bị timeout khóa AI và kéo theo lỗi lease của test kế tiếp. Đã để các tệp integration chạy tuần tự, giữ 20 request đồng thời trong test capacity; release lease trong finally của test đầu. Lượt chạy độc lập hoàn chỉnh sau đó đạt 19/19, không nới timeout hoặc bỏ assertion capacity.
+
+Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/get R2, mã hóa AES-256-GCM với khóa DPAPI CurrentUser, kiểm tra lại inventory và giải mã đối chiếu từng file. 124/124 unit, TypeScript và lint các tệp mới đạt; guard thiếu opt-in/đường dẫn ngoài vùng backup đã chặn. Hướng dẫn tại `R2_BACKUP_2026-10-08.md`. Đây là công cụ cục bộ, không đổi runtime API/APK; không cần deploy/build lại. Chưa hoàn tất backup media thật, phục hồi bucket cách ly, offsite hoặc lịch chạy.
 
 ## Đối chiếu với kế hoạch tổng thể
 
