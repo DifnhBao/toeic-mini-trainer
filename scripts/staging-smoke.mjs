@@ -5,6 +5,8 @@ if (base.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(
 const tests = [
   ['GET', '/', 200],
   ['GET', '/library', 200],
+  ['GET', '/admin/extract', 200],
+  ['GET', '/admin/import', 200],
   ['GET', '/api/v1/library', 401],
   ['POST', '/api/v1/library/00000000-0000-4000-8000-000000000001/test', 401],
   ['POST', '/api/import/questions-json', 401],
@@ -23,7 +25,8 @@ for (const [method, path, expected] of tests) {
     method, redirect: 'manual', signal: AbortSignal.timeout(15_000),
     ...(method === 'POST' ? { headers: { 'Content-Type': 'application/json' }, body: '{}' } : {}),
   });
-  const ok = response.status === expected;
+  const ok = response.status === expected && (!path.startsWith('/admin/') ||
+    (await response.text()).includes('Bạn chưa có quyền truy cập'));
   failed ||= !ok;
   console.log(`${ok ? 'PASS' : 'FAIL'} ${method} ${path}: ${response.status} (expected ${expected})`);
 }

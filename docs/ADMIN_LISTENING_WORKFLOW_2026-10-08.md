@@ -2,6 +2,16 @@
 
 Quyết định của người dùng ngày 08/10/2026: quản trị viên chuẩn bị nội dung trên web; người học không nhập tài liệu trên điện thoại. R-01…R-05 của APK `dcb6524` đã được người thử ghi đạt; R-06 chưa hoàn tất, cần nghiệm thu lại luồng dưới đây.
 
+Source mobile `dee15f2`, API `4242017` bổ sung kiểm tra ADMIN cho đường import JSON cũ. APK preview EAS `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`; theo dõi tại [trang build](https://expo.dev/accounts/dinhbao05s-team/projects/dinhbao05/builds/f66fc9a6-cd3a-4985-9fb4-8664eff8db32). Không dùng APK `dcb6524` để kết luận đã thử giao diện Kho bài mới.
+
+APK đã FINISHED ngày 08/10/2026: [tải bản Kho bài mới](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3MFgJZZvscfO6I_4V-yLGumPGtErk.apk). Bản cục bộ `Test/release-dee15f2.apk`, 114.429.599 byte; SHA-256 `702AEF922860D9066FA8CFB085340A38F34B9E2983BE64EACAB19CEDA50D21E4`. Kiểm tra CRC toàn bộ 1.698 mục, manifest, classes.dex và bốn ABI đạt, có arm64-v8a cho S23 FE. Đây là kiểm tra tính toàn vẹn gói, chưa xác nhận cài/chạy trên điện thoại. Cài cập nhật bằng APK này để giữ dữ liệu ứng dụng hiện có; nếu máy báo lỗi cài đặt, ghi lại thông báo trước khi gỡ app.
+
+API `4242017` đã promote lên domain chính, deployment `dpl_5vUvcFhZJiVXy1uxu6PgfaQeLSVm`; 15/15 smoke trước và sau promote đạt. Người dùng đã xác nhận đăng nhập ADMIN và thấy trang “Nhập đề và audio cho người học”. Bản API trước để rollback là `35e9e44`, deployment `dpl_2BN16pCYioxSoiE4ypKfAnoKiKst`.
+
+Đã kiểm tra 115 unit, 19 integration PostgreSQL cách ly, TypeScript/lint, production build và Android export 1.320 source. Archive EAS kiểm tra 270 tệp, không có env/backup/APK/dữ liệu thử. Kiểm tra tự động không upload hay công khai tài liệu trên DB thật.
+
+R2 theo cấu hình cục bộ đã đạt HEAD bucket và OPTIONS preflight từ origin domain chính: HTTP 204, cho phép PUT và Content-Type. Đây chỉ là kiểm tra đọc bằng khóa cục bộ, không chứng minh secret Vercel giống cấu hình này hoặc upload thật đã thành công; không tạo object hay sửa CORS. Bằng chứng: `Test/storage-browser-readonly.json`.
+
 ## Quản trị viên trên máy tính
 
 1. Đăng nhập đúng tài khoản ADMIN tại `https://toeic-mini-trainer.vercel.app`. Mở **Quản trị → Nhập đề & audio** (`/admin/extract`). Nếu báo chưa có quyền, dùng tài khoản quản trị hiện có; không tự sửa role/secret hoặc chạy seed DB.
@@ -11,6 +21,8 @@ Quyết định của người dùng ngày 08/10/2026: quản trị viên chuẩ
 5. Xác nhận quyền chia sẻ; bấm **Chuyển … câu sang bước xuất bản** rồi **Mở trang Duyệt nội dung**. Không cần lưu một bản cá nhân trước. Nếu đóng trang, mở lại tài liệu trong **Tiếp tục tài liệu đã xử lý**; kết quả đã gửi được dẫn về hàng chờ, không tạo lần gửi mới.
 6. Trên **Duyệt nội dung**, lấy/mở PDF nguồn, lấy/nghe audio, kiểm tra toàn bộ câu và quyền chia sẻ. Xác nhận đã kiểm tra rồi bấm **Duyệt & công khai**. Audio được sao chép và kiểm chứng trong vùng chia sẻ; PDF nguồn giữ riêng tư. Bước này tạo nội dung thật, cần người quản trị thực hiện sau kiểm tra.
 7. Mở **Kho bài** (`/library`), tải lại, chọn bài vừa công khai và nghe thử. Mỗi bài là một nhóm câu chung audio/đoạn đọc, không phải toàn bộ PDF. Nhóm trên 50 câu cần chia lại; nhóm thiếu audio, ảnh Part 1 hoặc đoạn đọc Part 6–7 bị chặn tạo bài.
+
+AI chỉ trích xuất nội dung PDF, không nghe audio đính kèm để xác định đáp án hoặc chép lời thoại. Quản trị viên cần đáp án/lời thoại từ nguồn hợp lệ để đối chiếu và sửa trước khi công khai. Với bộ mẫu, đáp án và lời thoại nằm ở trang 3, không nằm trong hai trang câu hỏi dùng để phân tích.
 
 Ảnh trong PDF chưa tự trở thành media của câu hỏi. Luồng duyệt hiện tại không xuất bản image asset; chưa coi nghiệm thu ảnh hoàn tất. Không dùng việc upload PDF thành công để kết luận đã có bài luyện ảnh.
 
