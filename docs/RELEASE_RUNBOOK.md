@@ -79,6 +79,8 @@ Cần cấu hình thực tế trên hạ tầng: cảnh báo 5xx, readiness hỏ
 
 Mục tiêu vận hành đề xuất: RPO ≤24 giờ, RTO ≤4 giờ. Cần nghiệm thu Neon backup và lifecycle/khôi phục R2 riêng; dump DB không chứa file PDF/audio. Backup phải có quyền hạn chế, thời hạn lưu và cảnh báo quá hạn. Không đưa backup/secret vào Git.
 
+Từ bản vá `f7bb8c2`, worker chỉ được lưu kết quả/lỗi hoặc trả AI_BUSY về PENDING khi vẫn giữ đúng claim (`startedAt` + `attemptCount` + PROCESSING); GET timeout cũng so đúng snapshot. Không chạy SQL đổi trạng thái hàng loạt để nghiệm thu. Sáu regression timeout/retry đạt trên PostgreSQL local, nhưng cron giờ/lần và việc chọn một job mỗi sweep chưa chứng minh thời gian phục hồi thực tế. Chi tiết và giới hạn rollback tại [INGESTION_WORKER_RECOVERY_2026-10-08.md](INGESTION_WORKER_RECOVERY_2026-10-08.md).
+
 Quy trình backup media mã hóa cục bộ, inventory chỉ đọc và kiểm tra giải mã: [R2_BACKUP_2026-10-08.md](R2_BACKUP_2026-10-08.md). Chỉ chạy backup nội dung thật sau phê duyệt tương ứng; kiểm thử fixture không thay backup R2, khôi phục bucket cách ly hoặc phương án mất máy/offsite.
 
 ## 6. Những điều chưa được coi là hoàn tất
