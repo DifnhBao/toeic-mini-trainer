@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from '@/providers/auth-provider';
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 function RootNavigator() {
-  const { isBootstrapping } = useAuth();
+  const { isBootstrapping, user } = useAuth();
 
   useEffect(() => {
     if (!isBootstrapping) SplashScreen.hideAsync().catch(() => undefined);
@@ -18,6 +18,7 @@ function RootNavigator() {
 
   return (
     <Stack
+      key={user?.id ?? 'guest'}
       screenOptions={{
         headerStyle: { backgroundColor: palette.surface },
         headerTintColor: palette.ink,
@@ -27,10 +28,12 @@ function RootNavigator() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       <Stack.Screen name="guest" options={{ title: 'Học thử' }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="test/[id]" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="result/[id]" options={{ title: 'Kết quả', headerBackTitle: 'Trang chủ' }} />
-      <Stack.Screen name="history" options={{ title: 'Lịch sử luyện tập' }} />
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="test/[id]" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="result/[id]" options={{ title: 'Kết quả', headerBackTitle: 'Trang chủ' }} />
+        <Stack.Screen name="history" options={{ title: 'Lịch sử luyện tập' }} />
+      </Stack.Protected>
     </Stack>
   );
 }

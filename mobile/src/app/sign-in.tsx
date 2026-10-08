@@ -10,6 +10,7 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -187,7 +188,7 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.brandMark}>
           <Text style={styles.brandMarkText}>T</Text>
         </View>
@@ -268,14 +269,14 @@ export default function SignInScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.push('/guest')} style={styles.configNotice}>
           <Text style={styles.retryText}>Học thử 10 câu không cần đăng nhập →</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.canvas },
-  container: { flex: 1, justifyContent: 'center', padding: 24, gap: 12 },
+  container: { flexGrow: 1, justifyContent: 'center', padding: 24, gap: 12 },
   brandMark: {
     width: 56,
     height: 56,
