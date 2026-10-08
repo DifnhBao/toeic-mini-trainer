@@ -9,6 +9,8 @@ const tests = [
   ['POST', '/api/mini-tests/00000000-0000-4000-8000-000000000001/submit', 401],
   ['GET', '/api/v1/ingestions', 401],
   ['GET', '/api/v1/attempts', 401],
+  ['GET', '/api/v1/progress', 401],
+  ['GET', '/api/progress/summary', 401],
   ['POST', '/api/v1/uploads', 401],
 ];
 let failed = false;

@@ -27,16 +27,16 @@
 | Android bundle | Expo export Android đạt; đây chưa phải APK được nghiệm thu |
 | Backup/restore | Fixture local đạt; DB Neon thật đã backup mã hóa DPAPI và restore cách ly, 22 bảng khớp snapshot trong 24,657 giây; chưa backup R2/định kỳ/offsite |
 | Smoke local | 7 kiểm tra public/không đăng nhập đạt; không xác minh Google OAuth hoặc AI thật |
-| Smoke sau promote | 7/7 kiểm tra public đạt tại `https://toeic-mini-trainer.vercel.app`; chưa phải nghiệm thu tài khoản thật |
+| Smoke sau promote | 9/9 kiểm tra public đạt tại `https://toeic-mini-trainer.vercel.app`, gồm hai endpoint thống kê chặn request chưa đăng nhập; chưa phải nghiệm thu tài khoản thật |
 | OAuth preflight | Google provider đã bật; sign-in/callback URL đúng domain chính; chưa xác minh đăng nhập thật |
 | API cũ trước rollout | 6/7 smoke đạt; GET ingestion list trả 405 |
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
 | Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.337 source của bundle Android mới |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
-| Vercel | Deployment `dpl_51LUoFCVA9UrTPrpB746D2J7UHn2`, source `dcb6524`, build Ready; 7/7 smoke trước/sau promote; giữ `5107b97` để rollback |
+| Vercel | Deployment `dpl_2BN16pCYioxSoiE4ypKfAnoKiKst`, source `35e9e44`, build Ready; 9/9 smoke trước/sau promote; giữ `dcb6524` để rollback |
 | Payload Vercel | 137 tệp, đủ 113 tệp app/types/prisma; không có env/APK/dữ liệu test; có lệnh kiểm tra source không bị thiếu |
 | APK `5107b97` | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` FINISHED; người thử S23 FE báo A-01/02/06/07 đạt và ba lỗi A-03/04/08 |
-| APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; artifact/CRC/arm64/SHA-256 đạt; chờ thử lại theo `ANDROID_RETEST_DCB6524.md` |
+| APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; người thử ghi R-01…R-05 đạt trên S23 FE; R-06 đang vướng quy trình nhập đề nghe/audio |
 | Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
@@ -46,8 +46,8 @@ Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra 
 | Nhóm công việc | Trạng thái thực tế |
 | --- | --- |
 | BUILD-01, BASE-01 | Production build đã đạt local và Vercel; source được chốt/push, không có secret hoặc dữ liệu thử nghiệm |
-| BASE-02, E2E-01 | API `dcb6524` đã lên domain chính, 7 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
-| E2E-02…05 | APK sửa ba lỗi Samsung đã build xong; chờ nghiệm thu lại S23 FE Android 16 / One UI 8.5 và thiết bị thứ hai |
+| BASE-02, E2E-01 | API `35e9e44` đã lên domain chính, 9 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
+| E2E-02…05 | APK sửa Samsung được người thử ghi R-01…R-05 đạt; R-06 media chưa đạt nghiệm thu; còn thiết bị thứ hai |
 | SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
 | SAFE-03 | Đã rollout limiter, quota/ngày, công tắc dừng và giới hạn AI đồng thời qua PostgreSQL; kiểm chứng local đạt, chưa thử provider/tải thật; ngân sách tiền/cảnh báo chưa hoàn tất |
 | OPS-01 | Workflow và cổng dependency đã có, kiểm tra local đạt; chưa xác minh được remote CI hoặc branch protection bằng quyền GitHub hiện có |
@@ -62,7 +62,7 @@ Hiện đã hoàn thành phần nền kỹ thuật và rollout API để bắt �
 
 1. Kiểm tra readiness có xác thực và worker/storage trên hạ tầng: Vercel không cho pull worker secret qua CLI. Không thay/đọc lén secret để bỏ qua giới hạn này.
 2. Đăng nhập trên API mới; kiểm tra ingestion protocol và AI trên tài khoản test.
-3. Samsung S23 FE đã báo A-01/A-02/A-06/A-07 đạt ở APK trước; APK `dcb6524` đã được người thử ghi R-02 (phục hồi bài) và R-03 (tạo bài sau nộp) đạt trong `ANDROID_RETEST_DCB6524.md`. Các mục còn lại, gồm Coach/media/đổi tài khoản, đang chờ kết quả. A-05 thiếu dữ liệu media, đã chuẩn bị bộ mẫu gốc để thử audio/passage; ảnh cần kiểm tra riêng. Cần thiết bị Android thứ hai trước khi đóng các cổng E2E.
+3. Samsung S23 FE đã báo A-01/A-02/A-06/A-07 đạt ở APK trước; APK `dcb6524` đã được người thử ghi R-01…R-05 đạt trong `ANDROID_RETEST_DCB6524.md`, gồm Coach, phục hồi bài và đổi tài khoản. R-06 chưa kiểm tra được vì nhập đề nghe/audio trên điện thoại khó; người dùng đã chọn quản trị viên nhập PDF/audio trên web, người học chọn bài sẵn. Luồng này đang được hoàn thiện, chưa coi media đạt. Cần thiết bị Android thứ hai trước khi đóng các cổng E2E.
 4. Cấu hình cảnh báo, ngân sách, backup Neon định kỳ/offsite và R2; chỉ định người vận hành và kiểm duyệt nội dung.
 5. Chuẩn bị bộ nội dung có quyền sử dụng, hướng dẫn/support/chính sách dữ liệu, rồi chạy beta 10–20 người trong hai tuần và xử lý lỗi trước mở rộng.
 

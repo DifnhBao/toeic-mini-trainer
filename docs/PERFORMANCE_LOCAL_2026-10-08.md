@@ -33,6 +33,8 @@ Sau so sánh, lượt trộn chọn câu/thống kê có p95 thống kê 351,16 
 
 Bổ sung integration cho user chưa làm bài, user không tồn tại, attempt không có answer, câu lặp qua nhiều attempt, câu bỏ trống, nhiều câu cùng Part, làm tròn tỷ lệ và hai user dùng cùng câu hỏi. Việc đếm bài rỗng vẫn thực hiện riêng; không mất bài khỏi `totalTests`.
 
+Source `35e9e44` đã qua 111 unit, 15 integration, TypeScript, lint và production build; đã lên Vercel `dpl_2BN16pCYioxSoiE4ypKfAnoKiKst`, 9/9 HTTP smoke trước và sau promote. Điểm rollback ngay trước đó là `dcb6524`, deployment `dpl_51LUoFCVA9UrTPrpB746D2J7UHn2`. Không cần APK mới cho riêng thay đổi truy vấn này. Smoke không đăng nhập chưa xác minh kế hoạch/thời gian SQL trên Neon.
+
 ## Giới hạn còn lại
 
 Đây là thời gian hàm Prisma/truy vấn, gồm chờ pool; không có HTTP, xác thực, độ trễ Neon/Vercel, upload/audio/AI hoặc thiết bị Android. Chưa chứng minh p95 API production dưới 2 giây hoặc khả năng phục vụ 20 người dùng thực.
