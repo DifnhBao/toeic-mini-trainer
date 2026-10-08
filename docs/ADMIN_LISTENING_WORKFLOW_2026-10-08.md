@@ -28,6 +28,8 @@ Giới hạn PDF nguồn đã được nâng từ 15 lên 50 MiB để nhận tr
 
 Ảnh trong PDF chưa tự được cắt. Bản hiện tại cho gắn ảnh chuẩn bị riêng, lưu vào tác vụ và xuất bản bản sao ảnh/audio; người học nhận ảnh nhóm từ API đã có. Cần nghiệm thu media thật trên web/điện thoại; kiểm thử S3 giả lập chưa thay thế R2 thật.
 
+Bộ ETS do chủ dự án cung cấp đã có 11 ảnh chuẩn bị riêng tại `output/pdf/ets-2022-test-1-media/`, kèm README ánh xạ câu 1-6 và các nhóm biểu đồ Part 3/4. Chọn đúng PNG theo số câu nguồn khi gắn ảnh; số thứ tự nhóm UI có thể khác. Gói ZIP cục bộ/kiểm tra toàn vẹn ghi tại `ETS_MEDIA_PREPARATION_2026-10-08.md`. Chưa upload/công khai và chưa có đáp án/audio chia theo nhóm.
+
 ## Người học trên web/Android
 
 Mở **Kho bài → Tải lại kho bài → Luyện bài này**. Ứng dụng tạo một bài riêng cho tài khoản, lấy đầy đủ các câu đang công khai của nhóm; giữ audio/ngữ cảnh. Đáp án không nằm trong dữ liệu danh sách hoặc phản hồi tạo bài. Có **Xem thêm bài** khi danh sách dài.
