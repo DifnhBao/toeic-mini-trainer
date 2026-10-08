@@ -19,7 +19,7 @@
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
 | Unit/regression | 156 kiểm thử đạt; không dùng DB/provider thật; gồm sáu guard runner HTTP, quyền ADMIN cho audio nhóm, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
-| PostgreSQL integration | 35 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm sáu race timeout/retry worker, thống kê, Kho bài, upload/gắn/xuất bản ảnh và audio riêng theo nhóm, dedup và rollback với S3 loopback |
+| PostgreSQL integration | 44 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm chín kiểm thử refresh/logout/reuse/rollback, sáu race timeout/retry worker, thống kê, Kho bài, upload/gắn/xuất bản ảnh và audio riêng theo nhóm, dedup và rollback với S3 loopback |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
@@ -27,13 +27,13 @@
 | Android bundle | Expo export Android đạt, 1.320 source; đây chưa phải nghiệm thu APK trên thiết bị |
 | Backup/restore | DB Neon thật đã backup DPAPI và restore cách ly, 22 bảng khớp snapshot trong 24,657 giây; R2 thật đã backup mã hóa 16 file/18.948.378 byte và giải mã đối chiếu SHA-256; chưa restore bucket/backup định kỳ/offsite |
 | Smoke local | 7 kiểm tra public/không đăng nhập đạt; không xác minh Google OAuth hoặc AI thật |
-| Smoke sau promote | 21/21 kiểm tra đạt tại `https://toeic-mini-trainer.vercel.app`, gồm trạng thái job/worker, kho bài, API chặn request chưa đăng nhập và trang admin hiển thị từ chối quyền; bundle thực có UI audio riêng; chưa phải nghiệm thu media/AI thật |
+| Smoke sau promote | 23/23 kiểm tra đạt tại `https://toeic-mini-trainer.vercel.app`, gồm phương thức auth, trạng thái job/worker, kho bài, API chặn request chưa đăng nhập và trang admin hiển thị từ chối quyền; bundle thực có UI audio riêng; chưa phải nghiệm thu OAuth/media/AI thật |
 | OAuth preflight | Google provider đã bật; sign-in/callback URL đúng domain chính; chưa xác minh đăng nhập thật |
 | API cũ trước rollout | 6/7 smoke đạt; GET ingestion list trả 405 |
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
 | Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.320 source của bundle APK Kho bài |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
-| Vercel | Deployment `dpl_EHWv17jLwEHm3cvmkpsLJqTKpbfS`, source `f7bb8c2`, READY và đã promote; 21/21 smoke trước/sau promote; bản trước `0c21f9f`, hạn chế rollback worker tại `INGESTION_WORKER_RECOVERY_2026-10-08.md` |
+| Vercel | Deployment `dpl_AByFEsgTytEtXqdCk63cXsQFUwA7`, source `ff80432`, READY và đã promote; 23/23 smoke trước/sau promote; bản trước `f7bb8c2`, hạn chế rollback auth tại `MOBILE_SESSION_FAMILY_2026-10-08.md` |
 | Payload Vercel | 149 tệp, đủ 125 tệp app/types/prisma; không có env/APK/nguồn ETS/ảnh local/backup/dữ liệu test |
 | APK `5107b97` | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` FINISHED; người thử S23 FE báo A-01/02/06/07 đạt và ba lỗi A-03/04/08 |
 | APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; người thử ghi R-01…R-05 đạt trên S23 FE; R-06 đang vướng quy trình nhập đề nghe/audio |
@@ -108,3 +108,5 @@ Cập nhật audio nhóm: `0c21f9f` đã rollout, 150 unit/29 integration/build/
 Bổ sung kiểm chứng HTTP: đã thêm runner chỉ nhận DB/API loopback, đo luồng học production thực với JWT giả lập và kiểm tra kết quả/quyền/retry. Lượt cuối 1.800 request/20 người học đạt, p95 tổng khoảng 1,29 giây; 156 unit/TypeScript/lint đạt. Fixture đã dọn, server và container test đã dừng. Không thay runtime hoặc triển khai lại; PERF-01 vẫn mở cho hạ tầng thật. Chi tiết tại [PERFORMANCE_HTTP_LOCAL_2026-10-08.md](PERFORMANCE_HTTP_LOCAL_2026-10-08.md).
 
 Bổ sung recovery OCR: `f7bb8c2` đã rollout, 156 unit/35 integration/build và 21 HTTP smoke trước/sau promote đạt. Chặn worker cũ ghi đè draft/kết quả IMPORTED hoặc đổi trạng thái/giảm lượt thử của retry mới; timeout từ snapshot GET cũ cũng không tác động lượt mới. Không thêm migration hoặc APK. OPS-04 vẫn mở cho cron, ngắt worker và đo thời gian phục hồi trên hạ tầng; đáp án ETS, media và nghiệm thu Android vẫn chờ. Chi tiết tại [INGESTION_WORKER_RECOVERY_2026-10-08.md](INGESTION_WORKER_RECOVERY_2026-10-08.md).
+
+Bổ sung auth server: `ff80432` đã rollout, 156 unit/44 integration/build và 23 HTTP smoke trước/sau promote đạt. Refresh/logout/reuse cùng family được tuần tự hóa và đọc lại trạng thái để không bỏ sót token thay thế vừa commit; lỗi lưu/ký rollback, logout lỗi DB trả 503. Không thu hồi session thật để thử. Access JWT vẫn có TTL 15 phút; phản hồi đến muộn, ghi/xóa SecureStore và đổi tài khoản trên client vẫn cần sửa/kiểm chứng, chưa đóng cổng SAFE-01/E2E. Chi tiết tại [MOBILE_SESSION_FAMILY_2026-10-08.md](MOBILE_SESSION_FAMILY_2026-10-08.md).

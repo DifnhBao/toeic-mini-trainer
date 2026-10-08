@@ -81,6 +81,8 @@ Mục tiêu vận hành đề xuất: RPO ≤24 giờ, RTO ≤4 giờ. Cần ngh
 
 Từ bản vá `f7bb8c2`, worker chỉ được lưu kết quả/lỗi hoặc trả AI_BUSY về PENDING khi vẫn giữ đúng claim (`startedAt` + `attemptCount` + PROCESSING); GET timeout cũng so đúng snapshot. Không chạy SQL đổi trạng thái hàng loạt để nghiệm thu. Sáu regression timeout/retry đạt trên PostgreSQL local, nhưng cron giờ/lần và việc chọn một job mỗi sweep chưa chứng minh thời gian phục hồi thực tế. Chi tiết và giới hạn rollback tại [INGESTION_WORKER_RECOVERY_2026-10-08.md](INGESTION_WORKER_RECOVERY_2026-10-08.md).
 
+Bản sửa auth `ff80432` tuần tự hóa refresh/logout/reuse theo family bằng khóa transaction; timeout/DB lỗi trả 503. Logout 200 xác nhận thu hồi refresh hoặc token không tồn tại, không có nghĩa access JWT cũ bị thu hồi ngay (TTL 15 phút). Không thử bằng cách thu hồi toàn bộ session thật. Không retry refresh vô hạn khi mất phản hồi; reuse token đã xoay vòng vẫn thu hồi family và yêu cầu đăng nhập lại. Chín kiểm thử DB/handler mới cùng các giới hạn mobile được ghi tại [MOBILE_SESSION_FAMILY_2026-10-08.md](MOBILE_SESSION_FAMILY_2026-10-08.md).
+
 Quy trình backup media mã hóa cục bộ, inventory chỉ đọc và kiểm tra giải mã: [R2_BACKUP_2026-10-08.md](R2_BACKUP_2026-10-08.md). Chỉ chạy backup nội dung thật sau phê duyệt tương ứng; kiểm thử fixture không thay backup R2, khôi phục bucket cách ly hoặc phương án mất máy/offsite.
 
 ## 6. Những điều chưa được coi là hoàn tất
