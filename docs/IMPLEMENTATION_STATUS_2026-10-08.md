@@ -18,14 +18,14 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 124 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN tại sáu API ghi nội dung và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
+| Unit/regression | 125 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
 | PostgreSQL integration | 19 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê, kho bài phân trang và tạo bài chỉ từ nhóm đã công khai |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
 | Production build | Next.js 16.3.8 Webpack đạt trên Windows ngoài sandbox |
 | Android bundle | Expo export Android đạt, 1.320 source; đây chưa phải nghiệm thu APK trên thiết bị |
-| Backup/restore | Fixture local đạt; DB Neon thật đã backup mã hóa DPAPI và restore cách ly, 22 bảng khớp snapshot trong 24,657 giây; chưa backup R2/định kỳ/offsite |
+| Backup/restore | DB Neon thật đã backup DPAPI và restore cách ly, 22 bảng khớp snapshot trong 24,657 giây; R2 thật đã backup mã hóa 16 file/18.948.378 byte và giải mã đối chiếu SHA-256; chưa restore bucket/backup định kỳ/offsite |
 | Smoke local | 7 kiểm tra public/không đăng nhập đạt; không xác minh Google OAuth hoặc AI thật |
 | Smoke sau promote | 15/15 kiểm tra đạt tại `https://toeic-mini-trainer.vercel.app`, gồm kho bài, API chặn request chưa đăng nhập và trang admin hiển thị từ chối quyền; chưa phải nghiệm thu media/AI thật |
 | OAuth preflight | Google provider đã bật; sign-in/callback URL đúng domain chính; chưa xác minh đăng nhập thật |
@@ -40,7 +40,7 @@
 | APK Kho bài mới | Build `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`, source mobile `dee15f2`, FINISHED; APK 114.429.599 byte, CRC 1.698 mục/manifest/dex/bốn ABI đạt; chưa có biên bản điện thoại cho bản này |
 | Truy cập quản trị | Người dùng xác nhận đăng nhập ADMIN thấy trang nhập đề/audio sau rollout `4242017`; chưa xác nhận upload và xuất bản |
 | Storage preflight | Cấu hình R2 cục bộ đạt HEAD bucket, OPTIONS 204 với origin domain chính/PUT/Content-Type; không ghi object, không sửa CORS, chưa xác minh upload từ Vercel |
-| Backup media R2 | Script mã hóa/kiểm tra giải mã và guard đã qua fixture; inventory thật chỉ đọc: 16 object, 18.948.378 byte. Chưa tải nội dung R2 thật; phê duyệt DB trước không bao gồm R2 |
+| Backup media R2 | Sau phê duyệt riêng: 16 object, 18.948.378 byte đã mã hóa và kiểm tra lại độc lập đạt; 15 asset READY có object/size khớp. Không ghi cloud; chưa diễn tập restore bucket hoặc snapshot DB/R2 đồng thời |
 | Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
@@ -51,7 +51,7 @@ APK mới: [tải bản Kho bài](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3
 
 Một lượt integration chạy cùng build bị timeout khóa AI và kéo theo lỗi lease của test kế tiếp. Đã để các tệp integration chạy tuần tự, giữ 20 request đồng thời trong test capacity; release lease trong finally của test đầu. Lượt chạy độc lập hoàn chỉnh sau đó đạt 19/19, không nới timeout hoặc bỏ assertion capacity.
 
-Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/get R2, mã hóa AES-256-GCM với khóa DPAPI CurrentUser, kiểm tra lại inventory và giải mã đối chiếu từng file. 124/124 unit, TypeScript và lint các tệp mới đạt; guard thiếu opt-in/đường dẫn ngoài vùng backup đã chặn. Hướng dẫn tại `R2_BACKUP_2026-10-08.md`. Đây là công cụ cục bộ, không đổi runtime API/APK; không cần deploy/build lại. Chưa hoàn tất backup media thật, phục hồi bucket cách ly, offsite hoặc lịch chạy.
+Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/get R2, mã hóa AES-256-GCM với khóa DPAPI CurrentUser, kiểm tra lại inventory và giải mã đối chiếu từng file. Sau phê duyệt riêng của chủ dự án, backup media thật và kiểm tra lại độc lập đã đạt. Lượt đầu dừng do timestamp LIST/GET khác độ chính xác; đã sửa có regression, giữ kiểm tra ETag/size và inventory đầy đủ. Hướng dẫn tại `R2_BACKUP_2026-10-08.md`. Công cụ này không đổi runtime API/APK; chưa hoàn tất phục hồi bucket cách ly, offsite hoặc lịch chạy.
 
 ## Đối chiếu với kế hoạch tổng thể
 
@@ -63,7 +63,7 @@ Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/ge
 | SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
 | SAFE-03 | Đã rollout limiter, quota/ngày, công tắc dừng và giới hạn AI đồng thời qua PostgreSQL; kiểm chứng local đạt, chưa thử provider/tải thật; ngân sách tiền/cảnh báo chưa hoàn tất |
 | OPS-01 | Workflow và cổng dependency đã có, kiểm tra local đạt; chưa xác minh được remote CI hoặc branch protection bằng quyền GitHub hiện có |
-| OPS-02 | Backup DB thật mã hóa và restore cách ly đạt; backup định kỳ/offsite/PITR và R2 chưa hoàn tất |
+| OPS-02 | Backup DB thật mã hóa/restore cách ly và backup media R2 thật/kiểm tra giải mã đạt; snapshot DB/R2 nhất quán, restore bucket, định kỳ/offsite/PITR chưa hoàn tất |
 | OPS-03/04 | Đã có log/runbook/worker recovery nền; chưa nghiệm thu cảnh báo thực tế, tải worker và phục hồi khi ngắt |
 | CONTENT, UX, PERF | Cần nội dung có quyền dùng, nghiệm thu thiết bị và đo tải lớn; tối ưu truy vấn đã triển khai nhưng chưa phải báo cáo tải mục tiêu |
 | Beta/phát hành rộng | Chưa bắt đầu; cần hoàn tất các cổng trước beta và theo dõi 10–20 người trong hai tuần |
@@ -75,7 +75,7 @@ Hiện đã hoàn thành phần nền kỹ thuật và rollout API để bắt �
 1. Kiểm tra readiness có xác thực và worker/storage trên hạ tầng: Vercel không cho pull worker secret qua CLI. Không thay/đọc lén secret để bỏ qua giới hạn này.
 2. Đăng nhập trên API mới; kiểm tra ingestion protocol và AI trên tài khoản test.
 3. Samsung S23 FE đã báo A-01/A-02/A-06/A-07 đạt ở APK trước; APK `dcb6524` đã được người thử ghi R-01…R-05 đạt trong `ANDROID_RETEST_DCB6524.md`, gồm Coach, phục hồi bài và đổi tài khoản. Người dùng đã chọn quản trị viên nhập PDF/audio trên web, người học chọn bài sẵn; API/web đã rollout và truy cập ADMIN đã được xác nhận. Cần nghiệm thu L-02/L-03/L-05 về upload, xuất bản và nghe/luyện trên APK mới; chưa coi media đạt. Cần thiết bị Android thứ hai trước khi đóng các cổng E2E.
-4. Cấu hình cảnh báo, ngân sách, backup Neon định kỳ/offsite và R2; chỉ định người vận hành và kiểm duyệt nội dung.
+4. Cấu hình cảnh báo, ngân sách, backup Neon/R2 định kỳ và offsite có khóa phục hồi độc lập; diễn tập phục hồi bucket và điểm DB/media nhất quán; chỉ định người vận hành và kiểm duyệt nội dung.
 5. Chuẩn bị bộ nội dung có quyền sử dụng, hướng dẫn/support/chính sách dữ liệu, rồi chạy beta 10–20 người trong hai tuần và xử lý lỗi trước mở rộng.
 
 API ngoài Internet đã được cập nhật như bằng chứng ở trên. APK/device QA, vận hành đầy đủ và beta vẫn chưa hoàn tất; không nâng tỷ lệ sẵn sàng chỉ vì build/test đạt.

@@ -15,7 +15,7 @@ R2 theo cấu hình cục bộ đã đạt HEAD bucket và OPTIONS preflight t�
 ## Quản trị viên trên máy tính
 
 1. Đăng nhập đúng tài khoản ADMIN tại `https://toeic-mini-trainer.vercel.app`. Mở **Quản trị → Nhập đề & audio** (`/admin/extract`). Nếu báo chưa có quyền, dùng tài khoản quản trị hiện có; không tự sửa role/secret hoặc chạy seed DB.
-2. Chọn PDF có quyền sử dụng, chứa câu hỏi/phương án và đủ thông tin kiểm tra đáp án; tối đa 15 MB. Chọn MP3/M4A/WAV tương ứng, tối đa 100 MB. Với bộ mẫu gốc đã chuẩn bị, dùng `original-functional-qa.pdf` và `original-listening.wav` trong `Test/qa-content`.
+2. Chọn PDF có quyền sử dụng, chứa câu hỏi/phương án và đủ thông tin kiểm tra đáp án; tối đa 50 MB (50 MiB). Chọn MP3/M4A/WAV tương ứng, tối đa 100 MB. Với bộ mẫu gốc đã chuẩn bị, dùng `original-functional-qa.pdf` và `original-listening.wav` trong `Test/qa-content`.
 3. Chọn tối đa bốn trang liên tiếp rồi bấm **Phân tích trang đã chọn**. Để thử bộ mẫu, bắt đầu trang 1–2 kèm audio. Với đề dài, dùng các đoạn audio khớp trang; hệ thống chưa tự cắt audio hoặc đặt mốc thời gian. Audio gắn vào nhóm có câu Part 1–4, không tự gắn vào câu đọc.
 4. Đối chiếu từng câu với nguồn, sửa nội dung/phương án/đáp án/Part, bấm **Duyệt câu này** hoặc **Bỏ qua câu này**. Chỉ câu được duyệt mới được đưa sang bước tiếp theo. Không công khai nếu thiếu audio/ngữ cảnh hoặc đáp án chưa chắc chắn.
 5. Xác nhận quyền chia sẻ; bấm **Chuyển … câu sang bước xuất bản** rồi **Mở trang Duyệt nội dung**. Không cần lưu một bản cá nhân trước. Nếu đóng trang, mở lại tài liệu trong **Tiếp tục tài liệu đã xử lý**; kết quả đã gửi được dẫn về hàng chờ, không tạo lần gửi mới.
@@ -23,6 +23,8 @@ R2 theo cấu hình cục bộ đã đạt HEAD bucket và OPTIONS preflight t�
 7. Mở **Kho bài** (`/library`), tải lại, chọn bài vừa công khai và nghe thử. Mỗi bài là một nhóm câu chung audio/đoạn đọc, không phải toàn bộ PDF. Nhóm trên 50 câu cần chia lại; nhóm thiếu audio, ảnh Part 1 hoặc đoạn đọc Part 6–7 bị chặn tạo bài.
 
 AI chỉ trích xuất nội dung PDF, không nghe audio đính kèm để xác định đáp án hoặc chép lời thoại. Quản trị viên cần đáp án/lời thoại từ nguồn hợp lệ để đối chiếu và sửa trước khi công khai. Với bộ mẫu, đáp án và lời thoại nằm ở trang 3, không nằm trong hai trang câu hỏi dùng để phân tích.
+
+Giới hạn PDF nguồn đã được nâng từ 15 lên 50 MiB để nhận trường hợp PDF listening 19,1 MB người dùng báo. Giao diện, policy upload và worker dùng cùng một giới hạn; file được PUT trực tiếp lên R2, không gửi nguyên PDF qua body Vercel. Chọn lần lượt 1–4, 5–8… theo đúng nhóm câu/ngữ cảnh trong tài liệu. Không phân tích toàn bộ 14 trang hoặc cả 100 câu trong một lượt. PDF scan sau tách trang vẫn giới hạn 5 MiB cho OCR; nếu phần chọn quá nặng, chọn 1–2 trang hoặc giảm dung lượng rồi thử lại. Audio nguyên bài không tự chia theo câu/nhóm.
 
 Ảnh trong PDF chưa tự trở thành media của câu hỏi. Luồng duyệt hiện tại không xuất bản image asset; chưa coi nghiệm thu ảnh hoàn tất. Không dùng việc upload PDF thành công để kết luận đã có bài luyện ảnh.
 

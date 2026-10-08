@@ -7,6 +7,9 @@ import { PDFDocument } from "pdf-lib";
 import AppHeader from "@/app/components/AppHeader";
 import IngestionQuestionReview, { type ExtractedGroup } from "@/app/components/IngestionQuestionReview";
 import { MAX_INGESTION_PAGES } from "@/app/lib/ingestion-limits";
+import { UPLOAD_RULES } from "@/app/lib/upload-policy";
+
+const PDF_LIMIT_MB = UPLOAD_RULES.DOCUMENT.maxBytes / 1024 / 1024;
 
 type UploadIntent = {
   asset: { id: string };
@@ -71,8 +74,8 @@ export default function AIExtractPage() {
     setMessage("");
     setError("");
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      setError("PDF vượt quá 15 MB.");
+    if (file.size > UPLOAD_RULES.DOCUMENT.maxBytes) {
+      setError(`PDF vượt quá ${PDF_LIMIT_MB} MB. Hãy chia tài liệu hoặc giảm dung lượng file.`);
       return;
     }
     try {
@@ -274,7 +277,7 @@ export default function AIExtractPage() {
           <div className="upload-grid">
             <label className={`upload-zone ${pdfFile ? "has-file" : ""}`}>
               <input type="file" accept="application/pdf,.pdf" disabled={loading} onChange={(event) => void selectPdf(event.target.files?.[0] || null)} />
-              <span className="upload-symbol">PDF</span><strong>{pdfFile?.name || "Đề thi hoặc tài liệu TOEIC"}</strong><small>{pdfFile ? `${(pdfFile.size / 1024 / 1024).toFixed(1)} MB · Bấm để chọn lại` : "Kéo thả hoặc chọn file PDF, tối đa 15 MB"}</small>
+              <span className="upload-symbol">PDF</span><strong>{pdfFile?.name || "Đề thi hoặc tài liệu TOEIC"}</strong><small>{pdfFile ? `${(pdfFile.size / 1024 / 1024).toFixed(1)} MB · Bấm để chọn lại` : `Kéo thả hoặc chọn file PDF, tối đa ${PDF_LIMIT_MB} MB`}</small>
             </label>
             <label className={`upload-zone audio-zone ${audioFile ? "has-file" : ""}`}>
               <input type="file" accept="audio/*,.mp3,.m4a,.wav" disabled={loading} onChange={(event) => { setAudioFile(event.target.files?.[0] || null); setUploadedAudio(null); }} />

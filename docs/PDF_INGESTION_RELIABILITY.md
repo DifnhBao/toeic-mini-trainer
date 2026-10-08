@@ -1,5 +1,7 @@
 # Kiểm tra lỗi phân tích PDF (29/09/2026)
 
+Cập nhật 08/10/2026: PDF nguồn cho luồng quản trị web tối đa **50 MiB**, dùng chung policy cho kiểm tra trên client, cấp upload intent và worker đọc R2. Giới hạn bốn trang/lượt, 30.000 ký tự và 5 MiB OCR sau tách trang giữ nguyên. Mobile mới dùng Kho bài, quản trị viên chuẩn bị file trên web; hướng dẫn hiện hành tại `ADMIN_LISTENING_WORKFLOW_2026-10-08.md`.
+
 ## Chẩn đoán
 
 - Luồng upload R2 và luồng phân tích AI là hai bước khác nhau. Truy vấn chỉ đọc các job gần đây cho thấy lỗi `DOCUMENT_PARSE_FAILED` và `DOCUMENT_TEXT_EMPTY`; không có bằng chứng từ truy vấn này rằng PUT lên R2 bị lỗi.

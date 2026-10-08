@@ -27,6 +27,15 @@ describe("upload policy", () => {
     );
   });
 
+  it("accepts a 19.1 MB listening PDF through the 50 MiB boundary and rejects larger documents", () => {
+    for (const sizeBytes of [Math.ceil(19.1 * 1024 * 1024), 50 * 1024 * 1024]) {
+      assert.equal(validateUploadDescriptor({ kind: "DOCUMENT", contentType: "application/pdf", sizeBytes }).valid, true);
+    }
+    assert.deepEqual(validateUploadDescriptor({ kind: "DOCUMENT", contentType: "application/pdf", sizeBytes: 50 * 1024 * 1024 + 1 }), { valid: false, code: "FILE_TOO_LARGE" });
+    assert.equal(validateUploadDescriptor({ kind: "AUDIO", contentType: "audio/mpeg", sizeBytes: Math.ceil(42.2 * 1024 * 1024) }).valid, true);
+    assert.deepEqual(validateUploadDescriptor({ kind: "AUDIO", contentType: "audio/mpeg", sizeBytes: 100 * 1024 * 1024 + 1 }), { valid: false, code: "FILE_TOO_LARGE" });
+  });
+
   it("verifies magic bytes instead of trusting MIME alone", () => {
     assert.equal(matchesFileSignature("application/pdf", new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])), true);
     assert.equal(matchesFileSignature("application/pdf", new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03])), false);

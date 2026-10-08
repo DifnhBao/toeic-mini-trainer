@@ -77,7 +77,7 @@ Quy trình backup media mã hóa cục bộ, inventory chỉ đọc và kiểm t
 
 ## 6. Những điều chưa được coi là hoàn tất
 
-- Backup định kỳ/offsite/PITR và R2, cảnh báo và dashboard chi phí trên tài khoản thật; backup DB thật/restore cách ly thủ công đã có bằng chứng riêng.
+- Backup định kỳ/offsite/PITR, điểm DB/R2 nhất quán và restore bucket cách ly, cảnh báo và dashboard chi phí trên tài khoản thật; backup DB thật/restore cách ly và backup R2 thật/kiểm tra giải mã thủ công đã có bằng chứng riêng.
 - APK/Google OAuth, upload/OCR/audio thật của build mới trên điện thoại.
 - Bộ nội dung có quyền sử dụng đủ cho beta và người kiểm duyệt.
 - Beta 10–20 người trong hai tuần; chính sách xóa dữ liệu, support và hồ sơ store.

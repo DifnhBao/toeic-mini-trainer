@@ -7,9 +7,9 @@ import { readStoredObject } from "@/app/lib/object-storage";
 import { prisma } from "@/app/lib/prisma";
 import { consumeGlobalAiCall } from "@/app/lib/ai-usage";
 import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
+import { UPLOAD_RULES } from "@/app/lib/upload-policy";
 
 const ai = new GoogleGenAI({});
-const MAX_PDF_BYTES = 15 * 1024 * 1024;
 
 class IngestionProcessingError extends Error {
   constructor(public readonly code: string) {
@@ -193,7 +193,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
       throw new IngestionProcessingError("AUDIO_ASSET_INVALID");
     }
 
-    const documentBytes = await readDocument(job.documentAsset.objectKey, MAX_PDF_BYTES);
+    const documentBytes = await readDocument(job.documentAsset.objectKey, UPLOAD_RULES.DOCUMENT.maxBytes);
     const result: ExtractedData = await extract(
       documentBytes,
       job.audioAssetId,

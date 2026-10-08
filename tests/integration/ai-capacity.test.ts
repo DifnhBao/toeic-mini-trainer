@@ -71,7 +71,7 @@ describe("PostgreSQL AI capacity across independent clients", () => {
     let busy = true; let reads = 0;
     const dependencies: NonNullable<Parameters<typeof ingestion.processIngestionJob>[1]> = {
       database: clients[0],
-      readDocument: async () => { reads++; return Buffer.from("pdf"); },
+      readDocument: async (_key, maxBytes) => { assert.equal(maxBytes, 50 * 1024 * 1024); reads++; return Buffer.from("pdf"); },
       extract: async () => {
         if (busy) throw new capacity.AiCapacityError("AI_BUSY", 30);
         return { data: [{ questions: [{ part: 5, content: "Fixture", options: { A: "a", B: "b", C: "c", D: "d" }, correctAnswer: "A" }] }] };

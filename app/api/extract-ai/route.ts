@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import { currentWebUser } from "@/app/lib/request-user";
 import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
 import { consumeDailyAiCall, consumeGlobalAiCall } from "@/app/lib/ai-usage";
+import { UPLOAD_RULES } from "@/app/lib/upload-policy";
 
 const ai = new GoogleGenAI({});
 export const maxDuration = 300;
@@ -35,8 +36,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (documentFile.type !== "application/pdf" || documentFile.size > 15 * 1024 * 1024) {
-      return NextResponse.json({ error: "PDF không hợp lệ hoặc lớn hơn 15 MB." }, { status: 400 });
+    if (documentFile.type !== "application/pdf" || documentFile.size > UPLOAD_RULES.DOCUMENT.maxBytes) {
+      return NextResponse.json({ error: `PDF không hợp lệ hoặc lớn hơn ${UPLOAD_RULES.DOCUMENT.maxBytes / 1024 / 1024} MB.` }, { status: 400 });
     }
     if (audioFile && (!audioFile.type.startsWith("audio/") || audioFile.size > 100 * 1024 * 1024)) {
       return NextResponse.json({ error: "Audio không hợp lệ hoặc lớn hơn 100 MB." }, { status: 400 });
