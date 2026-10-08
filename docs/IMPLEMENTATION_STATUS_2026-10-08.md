@@ -31,7 +31,7 @@
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
 | Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.337 source của bundle Android mới |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
-| Vercel | CLI đã đăng nhập thành công; project/env names được kiểm tra; dry-run xác minh 130 tệp không có env, APK hoặc dữ liệu test |
+| Vercel | CLI đã đăng nhập thành công; project/env names được kiểm tra; dry-run sau sửa ignore xác minh 136 tệp, đủ 112 tệp app/types/prisma và không có env/APK/dữ liệu test |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
 

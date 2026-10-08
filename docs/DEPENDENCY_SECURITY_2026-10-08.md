@@ -28,4 +28,6 @@ The policy tests cover transitive dependencies, legitimate npm dependency cycles
 
 ## Deployment payload
 
-`.vercelignore` excludes local env/secrets, test assets/APKs, mobile/native folders and development output. Inspect `vercel deploy --dry --json` before upload; a deployment must not contain `.env`, Test, mobile or node_modules. Use the existing Vercel project and production env with `--skip-domain` for validation before promoting the canonical API URL. No database seed or migration is part of the build.
+`.vercelignore` excludes local env/secrets, test assets/APKs, mobile/native folders and development output. Root-only patterns are required: unanchored `tests/` also removes `app/api/v1/tests` and breaks the build. The first cloud build caught this before domain promotion. After correcting the ignore patterns, the manifest contains 136 files, including all 112 tracked app/types/prisma files.
+
+Save `vercel deploy --dry --json` output to `Test/vercel-deploy-dry.json`, then run `npm run check:vercel-payload`. It verifies both exclusions and application-source completeness. A deployment must not contain `.env`, Test, mobile or node_modules. Use the existing Vercel project and production env with `--skip-domain` for validation before promoting the canonical API URL. No database seed or migration is part of the build.

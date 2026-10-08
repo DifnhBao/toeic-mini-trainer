@@ -48,7 +48,7 @@ Tham chiếu proxy: [Vercel request headers](https://vercel.com/docs/headers/req
 ## 4. Trình tự rollout
 
 1. Chốt commit đã qua kiểm tra, bảo đảm env/server schema tương thích và có điểm phục hồi dữ liệu.
-2. Deploy API/web trước mobile. Chạy `STAGING_API_URL=https://... node scripts/staging-smoke.mjs` bằng cú pháp đặt env của shell đang dùng. Chương trình chỉ đọc/kiểm tra các API không đăng nhập, không gọi AI hoặc tạo dữ liệu học.
+2. Deploy API/web trước mobile. Trước upload, lưu dry-run manifest Vercel vào `Test/vercel-deploy-dry.json` và chạy `npm run check:vercel-payload` để kiểm tra secret bị loại và source ứng dụng không bị thiếu. Dùng `--prod --skip-domain` để kiểm tra deployment trước chuyển domain chính. Chạy `STAGING_API_URL=https://... node scripts/staging-smoke.mjs` bằng cú pháp đặt env của shell đang dùng. Chương trình chỉ đọc/kiểm tra các API không đăng nhập, không gọi AI hoặc tạo dữ liệu học.
 3. Đăng nhập tài khoản test và xác minh GET ingestion list có tác vụ chính chủ, detail có `reviewProtocol = 1`. API list trả 405 nghĩa là server cũ chưa có chức năng này.
 4. Build EAS Android preview từ đúng SHA, dùng signing sẵn có và `--freeze-credentials`; không auto-submit store. API URL trong APK phải trỏ deployment vừa nghiệm thu.
 5. Trên Android thật, thực hiện MR-01…MR-14 trong `MOBILE_QUESTION_REVIEW.md`, QA-A…QA-E và vòng học qua 4G khi Metro tắt. Ghi build/API SHA, loại thiết bị/mạng và kết quả; không lưu token/signed URL/secret.
