@@ -19,7 +19,7 @@
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
 | Unit/regression | 111 kiểm thử đạt; không dùng DB/provider thật |
-| PostgreSQL integration | 14 kiểm thử đạt trên DB loopback `toeic_release_test` |
+| PostgreSQL integration | 15 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê bài rỗng/câu lặp/bỏ qua và tách tài khoản |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
@@ -37,7 +37,7 @@
 | Payload Vercel | 137 tệp, đủ 113 tệp app/types/prisma; không có env/APK/dữ liệu test; có lệnh kiểm tra source không bị thiếu |
 | APK `5107b97` | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` FINISHED; người thử S23 FE báo A-01/02/06/07 đạt và ba lỗi A-03/04/08 |
 | APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; artifact/CRC/arm64/SHA-256 đạt; chờ thử lại theo `ANDROID_RETEST_DCB6524.md` |
-| Truy vấn tải local | Đã đo 10.000 câu/1.000 attempt mỗi user/20 user, 400.000 answer; p95 chọn câu 606 ms, thống kê 1.504 ms; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
+| Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
 
@@ -62,7 +62,7 @@ Hiện đã hoàn thành phần nền kỹ thuật và rollout API để bắt �
 
 1. Kiểm tra readiness có xác thực và worker/storage trên hạ tầng: Vercel không cho pull worker secret qua CLI. Không thay/đọc lén secret để bỏ qua giới hạn này.
 2. Đăng nhập trên API mới; kiểm tra ingestion protocol và AI trên tài khoản test.
-3. Samsung S23 FE đã báo A-01/A-02/A-06/A-07 đạt ở APK trước; A-03/A-04/A-08 có lỗi, đã sửa mã và cần APK mới để thử lại (`ANDROID_RETEST_DCB6524.md`). A-05 thiếu dữ liệu media, đã chuẩn bị bộ mẫu gốc để thử audio/passage; ảnh cần kiểm tra riêng. Cần thiết bị Android thứ hai trước khi đóng các cổng E2E.
+3. Samsung S23 FE đã báo A-01/A-02/A-06/A-07 đạt ở APK trước; APK `dcb6524` đã được người thử ghi R-02 (phục hồi bài) và R-03 (tạo bài sau nộp) đạt trong `ANDROID_RETEST_DCB6524.md`. Các mục còn lại, gồm Coach/media/đổi tài khoản, đang chờ kết quả. A-05 thiếu dữ liệu media, đã chuẩn bị bộ mẫu gốc để thử audio/passage; ảnh cần kiểm tra riêng. Cần thiết bị Android thứ hai trước khi đóng các cổng E2E.
 4. Cấu hình cảnh báo, ngân sách, backup Neon định kỳ/offsite và R2; chỉ định người vận hành và kiểm duyệt nội dung.
 5. Chuẩn bị bộ nội dung có quyền sử dụng, hướng dẫn/support/chính sách dữ liệu, rồi chạy beta 10–20 người trong hai tuần và xử lý lỗi trước mở rộng.
 

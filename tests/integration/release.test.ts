@@ -169,6 +169,40 @@ describe("PostgreSQL release acceptance", () => {
     assert.equal((await learning.learningSummary(userB)).totalAnswered, 0);
   });
 
+  it("counts empty attempts, repeated questions, skips and multiple questions per part correctly", async () => {
+    const learner = randomUUID(); const other = randomUUID(); const ownTest = randomUUID();
+    const ids = [randomUUID(), randomUUID(), randomUUID()];
+    ownUserIds.push(learner, other);
+    await prisma.user.createMany({ data: [learner, other].map((id) => ({ id, email: `${id}@test.invalid` })) });
+    const empty = { totalTests: 0, totalAnswered: 0, overallAccuracy: 0, partStats: [] };
+    assert.deepEqual(await learning.learningSummary(learner), empty);
+    assert.deepEqual(await learning.learningSummary(randomUUID()), empty);
+    await prisma.question.createMany({ data: ids.map((id, index) => ({
+      id, ownerId: learner, part: index === 0 ? 2 : 5, content: "Summary fixture",
+      options: { A: "yes", B: "no" }, correctAnswer: "A",
+    })) });
+    await prisma.miniTest.create({ data: { id: ownTest, createdById: learner, title: "Summary fixture" } });
+    await prisma.testAttempt.create({ data: { userId: learner, testId: ownTest } });
+    assert.deepEqual(await learning.learningSummary(learner), { ...empty, totalTests: 1 });
+    for (const answers of [
+      [{ questionId: ids[0], selectedOption: "A", isCorrect: true }, { questionId: ids[1], selectedOption: null, isCorrect: false }],
+      [{ questionId: ids[0], selectedOption: "B", isCorrect: false }, { questionId: ids[1], selectedOption: "A", isCorrect: true },
+        { questionId: ids[2], selectedOption: null, isCorrect: false }],
+      [{ questionId: ids[2], selectedOption: "B", isCorrect: false }],
+    ]) {
+      await prisma.testAttempt.create({ data: { userId: learner, testId: ownTest, userAnswers: { create: answers } } });
+    }
+    // Another learner answers the same question IDs; their correct answers
+    // must not inflate the first learner's totals or accuracy.
+    await prisma.testAttempt.create({ data: { userId: other, testId: ownTest,
+      userAnswers: { create: ids.map((questionId) => ({ questionId, selectedOption: "A", isCorrect: true })) } } });
+    assert.deepEqual(await learning.learningSummary(learner), {
+      totalTests: 4, totalAnswered: 6, overallAccuracy: 33,
+      partStats: [{ part: 2, total: 2, accuracy: 50 }, { part: 5, total: 4, accuracy: 25 }],
+    });
+    assert.equal((await learning.learningSummary(other)).overallAccuracy, 100);
+  });
+
   it("does not auto-link a new provider by a matching verified email", async () => {
     await assert.rejects(auth.resolveMobileUser({
       provider: "apple", providerAccountId: randomUUID(), email: `${userA}@test.invalid`, emailVerified: true,
