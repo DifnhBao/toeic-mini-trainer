@@ -51,6 +51,8 @@ Không suy đoán nội dung audio không được cung cấp. Nếu thiếu d�
     model: "gemini-2.5-flash",
     contents: prompt,
     config: {
+      maxOutputTokens: 4_096,
+      httpOptions: { timeout: 45_000 },
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,

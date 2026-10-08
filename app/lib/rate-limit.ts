@@ -1,3 +1,7 @@
+import { prisma } from "@/app/lib/prisma";
+import { createSharedRateLimiter, type RateLimitResult } from "@/app/lib/shared-rate-limit";
+import { requestAddress } from "@/app/lib/request-address";
+
 type RateBucket = {
   count: number;
   resetAt: number;
@@ -14,21 +18,27 @@ if (process.env.NODE_ENV !== "production") {
   globalRateLimit.mobileAuthRateBuckets = buckets;
 }
 
-function requestAddress(request: Request) {
-  const realIp = request.headers.get("x-real-ip")?.trim();
-  if (realIp) return realIp;
+const sharedLimiter = createSharedRateLimiter(async (key, expiresAt) => {
+  const row = await prisma.userAiUsage.upsert({
+    where: { key }, create: { key, count: 1, expiresAt },
+    update: { count: { increment: 1 } }, select: { count: true },
+  });
+  return row.count;
+});
 
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-}
-
-export function takeRateLimit(
+export async function takeRateLimit(
   request: Request,
   scope: string,
   limit: number,
   windowMs: number,
-) {
+): Promise<RateLimitResult> {
   const now = Date.now();
-  const key = `${scope}:${requestAddress(request)}`;
+  // Authenticated scopes already contain a server-verified user ID. Changing
+  // IP headers must not grant a fresh quota to that same user.
+  const key = scope.includes(":") ? scope : `${scope}:${requestAddress(request)}`;
+  if (process.env.NODE_ENV === "production" || process.env.RATE_LIMIT_STORE === "database") {
+    return sharedLimiter(key, limit, windowMs);
+  }
   const current = buckets.get(key);
 
   if (!current || current.resetAt <= now) {

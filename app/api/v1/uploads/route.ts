@@ -32,7 +32,8 @@ export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
 
-  const limit = takeRateLimit(request, `mobile-upload-intent:${user.id}`, 20, 10 * 60_000);
+  const limit = await takeRateLimit(request, `mobile-upload-intent:${user.id}`, 20, 10 * 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn tạo yêu cầu upload quá nhanh.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),

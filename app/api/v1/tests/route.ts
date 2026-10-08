@@ -1,8 +1,8 @@
-import { randomInt } from "node:crypto";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
-import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
+import { requestUser } from "@/app/lib/request-user";
+import { selectPracticeQuestions } from "@/app/lib/learning-data";
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 
@@ -14,22 +14,14 @@ const generateTestSchema = z.object({
     (parts) => new Set(parts).size === parts.length,
     "Parts must be unique",
   ),
-});
-
-function shuffle<T>(items: T[]) {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const target = randomInt(index + 1);
-    [result[index], result[target]] = [result[target], result[index]];
-  }
-  return result;
-}
+}).strict();
 
 export async function POST(request: Request) {
-  const user = await mobileUserFromRequest(request);
+  const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
 
-  const limit = takeRateLimit(request, `mobile-test-create:${user.id}`, 20, 60_000);
+  const limit = await takeRateLimit(request, `mobile-test-create:${user.id}`, 20, 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn tạo bài quá nhanh. Vui lòng thử lại sau.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),
@@ -39,21 +31,11 @@ export async function POST(request: Request) {
   const body = await parseBoundedJson(request, generateTestSchema);
   if (!body.success) return body.response;
 
-  const available = await prisma.question.findMany({
-    where: {
-      part: { in: body.data.parts },
-      OR: [
-        { ownerId: null, publicationStatus: { in: ["LEGACY", "PUBLISHED"] } },
-        { ownerId: user.id, publicationStatus: "PRIVATE" },
-      ],
-    },
-    select: { id: true, part: true },
-  });
-  if (available.length === 0) {
+  const selected = await selectPracticeQuestions(user.id, body.data.parts, body.data.count);
+  if (selected.length === 0) {
     return apiError("NO_QUESTIONS", "Kho câu hỏi chưa có dữ liệu cho phần đã chọn.", 422);
   }
 
-  const selected = shuffle(available).slice(0, body.data.count);
   const partsLabel = body.data.parts.length === 7
     ? "Tổng hợp"
     : body.data.parts.sort((a, b) => a - b).map((part) => `P${part}`).join(", ");

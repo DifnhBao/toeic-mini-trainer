@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/mobile-api";
 import {
   AccountSuspendedError,
+  AccountLinkRequiredError,
   createMobileSession,
   resolveMobileUser,
   verifyGoogleIdentity,
@@ -15,7 +16,7 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const limited = enforceAuthRateLimit(request, "mobile-google");
+  const limited = await enforceAuthRateLimit(request, "mobile-google");
   if (limited) return limited;
 
   const body = await parseBoundedJson(request, providerSignInSchema.omit({ name: true }));
@@ -46,6 +47,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof AccountSuspendedError) {
       return apiError("ACCOUNT_SUSPENDED", "Tài khoản đã bị tạm khóa.", 403);
+    }
+    if (error instanceof AccountLinkRequiredError) {
+      return apiError("ACCOUNT_LINK_REQUIRED", "Email này đã có tài khoản. Hãy đăng nhập bằng phương thức ban đầu.", 409);
     }
     console.error("mobile Google session creation failed", {
       errorType: error instanceof Error ? error.name : "unknown",

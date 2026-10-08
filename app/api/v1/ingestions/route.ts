@@ -25,11 +25,29 @@ const createJobSchema = z
     message: `Mỗi lần chỉ phân tích tối đa ${MAX_INGESTION_PAGES} trang liên tiếp.`,
   });
 
+// Metadata only, always scoped to the authenticated owner. Opening a job
+// uses the existing detail endpoint and never starts another AI request.
+export async function GET(request: Request) {
+  const user = await requestUser(request);
+  if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
+  const jobs = await prisma.ingestionJob.findMany({
+    where: { ownerId: user.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 20,
+    select: {
+      id: true, status: true, createdAt: true, pageStart: true, pageEnd: true,
+      documentAsset: { select: { originalName: true } },
+    },
+  });
+  return apiJson({ jobs });
+}
+
 export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
 
-  const limit = takeRateLimit(request, `ingestion-create:${user.id}`, 10, 60 * 60_000);
+  const limit = await takeRateLimit(request, `ingestion-create:${user.id}`, 10, 60 * 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn tạo quá nhiều tác vụ nhập đề.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),

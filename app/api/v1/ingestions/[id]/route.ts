@@ -27,6 +27,7 @@ export async function GET(
       errorCode: true,
       result: true,
       importedAt: true,
+      contribution: { select: { id: true, status: true } },
       createdAt: true,
       completedAt: true,
       startedAt: true,
@@ -54,6 +55,7 @@ export async function GET(
         errorCode: true,
         result: true,
         importedAt: true,
+        contribution: { select: { id: true, status: true } },
         createdAt: true,
         completedAt: true,
         startedAt: true,
@@ -66,6 +68,7 @@ export async function GET(
   return apiJson({
     job: {
       ...job,
+      reviewProtocol: 1,
       importStalled: isStalledImport(job, now),
       result: canReadResult ? job.result : null,
       createdAt: job.createdAt.toISOString(),

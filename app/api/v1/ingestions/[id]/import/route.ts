@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { IMPORT_STALE_MS } from "@/app/lib/ingestion-status";
-import { buildReviewedImport, InvalidIngestionReviewError } from "@/app/lib/ingestion-review";
+import { buildReviewedImport, InvalidIngestionReviewError, requiresQuestionReview, reviewPayloadSchema } from "@/app/lib/ingestion-review";
+import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { importExtractedQuestions } from "@/app/lib/question-import";
 import { prisma } from "@/app/lib/prisma";
 import { requestUser } from "@/app/lib/request-user";
@@ -20,10 +21,9 @@ export async function POST(
   const parsedId = idSchema.safeParse((await params).id);
   if (!parsedId.success) return apiError("INVALID_JOB_ID", "Mã tác vụ không hợp lệ.", 400);
 
-  // Browser imports must submit an explicit decision for every AI-generated
-  // question. The existing Bearer-token mobile flow remains unchanged.
+  // New mobile and web clients review explicitly; bodyless old APKs remain compatible.
   let reviewedResult: ReturnType<typeof buildReviewedImport> | null = null;
-  if (!request.headers.has("authorization")) {
+  if (requiresQuestionReview(request)) {
     const source = await prisma.ingestionJob.findFirst({
       where: { id: parsedId.data, ownerId: user.id },
       select: { result: true, status: true, importedAt: true },
@@ -32,9 +32,10 @@ export async function POST(
       return apiJson({ imported: true, alreadyImported: true });
     }
     if (!source?.result) return apiError("JOB_NOT_IMPORTABLE", "Tác vụ chưa sẵn sàng để lưu.", 409);
-    const payload = await request.json().catch(() => null);
+    const payload = await parseBoundedJson(request, reviewPayloadSchema, 512 * 1024);
+    if (!payload.success) return payload.response;
     try {
-      reviewedResult = buildReviewedImport(source.result, payload);
+      reviewedResult = buildReviewedImport(source.result, payload.data);
     } catch (error) {
       if (error instanceof InvalidIngestionReviewError) {
         return apiError("REVIEW_INVALID", error.message, 400);

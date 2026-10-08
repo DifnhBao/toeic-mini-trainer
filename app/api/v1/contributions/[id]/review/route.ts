@@ -22,8 +22,9 @@ export async function POST(
 
   const id = z.string().uuid().safeParse((await params).id);
   if (!id.success) return apiError("INVALID_CONTRIBUTION_ID", "Mã đóng góp không hợp lệ.", 400);
-  const limit = takeRateLimit(request, `contribution-review:${user.id}`, 30, 60_000);
-  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn thao tác quá nhanh.", 429);
+  const limit = await takeRateLimit(request, `contribution-review:${user.id}`, 30, 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
+  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn thao tác quá nhanh.", 429, { "Retry-After": String(limit.retryAfterSeconds) });
   const body = await parseBoundedJson(request, reviewContributionSchema);
   if (!body.success) return body.response;
 

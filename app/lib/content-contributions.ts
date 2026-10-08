@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { extractedDataSchema } from "@/app/lib/question-import";
+import { reviewPayloadSchema } from "@/app/lib/ingestion-review";
 
 // A shared contribution may reference only validated private assets, never
 // legacy paths that might expose uploaded source material to other users.
@@ -8,11 +9,16 @@ export const sharedQuestionDataSchema = extractedDataSchema.refine(
   "Legacy media paths cannot be published",
 );
 
-export const submitContributionSchema = z.object({
+const legacyContributionSchema = z.object({
   jobId: z.string().uuid(),
   data: sharedQuestionDataSchema,
   rightsConfirmed: z.literal(true),
 }).strict();
+
+export const submitContributionSchema = z.union([
+  legacyContributionSchema,
+  reviewPayloadSchema.extend({ jobId: z.string().uuid(), rightsConfirmed: z.literal(true) }).strict(),
+]);
 
 export const reviewContributionSchema = z.discriminatedUnion("decision", [
   z.object({ decision: z.literal("APPROVE"), note: z.string().trim().max(1_000).optional() }).strict(),

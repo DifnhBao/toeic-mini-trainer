@@ -1,15 +1,19 @@
 import { File } from 'expo-file-system';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import IngestionQuestionReview from '@/components/IngestionQuestionReview';
 import { palette, radius } from '@/constants/design';
+import { getApiBaseUrl } from '@/lib/api';
+import { draftNamespace } from '@/lib/ingestion-drafts';
+import { ingestionDrafts } from '@/lib/local-ingestion-store';
 import { pollIngestionJob } from '@/lib/ingestion-poll';
 import { uploadPrivateFile } from '@/lib/uploads';
 import { useAuth } from '@/providers/auth-provider';
-import type { ExtractedQuestionGroup, IngestionJob } from '@/types/learning';
+import type { ExtractedQuestionGroup, IngestionJob, IngestionSummary } from '@/types/learning';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
@@ -50,7 +54,17 @@ function ContributionAudio({ url }: { url: string }) {
 }
 
 export default function LibraryScreen() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <LibraryContent key={user.id} namespace={draftNamespace(getApiBaseUrl(), user.id)} />;
+}
+
+function LibraryContent({ namespace }: { namespace: string }) {
   const { authorizedFetch } = useAuth();
+  const lifecycle = useRef(new AbortController());
+  const [restored, setRestored] = useState(false);
+  const [recentJobs, setRecentJobs] = useState<IngestionSummary[]>([]);
+  const [draftNotice, setDraftNotice] = useState('');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [pageStartText, setPageStartText] = useState('1');
@@ -63,46 +77,81 @@ export default function LibraryScreen() {
   const [statusText, setStatusText] = useState('');
   const [error, setError] = useState('');
   const [contributions, setContributions] = useState<ContributionsResponse | null>(null);
-  const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [selectedPendingId, setSelectedPendingId] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [reviewAudioUrl, setReviewAudioUrl] = useState<string | null>(null);
   const [reviewDocumentUrl, setReviewDocumentUrl] = useState<string | null>(null);
-  const [reviewExpanded, setReviewExpanded] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifecycle.current = controller;
+    void (async () => {
+      try {
+        const active = await ingestionDrafts.readActive(namespace);
+        if (controller.signal.aborted) return;
+        if (active) {
+          setActiveJobId(active);
+          try {
+            const latest = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${active}`);
+            if (!controller.signal.aborted) setJob(latest.job);
+          } catch (restoreError) {
+            if (!controller.signal.aborted) {
+              if (restoreError instanceof Error && 'status' in restoreError && (restoreError.status === 404 || restoreError.status === 403)) {
+                setActiveJobId(null);
+                setError('Tác vụ cũ không còn khả dụng với tài khoản này.');
+              } else setError('Chưa tải được tác vụ cũ. Bấm kiểm tra lại khi có mạng; không cần upload lại.');
+            }
+          }
+        }
+      } catch {
+        if (!controller.signal.aborted) setDraftNotice('Không đọc được dấu tác vụ trên máy. Bạn vẫn có thể mở từ danh sách tác vụ gần đây.');
+      } finally {
+        if (!controller.signal.aborted) setRestored(true);
+      }
+    })();
+    void authorizedFetch<{ jobs: IngestionSummary[] }>('/api/v1/ingestions')
+      .then((response) => { if (!controller.signal.aborted) setRecentJobs(response.jobs); })
+      .catch(() => { if (!controller.signal.aborted) setError('Chưa tải được danh sách tác vụ gần đây. Hãy cập nhật khi có mạng.'); });
+    return () => controller.abort();
+  }, [authorizedFetch, namespace]);
 
-  const questionCount = useMemo(
-    () => job?.result?.data.reduce((sum, group) => sum + group.questions.length, 0) || 0,
-    [job],
-  );
+  useEffect(() => {
+    if (!restored) return;
+    let cancelled = false;
+    void ingestionDrafts.writeActive(namespace, activeJobId)
+      .catch(() => { if (!cancelled) setDraftNotice('Chưa lưu được dấu tác vụ trên máy. Dùng danh sách gần đây để mở lại.'); });
+    return () => { cancelled = true; };
+  }, [restored, namespace, activeJobId]);
+
+  const refreshRecentJobs = async () => {
+    const response = await authorizedFetch<{ jobs: IngestionSummary[] }>('/api/v1/ingestions');
+    if (!lifecycle.current.signal.aborted) setRecentJobs(response.jobs);
+  };
+
+  const openRecentJob = async (id: string) => {
+    if (busy || !restored) return;
+    setBusy(true); setError(''); setStatusText('Đang mở lại tác vụ…');
+    try {
+      const latest = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${id}`);
+      if (lifecycle.current.signal.aborted) return;
+      setJob(latest.job);
+      setActiveJobId(id);
+    } catch (openError) {
+      if (!lifecycle.current.signal.aborted) setError(openError instanceof Error ? openError.message : 'Không mở được tác vụ.');
+    } finally {
+      if (!lifecycle.current.signal.aborted) { setBusy(false); setStatusText(''); }
+    }
+  };
 
   const refreshContributions = async () => {
     const response = await authorizedFetch<ContributionsResponse>('/api/v1/contributions');
-    setContributions(response);
+    if (!lifecycle.current.signal.aborted) setContributions(response);
   };
 
   useEffect(() => {
     void authorizedFetch<ContributionsResponse>('/api/v1/contributions')
-      .then(setContributions)
+      .then((response) => { if (!lifecycle.current.signal.aborted) setContributions(response); })
       .catch(() => undefined);
   }, [authorizedFetch]);
-
-  const submitContribution = async () => {
-    if (!job?.result || !rightsConfirmed || !reviewExpanded || busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      await authorizedFetch('/api/v1/contributions', {
-        method: 'POST',
-        body: JSON.stringify({ jobId: job.id, data: job.result, rightsConfirmed: true }),
-      });
-      setStatusText('Đã gửi đóng góp. Câu hỏi chỉ vào kho chung sau khi được duyệt.');
-      await refreshContributions();
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Không thể gửi đóng góp.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const reviewContribution = async (id: string, decision: 'APPROVE' | 'REJECT') => {
     if (busy || (decision === 'REJECT' && reviewNote.trim().length < 5)) {
@@ -172,7 +221,6 @@ export default function LibraryScreen() {
     setUploadedDocument(null);
     setJob(null);
     setActiveJobId(null);
-    setReviewExpanded(false);
     setError('');
   };
 
@@ -189,7 +237,6 @@ export default function LibraryScreen() {
     setUploadedAudio(null);
     setJob(null);
     setActiveJobId(null);
-    setReviewExpanded(false);
     setError('');
   };
 
@@ -197,17 +244,18 @@ export default function LibraryScreen() {
     return pollIngestionJob({
       read: async () => (await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${jobId}`)).job,
       onJob: setJob,
+      signal: lifecycle.current.signal,
       onTransientError: () => setStatusText('Kết nối gián đoạn, đang thử lại…'),
     });
   };
 
   const refreshJob = async (jobId: string) => {
     const latest = await authorizedFetch<{ job: IngestionJob }>(`/api/v1/ingestions/${jobId}`);
-    setJob(latest.job);
+    if (!lifecycle.current.signal.aborted) setJob(latest.job);
   };
 
   const startIngestion = async () => {
-    if (!documentFile || busy) return;
+    if (!documentFile || busy || !restored) return;
     const pageStart = Number(pageStartText);
     if (!Number.isSafeInteger(pageStart) || pageStart < 1 || pageStart > 1_000) {
       setError('Trang bắt đầu phải là số từ 1 đến 1000.');
@@ -216,13 +264,13 @@ export default function LibraryScreen() {
     setBusy(true);
     setError('');
     setJob(null);
-    setReviewExpanded(false);
     setActiveJobId(null);
     try {
       setStatusText('Đang upload PDF…');
       const documentAssetId = uploadedDocument?.file === documentFile
         ? uploadedDocument.id
         : await uploadPrivateFile(documentFile, 'DOCUMENT', authorizedFetch, setProgress);
+      if (lifecycle.current.signal.aborted) return;
       setUploadedDocument({ file: documentFile, id: documentAssetId });
       let audioAssetId: string | null = null;
       if (audioFile) {
@@ -234,13 +282,16 @@ export default function LibraryScreen() {
         setUploadedAudio({ file: audioFile, id: audioAssetId });
       }
 
+      if (lifecycle.current.signal.aborted) return;
       setStatusText('AI đang đọc và cấu trúc bộ đề…');
       setProgress(1);
       const created = await authorizedFetch<{ job: { id: string } }>('/api/v1/ingestions', {
         method: 'POST',
         body: JSON.stringify({ documentAssetId, audioAssetId, pageStart }),
       });
+      if (lifecycle.current.signal.aborted) return;
       setActiveJobId(created.job.id);
+      void refreshRecentJobs().catch(() => undefined);
       const completed = await pollJob(created.job.id);
       setStatusText(`Đã nhận diện ${completed.result?.data.length || 0} nhóm câu hỏi.`);
     } catch (ingestionError) {
@@ -280,41 +331,22 @@ export default function LibraryScreen() {
     }
   };
 
-  const importQuestions = async () => {
-    if (!job || busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      const response = await authorizedFetch<{ questionsAdded?: number }>(
-        `/api/v1/ingestions/${job.id}/import`,
-        { method: 'POST' },
-      );
-      setJob((current) => current ? { ...current, status: 'IMPORTED', importedAt: new Date().toISOString() } : current);
-      setStatusText(`Đã thêm ${response.questionsAdded ?? questionCount} câu vào kho cá nhân.`);
-    } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'Không thể lưu câu hỏi.');
-      await refreshJob(job.id).catch(() => undefined);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View>
           <Text style={styles.kicker}>KHO TÀI LIỆU CÁ NHÂN</Text>
           <Text style={styles.title}>Đưa bộ đề của bạn vào app</Text>
           <Text style={styles.subtitle}>Chọn PDF hoặc bản scan và audio nếu có. PDF gốc luôn riêng tư; audio chỉ được chia sẻ nếu bạn chủ động gửi đóng góp và được duyệt.</Text>
         </View>
 
-        <Pressable onPress={pickDocument} disabled={busy} style={styles.fileCard}>
+        <Pressable onPress={pickDocument} disabled={busy || !restored} style={styles.fileCard}>
           <Text style={styles.fileLabel}>PDF BẮT BUỘC</Text>
           <Text style={styles.fileName}>{documentFile?.name || 'Chọn đề hoặc tài liệu TOEIC'}</Text>
           <Text style={styles.fileMeta}>{documentFile ? formatSize(documentFile.size) : 'Tối đa 15 MB'}</Text>
         </Pressable>
 
-        <Pressable onPress={pickAudio} disabled={busy} style={styles.fileCard}>
+        <Pressable onPress={pickAudio} disabled={busy || !restored} style={styles.fileCard}>
           <Text style={styles.fileLabel}>AUDIO KHÔNG BẮT BUỘC</Text>
           <Text style={styles.fileName}>{audioFile?.name || 'Chọn MP3, M4A hoặc WAV'}</Text>
           <Text style={styles.fileMeta}>{audioFile ? formatSize(audioFile.size) : 'Tối đa 100 MB'}</Text>
@@ -336,6 +368,8 @@ export default function LibraryScreen() {
           </View>
         )}
 
+        {!restored && <Text style={styles.reviewCopy}>Đang khôi phục tác vụ trước…</Text>}
+        {!!draftNotice && <Text style={styles.reviewCopy}>{draftNotice}</Text>}
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         {activeJobId && !busy && (!job || ['PENDING', 'PROCESSING'].includes(job.status)) && (
@@ -357,8 +391,8 @@ export default function LibraryScreen() {
         {!job?.result && (
           <Pressable
             onPress={startIngestion}
-            disabled={!documentFile || busy}
-            style={[styles.primaryButton, (!documentFile || busy) && styles.disabled]}>
+            disabled={!documentFile || busy || !restored}
+            style={[styles.primaryButton, (!documentFile || busy || !restored) && styles.disabled]}>
             <Text style={styles.primaryButtonText}>Upload và phân tích</Text>
           </Pressable>
         )}
@@ -370,64 +404,33 @@ export default function LibraryScreen() {
         )}
 
         {job?.result && (
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewTitle}>AI nhận diện {questionCount} câu</Text>
-            <Text style={styles.reviewCopy}>AI có thể đọc sai. Mở toàn bộ để kiểm tra nội dung và đáp án trước khi gửi đóng góp.</Text>
-            <Pressable onPress={() => setReviewExpanded((value) => !value)} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>{reviewExpanded ? 'Thu gọn' : `Xem toàn bộ ${questionCount} câu`}</Text>
+          <>
+            <IngestionQuestionReview
+              key={job.id} job={job} namespace={namespace} onBusyChange={setBusy}
+              onChanged={(updated) => {
+                setJob(updated);
+                void refreshContributions().catch(() => undefined);
+              }}
+            />
+            <Pressable disabled={busy} onPress={() => { setJob(null); setActiveJobId(null); }} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Chọn tài liệu hoặc trang khác</Text>
             </Pressable>
-            {reviewExpanded ? job.result.data.map((group, groupIndex) => (
-              <View key={groupIndex} style={styles.contributionRow}>
-                <Text style={styles.questionPart}>Nhóm {groupIndex + 1} · {group.group?.groupType || 'TEXT'}</Text>
-                {!!group.group?.passageText && <Text style={styles.reviewCopy}>{group.group.passageText.replace(/<[^>]*>/g, ' ')}</Text>}
-                {group.questions.map((question, questionIndex) => (
-                  <View key={questionIndex} style={styles.contributionRow}>
-                    <Text style={styles.checkText}>P{question.part} · {question.content || 'Câu hỏi nghe'}</Text>
-                    {Object.entries(question.options).map(([key, value]) => <Text key={key} style={styles.reviewCopy}>{key}. {value}</Text>)}
-                    <Text style={styles.answerKey}>Đáp án: {question.correctAnswer}</Text>
-                  </View>
-                ))}
-              </View>
-            )) : job.result.data.flatMap((group) => group.questions).slice(0, 20).map((question, index) => (
-              <View key={`${index}-${question.part}`} style={styles.questionRow}>
-                <Text style={styles.questionPart}>P{question.part}</Text>
-                <Text numberOfLines={2} style={styles.questionText}>{question.content || 'Câu hỏi nghe'}</Text>
-                <Text style={styles.answerKey}>{question.correctAnswer}</Text>
-              </View>
-            ))}
-            {job.status === 'IMPORTING' && !job.importStalled && (
-              <Text style={styles.reviewCopy}>Đang lưu câu hỏi. Vui lòng chờ…</Text>
-            )}
-            {job.importStalled && (
-              <Text style={styles.error}>Lần lưu trước bị gián đoạn. Bạn có thể thử lưu lại.</Text>
-            )}
-            {(job.status === 'COMPLETED' || job.importStalled) ? (
-              <Pressable onPress={importQuestions} disabled={busy} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>{job.importStalled ? 'Thử lưu lại' : `Lưu ${questionCount} câu vào kho cá nhân`}</Text>
-              </Pressable>
-            ) : job.status === 'IMPORTED' ? (
-              <Text style={styles.success}>✓ Bộ câu hỏi đã được lưu.</Text>
-            ) : null}
-            {['COMPLETED', 'IMPORTED'].includes(job.status) && !contributions?.mine.some((item) => item.sourceJobId === job.id) && (
-              <View style={styles.contributionBox}>
-                <Text style={styles.reviewTitle}>Gửi vào kho đóng góp chung</Text>
-                <Text style={styles.reviewCopy}>Bạn cần có quyền chia sẻ nội dung câu hỏi và audio đính kèm. Admin sẽ xem PDF nguồn để duyệt, nhưng PDF không tự công khai cho người học.</Text>
-                <Pressable onPress={() => setRightsConfirmed((value) => !value)} style={styles.checkRow}>
-                  <Text style={styles.checkMark}>{rightsConfirmed ? '☑' : '☐'}</Text>
-                  <Text style={styles.checkText}>Tôi xác nhận có quyền chia sẻ nội dung này.</Text>
-                </Pressable>
-                <Pressable onPress={submitContribution} disabled={busy || !rightsConfirmed || !reviewExpanded} style={[styles.secondaryButton, (busy || !rightsConfirmed || !reviewExpanded) && styles.disabled]}>
-                  <Text style={styles.secondaryButtonText}>Gửi {questionCount} câu để duyệt</Text>
-                </Pressable>
-              </View>
-            )}
-            {job.status === 'IMPORTED' && (
-              <Pressable onPress={() => { setJob(null); setActiveJobId(null); }} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>Chọn trang khác để phân tích</Text>
-              </Pressable>
-            )}
-          </View>
+          </>
         )}
+
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewTitle}>Tác vụ gần đây (tối đa 20)</Text>
+          <Text style={styles.reviewCopy}>Mở lại chỉ đọc kết quả đã có, không gọi AI mới. Bản nháp chỉnh sửa chỉ khôi phục trên máy đã duyệt.</Text>
+          {recentJobs.map((item) => (
+            <Pressable key={item.id} disabled={busy || !restored} onPress={() => void openRecentJob(item.id)} style={styles.contributionRow}>
+              <Text style={styles.checkText}>{item.documentAsset.originalName} · trang {item.pageStart}{item.pageEnd ? `–${item.pageEnd}` : ''}</Text>
+              <Text style={styles.reviewCopy}>{new Date(item.createdAt).toLocaleString('vi-VN')} · {item.status} · Mở lại</Text>
+            </Pressable>
+          ))}
+          <Pressable disabled={busy || !restored} onPress={() => void refreshRecentJobs().catch(() => setError('Không tải được tác vụ gần đây.'))} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Cập nhật danh sách tác vụ</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.reviewCard}>
           <Text style={styles.reviewTitle}>Đóng góp của tôi</Text>

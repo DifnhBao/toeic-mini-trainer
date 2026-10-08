@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SafePassage from "@/app/components/SafePassage";
+import { restoreWebTestDraft } from "@/app/lib/web-test-draft";
 
 type Question = {
   id: string;
@@ -35,12 +36,15 @@ export default function TestTakingPage({ params }: { params: Promise<{ id: strin
   const { id: testId } = use(params);
   const router = useRouter();
   const [test, setTest] = useState<TestData | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, "A" | "B" | "C" | "D">>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [submissionId, setSubmissionId] = useState("");
+  const [storageError, setStorageError] = useState(false);
+  const submissionInFlight = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -51,25 +55,42 @@ export default function TestTakingPage({ params }: { params: Promise<{ id: strin
         return data;
       })
       .then((data: TestData) => {
+        if (controller.signal.aborted) return;
+        let saved: string | null = null;
+        try { saved = window.localStorage.getItem(`toeic-draft-${testId}`); }
+        catch { setStorageError(true); }
+        const draft = restoreWebTestDraft(saved, data.questions.map((item) => item.question), crypto.randomUUID());
         setTest(data);
-        const saved = window.localStorage.getItem(`toeic-draft-${testId}`);
-        if (saved) setAnswers(JSON.parse(saved));
+        setAnswers(draft.answers);
+        setSubmissionId(draft.clientSubmissionId);
+        setElapsed(draft.elapsed);
+        setCurrentIndex(draft.currentIndex);
       })
       .catch((fetchError) => {
         if (fetchError.name !== "AbortError") setError(fetchError.message);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [testId]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    if (!test || submitting) return;
+    const timer = window.setInterval(() => setElapsed((value) => Math.min(value + 1, 86_400)), 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [test, submitting]);
 
   useEffect(() => {
-    if (Object.keys(answers).length) window.localStorage.setItem(`toeic-draft-${testId}`, JSON.stringify(answers));
-  }, [answers, testId]);
+    if (!test || !submissionId || submitting) return;
+    const save = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(`toeic-draft-${testId}`, JSON.stringify({
+          version: 1, clientSubmissionId: submissionId, answers, elapsed, currentIndex,
+        }));
+        setStorageError(false);
+      } catch { setStorageError(true); }
+    }, 0);
+    return () => window.clearTimeout(save);
+  }, [answers, testId, test, submissionId, elapsed, currentIndex, submitting]);
 
   const question = test?.questions[currentIndex]?.question;
   const answeredCount = Object.keys(answers).length;
@@ -80,27 +101,37 @@ export default function TestTakingPage({ params }: { params: Promise<{ id: strin
   }, [test]);
 
   function chooseAnswer(questionId: string, answer: string) {
-    setAnswers((current) => ({ ...current, [questionId]: answer }));
+    if (!["A", "B", "C", "D"].includes(answer) || submissionInFlight.current) return;
+    setAnswers((current) => ({ ...current, [questionId]: answer as "A" | "B" | "C" | "D" }));
   }
 
   async function submitTest() {
-    if (!test) return;
+    if (!test || !submissionId || submissionInFlight.current) return;
     if (answeredCount < test.questions.length && !window.confirm(`Bạn còn ${test.questions.length - answeredCount} câu chưa trả lời. Vẫn nộp bài?`)) return;
+    submissionInFlight.current = true;
     setSubmitting(true);
     setError("");
+    // Persist synchronously before sending, including when the last selection
+    // was made before the pending autosave callback could run.
+    try {
+      window.localStorage.setItem(`toeic-draft-${testId}`, JSON.stringify({
+        version: 1, clientSubmissionId: submissionId, answers, elapsed, currentIndex,
+      }));
+    } catch { setStorageError(true); }
     try {
       const response = await fetch(`/api/mini-tests/${testId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, clientSubmissionId: submissionId, durationSeconds: elapsed }),
       });
       const data = await response.json();
       if (!response.ok || !data.attemptId) throw new Error(data.error || "Không thể nộp bài.");
-      window.localStorage.removeItem(`toeic-draft-${testId}`);
+      try { window.localStorage.removeItem(`toeic-draft-${testId}`); } catch { /* The saved ID still makes retries safe. */ }
       router.push(`/attempts/${data.attemptId}`);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Lỗi kết nối.");
       setSubmitting(false);
+      submissionInFlight.current = false;
     }
   }
 
@@ -131,7 +162,9 @@ export default function TestTakingPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
           ))}
-          <div className="autosave-note">✓ Đáp án được tự động lưu trên thiết bị</div>
+          <div className="autosave-note" role={storageError ? "alert" : undefined}>{storageError
+            ? "Chưa lưu được bản nháp trên thiết bị. Giữ trang mở và thử lại sau khi giải phóng bộ nhớ."
+            : "✓ Đáp án được tự động lưu trên thiết bị"}</div>
         </aside>
 
         <main className="question-workspace">

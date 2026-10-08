@@ -36,6 +36,13 @@ export class AccountSuspendedError extends Error {
   }
 }
 
+export class AccountLinkRequiredError extends Error {
+  constructor() {
+    super("Sign in with the original provider before linking another identity");
+    this.name = "AccountLinkRequiredError";
+  }
+}
+
 function mobileJwtSecret() {
   const value = process.env.MOBILE_JWT_SECRET;
   if (!value || value.length < 32) {
@@ -137,20 +144,20 @@ export async function resolveMobileUser(identity: MobileIdentity) {
     throw new Error("A verified email is required for the first sign-in");
   }
 
+  // A verified email from a new provider is not an authenticated account-link
+  // request. Keep the original account and its learning data unchanged.
+  if (await prisma.user.findUnique({ where: { email: identity.email }, select: { id: true } })) {
+    throw new AccountLinkRequiredError();
+  }
+
   try {
     return await prisma.$transaction(async (tx) => {
-      const user = await tx.user.upsert({
-        where: { email: identity.email },
-        create: {
+      const user = await tx.user.create({
+        data: {
           email: identity.email,
           emailVerified: new Date(),
           name: identity.name,
           image: identity.image,
-        },
-        update: {
-          emailVerified: new Date(),
-          ...(identity.name ? { name: identity.name } : {}),
-          ...(identity.image ? { image: identity.image } : {}),
         },
       });
 
@@ -180,6 +187,9 @@ export async function resolveMobileUser(identity: MobileIdentity) {
       if (account) {
         if (account.user.status !== "ACTIVE") throw new AccountSuspendedError();
         return account.user;
+      }
+      if (await prisma.user.findUnique({ where: { email: identity.email }, select: { id: true } })) {
+        throw new AccountLinkRequiredError();
       }
     }
     throw error;

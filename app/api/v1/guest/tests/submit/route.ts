@@ -16,8 +16,9 @@ const submitSchema = z.object({
 
 export async function POST(request: Request) {
   if (request.headers.has("authorization")) return apiError("INVALID_GUEST_REQUEST", "Hãy đăng xuất hoặc đăng nhập lại.", 401);
-  const limit = takeRateLimit(request, "guest-test-submit", 20, 60_000);
-  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn thao tác quá nhanh.", 429);
+  const limit = await takeRateLimit(request, "guest-test-submit", 20, 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
+  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn thao tác quá nhanh.", 429, { "Retry-After": String(limit.retryAfterSeconds) });
   const body = await parseBoundedJson(request, submitSchema);
   if (!body.success) return body.response;
 

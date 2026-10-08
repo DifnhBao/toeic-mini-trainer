@@ -9,7 +9,7 @@ import { revokeRefreshToken } from "@/app/lib/mobile-auth";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const limited = enforceAuthRateLimit(request, "mobile-logout", 20);
+  const limited = await enforceAuthRateLimit(request, "mobile-logout", 20);
   if (limited) return limited;
 
   const body = await parseBoundedJson(request, logoutSchema);

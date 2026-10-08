@@ -6,6 +6,9 @@ export function sanitizePassageHtml(value: string): string {
   return sanitizeHtml(value, {
     allowedTags: ["b", "br", "div", "em", "i", "li", "ol", "p", "span", "strong", "u", "ul"],
     allowedAttributes: {},
-    disallowedTagsMode: "completelyDiscard",
+    // completelyDiscard also removes top-level plain text. Preserve reading
+    // content while discarding executable/embedded element contents entirely.
+    disallowedTagsMode: "discard",
+    nonTextTags: ["script", "style", "textarea", "option", "xmp", "noscript", "iframe", "object", "embed", "svg", "math"],
   });
 }

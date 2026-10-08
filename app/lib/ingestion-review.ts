@@ -11,7 +11,13 @@ const reviewSchema = z.discriminatedUnion("decision", [
   z.object({ ...locationSchema, decision: z.literal("SKIP") }).strict(),
 ]);
 
-const reviewPayloadSchema = z.object({ reviews: z.array(reviewSchema).min(1).max(500) }).strict();
+export const reviewPayloadSchema = z.object({ reviews: z.array(reviewSchema).min(1).max(500) }).strict();
+
+// Compatibility for installed APKs only. Any supplied body, including an
+// invalid one, must be validated rather than falling back to the AI result.
+export function requiresQuestionReview(request: Request) {
+  return !request.headers.get("authorization")?.startsWith("Bearer ") || request.body !== null;
+}
 
 export class InvalidIngestionReviewError extends Error {
   constructor() {

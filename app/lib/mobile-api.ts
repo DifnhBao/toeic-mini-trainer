@@ -74,9 +74,13 @@ export async function parseBoundedJson<T extends z.ZodType>(
   }
 }
 
-export function enforceAuthRateLimit(request: Request, scope: string, limit = 12) {
-  const result = takeRateLimit(request, scope, limit, 60_000);
+export async function enforceAuthRateLimit(request: Request, scope: string, limit = 12) {
+  const result = await takeRateLimit(request, scope, limit, 60_000);
   if (result.allowed) return null;
+
+  if (result.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, {
+    "Retry-After": String(result.retryAfterSeconds),
+  });
 
   return apiError("RATE_LIMITED", "Bạn thao tác quá nhanh. Vui lòng thử lại sau.", 429, {
     "Retry-After": String(result.retryAfterSeconds),

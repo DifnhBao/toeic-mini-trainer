@@ -20,8 +20,9 @@ export async function POST(
 
   const parsedId = idSchema.safeParse((await params).id);
   if (!parsedId.success) return apiError("INVALID_JOB_ID", "Mã tác vụ không hợp lệ.", 400);
-  const limit = takeRateLimit(request, `ingestion-retry:${user.id}`, 5, 60 * 60_000);
-  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn thử lại quá nhiều lần.", 429);
+  const limit = await takeRateLimit(request, `ingestion-retry:${user.id}`, 5, 60 * 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
+  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn thử lại quá nhiều lần.", 429, { "Retry-After": String(limit.retryAfterSeconds) });
 
   const reset = await prisma.ingestionJob.updateMany({
     where: { id: parsedId.data, ownerId: user.id, status: "FAILED", attemptCount: { lt: 3 } },

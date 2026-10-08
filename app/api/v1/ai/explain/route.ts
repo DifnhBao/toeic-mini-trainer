@@ -15,6 +15,7 @@ import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 const explainSchema = z.object({ userAnswerId: z.string().uuid() }).strict();
 const GENERATING_STALE_MS = 2 * 60_000;
 const FAILED_RETRY_MS = 60_000;
@@ -22,8 +23,9 @@ const FAILED_RETRY_MS = 60_000;
 export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
-  const limit = takeRateLimit(request, `mobile-ai-explain:${user.id}`, 30, 60_000);
-  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn đang yêu cầu quá nhanh.", 429);
+  const limit = await takeRateLimit(request, `mobile-ai-explain:${user.id}`, 30, 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
+  if (!limit.allowed) return apiError("RATE_LIMITED", "Bạn đang yêu cầu quá nhanh.", 429, { "Retry-After": String(limit.retryAfterSeconds) });
   const body = await parseBoundedJson(request, explainSchema);
   if (!body.success) return body.response;
 

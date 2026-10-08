@@ -39,7 +39,9 @@ describe("moderated contributions", () => {
   it("requires a reason for rejection and counts submitted questions", () => {
     assert.equal(reviewContributionSchema.safeParse({ decision: "REJECT", note: "bad" }).success, false);
     assert.equal(reviewContributionSchema.safeParse({ decision: "REJECT", note: "Đáp án sai" }).success, true);
-    assert.equal(contributionQuestionCount(submitContributionSchema.parse({ jobId, data, rightsConfirmed: true }).data), 1);
+    const parsed = submitContributionSchema.parse({ jobId, data, rightsConfirmed: true });
+    assert.ok('data' in parsed);
+    assert.equal(contributionQuestionCount(parsed.data), 1);
   });
 
   it("keeps pending and rejected media private", () => {

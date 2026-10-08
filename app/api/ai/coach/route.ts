@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { requestUser } from "@/app/lib/request-user";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
+import { z } from "zod";
+import { parseBoundedJson } from "@/app/lib/mobile-api";
+import { takeRateLimit } from "@/app/lib/rate-limit";
 
 const ai = new GoogleGenAI({});
+export const maxDuration = 60;
+const schema = z.object({
+  message: z.string().trim().min(1).max(2000),
+  part: z.string().trim().max(20).optional(),
+}).strict();
 
 export async function POST(request: Request) {
   try {
@@ -12,13 +20,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Vui lòng đăng nhập để dùng AI Coach." }, { status: 401 });
     }
 
-    const body = await request.json();
-    const message = typeof body.message === "string" ? body.message.trim() : "";
-    const part = typeof body.part === "string" ? body.part.slice(0, 20) : "Tổng hợp";
-
-    if (!message || message.length > 2000) {
-      return NextResponse.json({ error: "Câu hỏi cần từ 1 đến 2.000 ký tự." }, { status: 400 });
+    const limit = await takeRateLimit(request, `mobile-ai-coach:${user.id}`, 10, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: "AI Coach tạm thời bận. Vui lòng thử lại sau." }, {
+        status: limit.unavailable ? 503 : 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      });
     }
+    const body = await parseBoundedJson(request, schema);
+    if (!body.success) {
+      const data = await body.response.json();
+      return NextResponse.json({ error: data.error.message }, { status: body.response.status });
+    }
+    const { message } = body.data;
+    const part = body.data.part || "Tổng hợp";
 
     if (!(await consumeDailyAiCall(user.id, "coach", 20))) {
       return NextResponse.json({ error: "Bạn đã dùng hết lượt hỏi AI hôm nay." }, { status: 429 });
@@ -40,13 +55,14 @@ Hãy trả lời bằng tiếng Việt, tối đa 350 từ. Đi thẳng vào đi
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
+      config: { maxOutputTokens: 4_096, httpOptions: { timeout: 45_000 } },
     });
 
     const answer = response.text?.trim();
     if (!answer) throw new Error("AI returned an empty answer");
     return NextResponse.json({ answer });
   } catch (error) {
-    console.error("AI Coach error:", error);
+    console.error("AI Coach error", { errorType: error instanceof Error ? error.name : "unknown" });
     return NextResponse.json({ error: "AI Coach đang bận. Vui lòng thử lại sau ít phút." }, { status: 503 });
   }
 }

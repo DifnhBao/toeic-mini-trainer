@@ -7,6 +7,7 @@ import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const ai = new GoogleGenAI({});
 
@@ -42,7 +43,8 @@ export async function POST(request: Request) {
   const user = await mobileUserFromRequest(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
 
-  const limit = takeRateLimit(request, `mobile-ai-coach:${user.id}`, 10, 60_000);
+  const limit = await takeRateLimit(request, `mobile-ai-coach:${user.id}`, 10, 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn đang hỏi quá nhanh. Vui lòng thử lại sau.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),
@@ -66,6 +68,8 @@ export async function POST(request: Request) {
         parts: [{ text: message.content }],
       })),
       config: {
+        maxOutputTokens: 4_096,
+        httpOptions: { timeout: 45_000 },
         systemInstruction: `${SYSTEM_PROMPT}\nNgười học đang tập trung vào: ${focus}.`,
       },
     });
@@ -74,7 +78,7 @@ export async function POST(request: Request) {
     if (!answer) throw new Error("AI returned an empty answer");
     return apiJson({ answer });
   } catch (error) {
-    console.error("v1 AI coach error:", error);
+    console.error("v1 AI coach error", { errorType: error instanceof Error ? error.name : "unknown" });
     return apiError("AI_UNAVAILABLE", "AI Coach đang bận. Vui lòng thử lại sau ít phút.", 503);
   }
 }

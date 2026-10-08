@@ -24,6 +24,26 @@ Yêu cầu Node.js, PostgreSQL và một Google OAuth app.
 
 Kiểm tra bản production bằng `npm run build` rồi `npm start`.
 
+Production build dùng Webpack theo tùy chọn chính thức của Next.js 16.3.5;
+Turbopack trên Windows hiện dừng ở tiến trình PostCSS. `npm run build:turbo`
+giữ lại cách tái hiện để chẩn đoán. Không dùng build chẩn đoán để phát hành.
+
+Kiểm tra trước phát hành: `npm test`, `npm run typecheck`,
+`npm run typecheck:mobile`, `npm run lint`, `npm run build`.
+Workflow `.github/workflows/quality.yml` kiểm tra web/mobile và chạy migration,
+test tích hợp trên PostgreSQL CI riêng. Hướng dẫn staging, hạn mức, backup và
+nghiệm thu ở `docs/RELEASE_RUNBOOK.md`.
+
+Web và mobile dùng chung kiểm tra nộp bài. Web lưu mã lần nộp cùng câu trả lời,
+thời gian và vị trí câu trên thiết bị để retry không tạo attempt trùng. Khi bộ
+nhớ thiết bị không ghi được, giao diện báo lỗi thay vì báo đã lưu thành công.
+
+Production rate limit dùng bộ đếm PostgreSQL chung giữa các instance; lỗi
+counter trả 503 và không thực hiện tác vụ. Quota AI cá nhân vẫn được giữ, thêm
+trần toàn hệ thống `AI_DAILY_GLOBAL_CALL_LIMIT` (mặc định 200 lượt/ngày UTC),
+`AI_ENABLED=false` và `INGESTION_ENABLED=false` để tạm dừng. Trần này đếm lượt
+gọi, kể cả retry phân tích tài liệu, không phải giới hạn chi phí bằng tiền.
+
 `prisma migrate deploy` không chạy seed. Bộ câu hỏi demo chỉ dành cho database dev/test/demo tách biệt: đặt `ALLOW_DEMO_SEED=true` và `SEED_DATABASE_NAME` bằng chính tên database trong `DATABASE_URL`, rồi chạy `npx prisma db seed`. Script từ chối `NODE_ENV=production`, tên database không phải dev/test/demo hoặc thiếu xác nhận; không xóa dữ liệu đang có. Không chạy seed trên database hiện tại chỉ để thử nghiệm.
 
 ## Cấu trúc dễ học

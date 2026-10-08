@@ -5,6 +5,7 @@ import { PdfPageSelectionError, selectPdfPages } from "@/app/lib/pdf-page-select
 import { extractedDataSchema, type ExtractedData } from "@/app/lib/question-import";
 import { readStoredObject } from "@/app/lib/object-storage";
 import { prisma } from "@/app/lib/prisma";
+import { consumeGlobalAiCall } from "@/app/lib/ai-usage";
 
 const ai = new GoogleGenAI({});
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
@@ -64,6 +65,9 @@ async function extractQuestions(
 ${needsOcr ? "Đây là PDF scan; hãy đọc chữ từ ảnh trong PDF." : `\n<document>\n${rawText}\n</document>`}`;
 
   let responseText: string;
+  if (process.env.INGESTION_ENABLED === "false" || !(await consumeGlobalAiCall())) {
+    throw new IngestionProcessingError("AI_DAILY_LIMIT");
+  }
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -71,6 +75,8 @@ ${needsOcr ? "Đây là PDF scan; hãy đọc chữ từ ảnh trong PDF." : `\n
         ? [{ text: prompt }, { inlineData: { mimeType: "application/pdf", data: Buffer.from(section.bytes).toString("base64") } }]
         : prompt,
       config: {
+        maxOutputTokens: 16_384,
+        httpOptions: { timeout: 240_000 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,

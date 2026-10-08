@@ -10,7 +10,7 @@ import { rotateRefreshToken } from "@/app/lib/mobile-auth";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const limited = enforceAuthRateLimit(request, "mobile-refresh", 20);
+  const limited = await enforceAuthRateLimit(request, "mobile-refresh", 20);
   if (limited) return limited;
 
   const body = await parseBoundedJson(request, refreshSchema);

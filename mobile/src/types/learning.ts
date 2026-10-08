@@ -112,4 +112,11 @@ export type IngestionJob = {
   errorCode: string | null;
   result: { data: ExtractedQuestionGroup[] } | null;
   importedAt: string | null;
+  reviewProtocol?: number;
+  contribution?: { id: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' } | null;
+};
+
+export type IngestionSummary = Pick<IngestionJob, 'id' | 'status'> & {
+  createdAt: string; pageStart: number; pageEnd: number | null;
+  documentAsset: { originalName: string };
 };
