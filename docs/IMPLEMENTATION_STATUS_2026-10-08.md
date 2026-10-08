@@ -18,8 +18,8 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 146 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
-| PostgreSQL integration | 24 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê, kho bài phân trang, tạo bài chỉ từ nhóm công khai và API ảnh/upload/copy/rollback với S3 loopback |
+| Unit/regression | 150 kiểm thử đạt; không dùng DB/provider thật; gồm quyền ADMIN cho audio nhóm, biên giới PDF 50 MiB và 9 kiểm thử backup R2 (DPAPI thật trên Windows) |
+| PostgreSQL integration | 29 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm thống kê, Kho bài, upload/gắn/xuất bản ảnh và audio riêng theo nhóm, dedup và rollback với S3 loopback |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
 | Lint | 0 lỗi, 3 cảnh báo `<img>` hiện có |
@@ -27,27 +27,28 @@
 | Android bundle | Expo export Android đạt, 1.320 source; đây chưa phải nghiệm thu APK trên thiết bị |
 | Backup/restore | DB Neon thật đã backup DPAPI và restore cách ly, 22 bảng khớp snapshot trong 24,657 giây; R2 thật đã backup mã hóa 16 file/18.948.378 byte và giải mã đối chiếu SHA-256; chưa restore bucket/backup định kỳ/offsite |
 | Smoke local | 7 kiểm tra public/không đăng nhập đạt; không xác minh Google OAuth hoặc AI thật |
-| Smoke sau promote | 18/18 kiểm tra đạt tại `https://toeic-mini-trainer.vercel.app`, gồm kho bài, API chặn request chưa đăng nhập và trang admin hiển thị từ chối quyền; chưa phải nghiệm thu media/AI thật |
+| Smoke sau promote | 19/19 kiểm tra đạt tại `https://toeic-mini-trainer.vercel.app`, gồm kho bài, API chặn request chưa đăng nhập và trang admin hiển thị từ chối quyền; bundle thực có UI audio riêng; chưa phải nghiệm thu media/AI thật |
 | OAuth preflight | Google provider đã bật; sign-in/callback URL đúng domain chính; chưa xác minh đăng nhập thật |
 | API cũ trước rollout | 6/7 smoke đạt; GET ingestion list trả 405 |
 | Dependency web production | `npm audit --omit=dev` báo 0 lỗ hổng sau vá dependency |
 | Dependency công cụ build | Braces/node-forge chưa có bản vá; ngoại lệ CI hết hạn 22/10/2026, không có trong 1.320 source của bundle APK Kho bài |
 | APK preview nền | EAS build `1f35e1b8-3a13-4977-907b-297a541d3b1a` FINISHED từ commit `24b9d6e`; chưa chứa bản vá dependency tiếp theo |
-| Vercel | Deployment `dpl_FDgketUQrPGQj62jjd87kvETRNiu`, source `f0bc90f`, READY và đã promote; 18/18 smoke trước/sau promote; bản trước `aea97e2`, hạn chế rollback ảnh pending tại `LISTENING_IMAGES_2026-10-08.md` |
-| Payload Vercel | 147 tệp, đủ 123 tệp app/types/prisma; không có env/APK/dữ liệu test; có lệnh kiểm tra source không bị thiếu |
+| Vercel | Deployment `dpl_4Jjpy2Lak7ZcTwrp4aboKtmh6aKf`, source `0c21f9f`, READY và đã promote; 19/19 smoke trước/sau promote; bản trước `f0bc90f`, hạn chế rollback clip pending tại `GROUP_AUDIO_2026-10-08.md` |
+| Payload Vercel | 149 tệp, đủ 125 tệp app/types/prisma; không có env/APK/nguồn ETS/ảnh local/backup/dữ liệu test |
 | APK `5107b97` | EAS build `d2e40383-bd61-407d-9ad5-2081468f4165` FINISHED; người thử S23 FE báo A-01/02/06/07 đạt và ba lỗi A-03/04/08 |
 | APK sửa Samsung | Build `ee0468f2-ffd3-4d5f-ad45-b9c7c6dc4a27`, source `dcb6524`, FINISHED; người thử ghi R-01…R-05 đạt trên S23 FE; R-06 đang vướng quy trình nhập đề nghe/audio |
 | APK Kho bài mới | Build `f66fc9a6-cd3a-4985-9fb4-8664eff8db32`, source mobile `dee15f2`, FINISHED; APK 114.429.599 byte, CRC 1.698 mục/manifest/dex/bốn ABI đạt; chưa có biên bản điện thoại cho bản này |
 | Truy cập quản trị | Người dùng xác nhận đăng nhập ADMIN thấy trang nhập đề/audio sau rollout `4242017`; chưa xác nhận upload và xuất bản |
 | PDF listening quá 15 MB | Người dùng báo PDF 19,1 MB/MP3 42,2 MB bị chặn. Bản `d02f05d` nâng PDF nguồn lên 50 MiB ở UI/policy/worker; bundle thực trên domain chính xác nhận 52.428.800 byte. Người dùng đã qua upload, phát hiện tiếp lỗi OCR PDF scan (hàng dưới); bốn trang/lượt và 5 MiB OCR giữ nguyên |
 | PDF scan có chữ ở bìa | File ETS thật 14 trang: bìa 47 ký tự, các trang sau scan; worker cũ gửi mỗi chữ bìa nên không thấy câu. `aea97e2` sửa theo từng trang, chuẩn bị OCR cả bốn cụm đạt; draft thiếu key phải duyệt bổ sung. Chưa nghiệm thu Gemini thật, ảnh chưa tự tách nhưng `f0bc90f` đã cho gắn và xuất bản ảnh riêng; xem `PDF_SCAN_RELEASE_2026-10-08.md` và `LISTENING_IMAGES_2026-10-08.md` |
+| Audio riêng cho nhóm | `0c21f9f` cho gắn/nghe/khôi phục audio nguồn, lưu vào tác vụ, duyệt nhiều audio theo số nhóm/tên file và xuất bản đúng bản sao; test API/DB/S3 loopback đạt, audio ETS thực tế chưa chia/nghiệm thu |
 | Storage preflight | Cấu hình R2 cục bộ đạt HEAD bucket, OPTIONS 204 với origin domain chính/PUT/Content-Type; không ghi object, không sửa CORS, chưa xác minh upload từ Vercel |
 | Backup media R2 | Sau phê duyệt riêng: 16 object, 18.948.378 byte đã mã hóa và kiểm tra lại độc lập đạt; 15 asset READY có object/size khớp. Không ghi cloud; chưa diễn tập restore bucket hoặc snapshot DB/R2 đồng thời |
 | Truy vấn tải local | Cùng fixture 20 user/400.000 answer: p95 thống kê cũ/mới 1.218/354 ms khi lặp 20 câu và 1.209/739 ms khi phủ 10.000 câu; chưa phải HTTP/production (`PERFORMANCE_LOCAL_2026-10-08.md`) |
 
 Các lỗi EPERM của sandbox khi build/đọc module đã được kiểm tra lại ngoài sandbox. Một lượt unit test đồng thời build gặp EPERM khi đọc React; phải dùng kết quả của lượt chạy hoàn chỉnh sau đó. Không bỏ qua kiểm thử thất bại để tuyên bố đạt.
 
-Luồng R-06 mới đã triển khai API/web: ADMIN nhập PDF/audio, duyệt và công khai trên web; người học chọn nhóm câu đã công khai trong Kho bài web/Android. Giữ dữ liệu cá nhân cũ, chặn tạo nội dung mới cho USER/REVIEWER tại sáu API server, gồm import JSON cũ. Hướng dẫn và giới hạn tại `ADMIN_LISTENING_WORKFLOW_2026-10-08.md`. Người dùng xác nhận đã truy cập trang ADMIN; chưa nghiệm thu upload/audio thật của luồng này. Truy vấn READ ONLY chỉ đếm được một ADMIN đang ACTIVE trên DB cấu hình; không đọc định danh hoặc thay quyền. AI chỉ đọc PDF, không nghe audio để suy đáp án.
+Luồng R-06 mới đã triển khai API/web: ADMIN nhập PDF/audio, duyệt và công khai trên web; người học chọn nhóm câu đã công khai trong Kho bài web/Android. Giữ dữ liệu cá nhân cũ, chặn tạo nội dung mới cho USER/REVIEWER tại tám API server, gồm import JSON cũ. Hướng dẫn và giới hạn tại `ADMIN_LISTENING_WORKFLOW_2026-10-08.md`. Người dùng xác nhận đã truy cập trang ADMIN; chưa nghiệm thu upload/audio thật của luồng này. Truy vấn READ ONLY chỉ đếm được một ADMIN đang ACTIVE trên DB cấu hình; không đọc định danh hoặc thay quyền. AI chỉ đọc PDF, không nghe audio để suy đáp án.
 
 APK mới: [tải bản Kho bài](https://expo.dev/artifacts/eas/BuQ4n2XzKW6tim3MFgJZZvscfO6I_4V-yLGumPGtErk.apk), SHA-256 `702AEF922860D9066FA8CFB085340A38F34B9E2983BE64EACAB19CEDA50D21E4`. API `4242017` bổ sung guard JSON cũ; API `d02f05d` sửa giới hạn PDF của web/worker, không thay runtime mobile Kho bài so với source APK `dee15f2`. Log kiểm chứng cục bộ: `Test/apk-dee15f2-verification.json`, `Test/vercel-protected-smoke-d02f05d.txt`, `Test/vercel-promoted-smoke-d02f05d.txt`, `Test/vercel-pdf50-canonical-bundle.json`; không đưa APK hoặc log chứa metadata cloud lên Git.
 
@@ -60,7 +61,7 @@ Bổ sung vận hành sau rollout: `scripts/backup-r2-windows.mts` chỉ list/ge
 | Nhóm công việc | Trạng thái thực tế |
 | --- | --- |
 | BUILD-01, BASE-01 | Production build đã đạt local và Vercel; source được chốt/push, không có secret hoặc dữ liệu thử nghiệm |
-| BASE-02, E2E-01 | API `f0bc90f` đã lên domain chính, 18 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
+| BASE-02, E2E-01 | API `0c21f9f` đã lên domain chính, 19 smoke đạt; DB hiện có 11 migration, không thêm migration; readiness có secret chưa kiểm tra được |
 | E2E-02…05 | APK sửa Samsung được người thử ghi R-01…R-05 đạt; R-06 media chưa đạt nghiệm thu; còn thiết bị thứ hai |
 | SAFE-01/02 | Kiểm thử tích hợp phân quyền/auth/scoring và chống nộp trùng đã đạt trên PostgreSQL cách ly |
 | SAFE-03 | Đã rollout limiter, quota/ngày, công tắc dừng và giới hạn AI đồng thời qua PostgreSQL; kiểm chứng local đạt, chưa thử provider/tải thật; ngân sách tiền/cảnh báo chưa hoàn tất |
@@ -100,3 +101,5 @@ Cập nhật sau báo lỗi PDF scan: `aea97e2` đã rollout; 133 unit/19 integr
 Cập nhật tiếp: `f0bc90f` đã rollout chức năng gắn ảnh vào tác vụ và xuất bản ảnh/audio sang Kho bài, 146 unit/24 integration/build/18 smoke trước và sau promote đạt. Ảnh lưu vào tác vụ; phiên bản/quan hệ đóng góp ngăn ghi đè khi gửi đồng thời. Copy có điều kiện ETag, giao dịch DB và dọn copy lỗi đã kiểm chứng bằng API thật trên PostgreSQL + S3 loopback. Chưa nghiệm thu tài khoản ADMIN/R2/điện thoại thật; cắt ảnh/chia audio vẫn thủ công. Không nâng trạng thái beta chỉ vì kiểm thử đạt. Chi tiết tại `LISTENING_IMAGES_2026-10-08.md`.
 
 Chuẩn bị nghiệm thu nội dung thật: đã cắt/render và kiểm tra đủ 11 ảnh cần thiết từ PDF ETS người dùng cung cấp, đóng gói cục bộ theo số câu, kiểm tra SHA-256/PNG/ZIP đạt. Ảnh chưa được upload hoặc công khai; đáp án và audio khớp nhóm vẫn chờ hoàn thiện. Kết quả/đường dẫn tại `ETS_MEDIA_PREPARATION_2026-10-08.md`; không thay đổi runtime hoặc mở cổng beta.
+
+Cập nhật audio nhóm: `0c21f9f` đã rollout, 150 unit/29 integration/build/19 HTTP smoke trước và sau promote đạt. ADMIN có thể thay đoạn audio riêng của từng nhóm; APK hiện có nhận `group.audioUrl` như trước. Không tự cắt MP3, không thêm migration hoặc công khai bộ ETS. Đáp án, đoạn audio khớp nhóm, nghiệm thu ADMIN/R2/thiết bị và các cổng vận hành/beta vẫn còn mở; xem `GROUP_AUDIO_2026-10-08.md`.

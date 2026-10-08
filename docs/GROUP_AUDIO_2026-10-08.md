@@ -29,3 +29,9 @@ Trang Duyệt nội dung liệt kê từng audio với tên file và số nhóm 
 Chưa cắt/chọn mốc cho MP3 ETS thật, chưa nhận file đáp án 1-100, chưa nghiệm thu OCR provider/ADMIN upload-R2/Kho bài trên điện thoại. Bộ 11 ảnh local đã chuẩn bị tại `ETS_MEDIA_PREPARATION_2026-10-08.md` chưa được công khai. Không coi bộ ETS hoàn chỉnh hoặc mở beta chỉ vì test đạt.
 
 Bản rollback trước khi triển khai là `f0bc90f` (`dpl_FDgketUQrPGQj62jjd87kvETRNiu`). Bản đó chưa nhận audio riêng của nhóm, nên rollback phải dừng gửi/duyệt tác vụ mới có clip và bảo toàn dữ liệu; không xóa media/job để né lỗi. Không có migration nhưng cần kiểm tra dữ liệu pending và ưu tiên sửa tiến.
+
+## Rollout đã kiểm chứng
+
+Source `0c21f9f` trên nhánh `codex/release-readiness` đã push. Deployment `dpl_4Jjpy2Lak7ZcTwrp4aboKtmh6aKf`, URL `https://toeic-mini-trainer-nawna5g5a-le-dinh-bao-s-projects.vercel.app`, READY và đã promote lên `https://toeic-mini-trainer.vercel.app`. 19/19 HTTP smoke trước và sau promote đạt; bundle admin thật xác nhận gắn/nghe/khôi phục audio nhóm, gắn/xem ảnh, PDF 50 MiB và cảnh báo thiếu key. Payload 149 tệp/đủ 125 app-types-prisma, loại trừ env, nguồn ETS/ảnh local/backup/APK/mobile/tests. Không migrate/seed DB hoặc công khai bộ ETS.
+
+Bằng chứng local: `Test/vercel-deploy-dry-audio.json`, `Test/vercel-protected-smoke-0c21f9f.txt`, `Test/vercel-promoted-smoke-0c21f9f.txt`, `Test/vercel-audio-protected-bundle.json`, `Test/vercel-audio-canonical-bundle.json`. Helper đọc tên chunk từ HTML phục vụ thực tế, không đoán hash/chọn chunk của bản local. Remote CI/branch protection vẫn chưa xác minh. Integration còn cảnh báo pg về query đồng thời trong client khi nâng lên pg 9; không thay driver/dependency trong bản này.
