@@ -3,14 +3,16 @@
 ## Phiên bản cần thử
 
 - API: `https://toeic-mini-trainer.vercel.app`, deployment `dpl_pkxkgnfd37piBSPEairecse3Bgs8`, source `5107b97`.
-- APK: EAS build `d2e40383-bd61-407d-9ad5-2081468f4165`, source `5107b97`; chỉ bắt đầu sau khi build FINISHED.
+- APK: EAS build `d2e40383-bd61-407d-9ad5-2081468f4165`, source `5107b97`; đã FINISHED lúc 11:28:48 ngày 08/10/2026 (giờ Việt Nam).
+- [Tải APK preview mới](https://expo.dev/artifacts/eas/NKPUbumhVf4OlvVD_Tg25msKN4tJIpOr3G-O7N4TIyc.apk).
+- SHA-256: `8363EDB6E48C2CA09D94AE21ECA8D5C12F129E3598AF3D491E221B4DAFB823FB`; dung lượng 114.508.403 byte. Bản local tại `Test/release-5107b97.apk` đã kiểm tra manifest, classes.dex và thư viện arm64-v8a.
 - Package: `com.toeicminitrainer.app`; signing sẵn có; bản preview nội bộ, không phát hành store.
 - Không dùng APK nền `24b9d6e` để xác nhận đã có bản vá Expo mới.
 
 ## Thông tin người thử điền
 
 - Ngày/giờ:
-- Model điện thoại, phiên bản Android:
+- Model điện thoại, phiên bản Android: Samsung S23 FE, Android 16 / One UI 8.5 (chủ dự án cung cấp).
 - Wi-Fi/4G và loại mạng lúc phát sinh lỗi:
 - Đã cài APK mới, Metro/dev server tắt: chưa xác minh.
 
