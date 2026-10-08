@@ -9,6 +9,8 @@
 /node_modules/
 /mobile/
 /Test/
+/output/
+/tmp/pdfs/
 /public/uploads/
 /app/generated/
 /coverage/

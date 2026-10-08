@@ -75,7 +75,7 @@ Mục tiêu vận hành đề xuất: RPO ≤24 giờ, RTO ≤4 giờ. Cần ngh
 
 ## 6. Những điều chưa được coi là hoàn tất
 
-- Backup/cloud restore, cảnh báo và dashboard chi phí trên tài khoản thật.
+- Backup định kỳ/offsite/PITR và R2, cảnh báo và dashboard chi phí trên tài khoản thật; backup DB thật/restore cách ly thủ công đã có bằng chứng riêng.
 - APK/Google OAuth, upload/OCR/audio thật của build mới trên điện thoại.
 - Bộ nội dung có quyền sử dụng đủ cho beta và người kiểm duyệt.
 - Beta 10–20 người trong hai tuần; chính sách xóa dữ liệu, support và hồ sơ store.

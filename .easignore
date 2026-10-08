@@ -12,6 +12,8 @@
 /.codex/
 /.agents/
 /Test/
+/output/
+/tmp/pdfs/
 /public/uploads/
 /app/generated/prisma/
 /next-env.d.ts

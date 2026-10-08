@@ -13,7 +13,7 @@ if (tracked.error || tracked.status !== 0) throw new Error("Cannot verify tracke
 const expected = tracked.stdout.split("\0").filter(Boolean);
 if (!expected.length) throw new Error("No tracked application sources found.");
 const missing = expected.filter((path) => !files.includes(path));
-const excluded = files.filter((path) => /(?:^|\/)\.env[^/]*$|^(?:Test|mobile|node_modules|\.next|\.git|public\/uploads|tests|docs|scripts)\/|\.(?:apk|aab|pem|key|jks|p12)$/.test(path));
+const excluded = files.filter((path) => /(?:^|\/)\.env[^/]*$|^(?:Test|mobile|node_modules|\.next|\.git|public\/uploads|tests|docs|scripts|output|tmp\/pdfs)\/|\.(?:apk|aab|pem|key|jks|p12)$/.test(path));
 if (missing.length || excluded.length) {
   throw new Error(`Invalid deployment payload. Missing application files: ${missing.join(", ")}. Excluded files present: ${excluded.join(", ")}.`);
 }
