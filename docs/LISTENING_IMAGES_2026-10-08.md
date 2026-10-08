@@ -34,3 +34,9 @@ Không ghi Neon/R2 thật trong test. Chưa thay thế nghiệm thu trình duy�
 - Cắt ảnh từ PDF và chia audio/mốc thời gian vẫn thủ công; bản này hỗ trợ gắn ảnh đã chuẩn bị, không tự làm các bước đó.
 - Kiểm tra các biểu đồ và ảnh đúng nhóm, nội dung/đáp án/quyền chia sẻ trước công khai. Sau đó thử Kho bài trên S23 FE qua Wi-Fi/4G và thiết bị Android thứ hai.
 - Vận hành/offsite backup/cảnh báo provider/tải/beta vẫn là các cổng còn mở trong `IMPLEMENTATION_STATUS_2026-10-08.md`.
+
+## Rollout đã kiểm chứng
+
+Source `f0bc90f`, nhánh `codex/release-readiness`, đã push. Deployment `dpl_FDgketUQrPGQj62jjd87kvETRNiu` READY và đã promote lên `https://toeic-mini-trainer.vercel.app`. 18/18 HTTP smoke đạt trước và sau promote; bundle thực ở cả hai URL có gắn/xem ảnh, PDF 50 MiB và cảnh báo thiếu key. Payload 147 tệp/đủ 123 app-types-prisma, không có env/nguồn mẫu/backup/APK. Log cục bộ `Test/unit-images-final.txt`, `Test/integration-images-final.txt`, `Test/build-images-final.txt`, `Test/vercel-protected-smoke-f0bc90f.txt`, `Test/vercel-promoted-smoke-f0bc90f.txt`, `Test/vercel-images-canonical-bundle.json`.
+
+Bản trước: `aea97e2`, deployment `dpl_7WjBJYxSd87J4CWMgEWC8XzR83HS`, URL `https://toeic-mini-trainer-p3dxwsfpa-le-dinh-bao-s-projects.vercel.app`. Không có migration. Rollback mất chức năng gắn/xuất bản ảnh cho tác vụ pending; không xóa ảnh/job để né lỗi, ưu tiên dừng ingestion và sửa tiến nếu đã có dữ liệu mới.
