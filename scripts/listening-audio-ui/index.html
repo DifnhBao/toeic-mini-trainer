@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Chuẩn bị audio Listening</title><link rel="stylesheet" href="/tool.css"></head>
+<body><main>
+<header><p class="eyebrow">TOEIC MINI TRAINER · CÔNG CỤ TRÊN MÁY TÍNH</p><h1>Chia audio cho từng bài nghe</h1><p id="source">Đang mở file…</p></header>
+<aside>Part 1–2: một đoạn cho mỗi câu, gồm câu hỏi và toàn bộ lựa chọn. Part 3–4: giữ chung hội thoại/bài nói và phần đọc ba câu hỏi. Nghe đối chiếu số câu trong PDF trước khi xuất.</aside>
+<div class="layout"><section class="groups"><h2>Chọn nhóm câu</h2><div id="groups"></div><p id="progress"></p></section>
+<section class="editor"><h2 id="title">Đang tải…</h2><p>1. Nghe file gốc để tìm đúng câu. Dùng thanh tua hoặc nhập vị trí.</p>
+<audio id="audio" controls preload="metadata"></audio>
+<div class="row"><label>Đến vị trí <input id="seek" placeholder="mm:ss" aria-label="Vị trí nghe"></label><button id="go">Đi đến</button><button id="back">Lùi 5 giây</button><button id="forward">Tiến 5 giây</button><label>Tốc độ <select id="speed"><option value="1">1×</option><option value="0.75">0,75×</option><option value="1.25">1,25×</option></select></label></div>
+<p>2. Đánh dấu đầu trước khi đọc số câu; đánh dấu cuối sau lựa chọn cuối hoặc sau nhóm ba câu hỏi. Giữ một khoảng lặng ngắn ở hai đầu.</p>
+<div class="marks"><label>Bắt đầu <input id="start" placeholder="mm:ss.mmm" inputmode="decimal"></label><button id="mark-start">Lấy vị trí hiện tại làm đầu</button><label>Kết thúc <input id="end" placeholder="mm:ss.mmm" inputmode="decimal"></label><button id="mark-end">Lấy vị trí hiện tại làm cuối</button></div>
+<p id="length"></p><div class="row"><button id="preview">Nghe thử đoạn đã chọn</button><button id="save">Lưu mốc để làm tiếp</button></div>
+<p>3. Kiểm tra đoạn bắt đầu đúng câu, không mất tiếng và không lẫn câu kế tiếp.</p>
+<label class="confirm"><input type="checkbox" id="reviewed"> Tôi đã nghe, đối chiếu PDF và xác nhận đúng đoạn cho nhóm này.</label>
+<button id="export" class="primary" disabled>Xuất MP3 cho nhóm này</button>
+<p id="status" role="status" aria-live="polite"></p><div id="result"></div>
+</section></div>
+<footer><strong>Sau khi xuất:</strong> trên trang Nhập đề, chọn đúng nhóm → Gắn audio riêng cho nhóm → chọn MP3 vừa xuất → Nghe audio của nhóm → duyệt lại các câu. Không bấm “Dùng audio nguồn”, vì nút đó gắn lại file dài ban đầu.<p id="output"></p><p>File nguồn được giữ nguyên. Audio và mốc cắt chỉ lưu trên máy này; công cụ không tự upload hoặc xuất bản nội dung.</p></footer>
+</main><script type="module" src="/tool.js"></script></body></html>
