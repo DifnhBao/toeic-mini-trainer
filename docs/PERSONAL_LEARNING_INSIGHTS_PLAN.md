@@ -26,7 +26,7 @@ Nghiệm thu: API private/no-store, web build và Android bundle/typecheck đạ
 ## Giai đoạn 3 — Kiểm chứng với người học và cải tiến
 
 1. Chủ dự án nghiệm thu trên Samsung S23 FE: làm/nộp hai Part, mở phân tích, kiểm số câu/đề xuất, đổi tài khoản và mất mạng/thử lại.
-2. Chuẩn hóa nhãn kỹ năng trong kho, rà soát độ khó/phạm vi nội dung; cần bổ sung công cụ ADMIN quản lý/gắn nhãn vì schema đã có SkillTag nhưng luồng nhập hiện chưa ghi nhãn. Chỉ sau đó mở rộng đề xuất tới kỹ năng cụ thể hoặc chọn câu theo nhãn. Giao diện hiện báo độ phủ và không tự gán nhãn cho dữ liệu cũ.
+2. Chuẩn hóa nhãn kỹ năng trong kho, rà soát độ khó/phạm vi nội dung. Công cụ ADMIN gắn nhãn từng câu kho chung đã bổ sung ở mã nguồn, với 15 nhãn có tiêu chí theo Part, lý do/audit và kiểm tra tab cũ; xem [ADMIN_SKILL_TAGGING_2026-10-09.md](ADMIN_SKILL_TAGGING_2026-10-09.md). Chưa phát hành/gắn nhãn dữ liệu thật; luồng nhập bản nháp hiện chưa ghi nhãn, nhãn cũ ngoài từ điển được giữ để rà riêng. Chỉ sau khi nội dung được kiểm chứng mới mở rộng đề xuất tới kỹ năng cụ thể hoặc chọn câu theo nhãn. Giao diện hiện báo độ phủ và không tự gán nhãn cho dữ liệu cũ.
 3. Theo dõi 2 tuần: người học có hiểu lý do đề xuất, có luyện Part được đề nghị, tỷ lệ bỏ trống và kết quả trên câu mới thay đổi thế nào. Không dùng lượt làm lại cùng câu để khẳng định hiệu quả học tập.
 4. Sau khi có dữ liệu kiểm chứng mới xem xét lịch ôn câu sai/spaced repetition và mục tiêu cá nhân. AI diễn giải là tùy chọn sau, phải có ngân sách/quyền rõ ràng; bản đầu không cần model hoặc dịch vụ trả phí.
 
