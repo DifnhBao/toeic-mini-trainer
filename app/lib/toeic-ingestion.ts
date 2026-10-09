@@ -2,7 +2,7 @@ import { safeErrorType } from "./server-error-log";
 import { requestIdFields } from "./request-trace";
 import { GoogleGenAI, Type } from "@google/genai";
 import { preparePdfExtraction } from "@/app/lib/pdf-extraction-input";
-import { MAX_INGESTION_OCR_BYTES, MAX_INGESTION_TEXT_CHARS } from "@/app/lib/ingestion-limits";
+import { isIngestionPaused, MAX_INGESTION_OCR_BYTES, MAX_INGESTION_TEXT_CHARS } from "@/app/lib/ingestion-limits";
 import { PdfPageSelectionError, selectPdfPages } from "@/app/lib/pdf-page-selection";
 import { generatedQuestionsSchema, type ExtractedData } from "@/app/lib/question-import";
 import { readStoredObject } from "@/app/lib/object-storage";
@@ -12,6 +12,12 @@ import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@
 import { UPLOAD_RULES } from "@/app/lib/upload-policy";
 
 const ai = new GoogleGenAI({});
+
+class IngestionPausedError extends Error {}
+
+function requireIngestionEnabled() {
+  if (isIngestionPaused()) throw new IngestionPausedError();
+}
 
 class IngestionProcessingError extends Error {
   constructor(public readonly code: string) {
@@ -72,13 +78,16 @@ ${ocrBytes ? `PDF đính kèm chứa các trang gốc ${ocrPageNumbers.join(", "
 <document>\n${rawText}\n</document>`;
 
   let responseText: string;
-  if (process.env.INGESTION_ENABLED === "false") {
-    throw new IngestionProcessingError("AI_DAILY_LIMIT");
-  }
+  requireIngestionEnabled();
   try {
     const response = await withAiProviderCapacity({
       timeoutMs: 240_000,
-      allow: consumeGlobalAiCall,
+      allow: () => {
+        // Capacity acquisition can wait for a DB lock. Check the switches
+        // again before reserving a paid provider call.
+        requireIngestionEnabled();
+        return consumeGlobalAiCall();
+      },
       generate: (providerConfig) => ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: ocrBytes
@@ -139,6 +148,7 @@ ${ocrBytes ? `PDF đính kèm chứa các trang gốc ${ocrPageNumbers.join(", "
 
     responseText = response.text || "";
   } catch (error) {
+    if (error instanceof IngestionPausedError) throw error;
     if (error instanceof AiCapacityError) throw error;
     if (error instanceof AiQuotaExceededError) throw new IngestionProcessingError("AI_DAILY_LIMIT");
     const status = typeof error === "object" && error !== null && "status" in error
@@ -181,6 +191,8 @@ export async function processIngestionJob(jobId: string, dependencies = {
   extract: extractQuestions,
 }, requestId?: string) {
   const { database, readDocument, extract } = dependencies;
+  // Pausing service must preserve queued documents and their retry allowance.
+  if (isIngestionPaused()) return;
   const claimed = await database.ingestionJob.updateManyAndReturn({
     where: { id: jobId, status: "PENDING", attemptCount: { lt: 3 } },
     data: { status: "PROCESSING", startedAt: new Date(), attemptCount: { increment: 1 } },
@@ -192,6 +204,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
   const claim = { id: jobId, status: "PROCESSING" as const, startedAt: claimed[0].startedAt, attemptCount: claimed[0].attemptCount };
 
   try {
+    requireIngestionEnabled();
     const job = await database.ingestionJob.findUnique({
       where: claim,
       include: { documentAsset: true, audioAsset: true },
@@ -205,6 +218,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
     }
 
     const documentBytes = await readDocument(job.documentAsset.objectKey, UPLOAD_RULES.DOCUMENT.maxBytes);
+    requireIngestionEnabled();
     const result: ExtractedData = await extract(
       documentBytes,
       job.audioAssetId,
@@ -221,9 +235,11 @@ export async function processIngestionJob(jobId: string, dependencies = {
       },
     });
   } catch (error) {
-    if (error instanceof AiCapacityError && error.code === "AI_BUSY") {
-      // No provider call or daily reservation occurred. Keep the uploaded
-      // document and let a later worker trigger retry without spending an attempt.
+    if (error instanceof IngestionPausedError ||
+      (error instanceof AiCapacityError && (error.code === "AI_BUSY" ||
+        (error.code === "AI_CAPACITY_UNAVAILABLE" && isIngestionPaused())))) {
+      // No provider call or daily reservation occurred in these branches.
+      // Keep the document and retry allowance, but only while owning this claim.
       await database.ingestionJob.updateMany({
         where: claim,
         data: { status: "PENDING", startedAt: null, completedAt: null, errorCode: null, attemptCount: { decrement: 1 } },

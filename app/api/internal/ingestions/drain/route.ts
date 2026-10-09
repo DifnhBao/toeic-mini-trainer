@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { prisma } from "@/app/lib/prisma";
 import { AI_LEASE_PREFIX } from "@/app/lib/ai-provider-capacity";
+import { isIngestionPaused } from "@/app/lib/ingestion-limits";
 import {
   isAuthorizedIngestionWorker,
   isIngestionWorkerConfigured,
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
   if (!isAuthorizedIngestionWorker(request.headers.get("authorization"))) {
     return apiError("UNAUTHORIZED", "Không có quyền chạy worker.", 401);
   }
+  if (isIngestionPaused()) return apiJson({ queued: false, paused: true });
 
   try {
     // A Vercel invocation may be terminated before it can mark a job FAILED.

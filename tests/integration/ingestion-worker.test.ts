@@ -18,6 +18,9 @@ let prisma: PrismaClient;
 let ingestion: typeof import("../../app/lib/toeic-ingestion");
 let capacity: typeof import("../../app/lib/ai-provider-capacity");
 let getJob: typeof import("../../app/api/v1/ingestions/[id]/route");
+let drain: typeof import("../../app/api/internal/ingestions/drain/route");
+const originalFlags = { AI_ENABLED: process.env.AI_ENABLED, INGESTION_ENABLED: process.env.INGESTION_ENABLED };
+const originalWorkerSecret = process.env.INGESTION_WORKER_SECRET;
 const owner = randomUUID(), asset = randomUUID();
 const jobs = new Set<string>();
 function deferred<T>() {
@@ -30,19 +33,128 @@ function result(label: string): ExtractedData {
   return { data: [{ questions: [{ part: 5, content: label, options: { A: "a", B: "b", C: "c", D: "d" }, correctAnswer: "A" }] }] };
 }
 before(async () => {
+  process.env.AI_ENABLED = "true";
+  process.env.INGESTION_ENABLED = "true";
   prisma = (await import("../../app/lib/prisma")).prisma;
   ingestion = await import("../../app/lib/toeic-ingestion");
   capacity = await import("../../app/lib/ai-provider-capacity");
   getJob = await import("../../app/api/v1/ingestions/[id]/route");
+  drain = await import("../../app/api/internal/ingestions/drain/route");
   await prisma.user.create({ data: { id: owner, email: `${owner}@worker-race.invalid`, role: "ADMIN" } });
   await prisma.uploadedAsset.create({ data: { id: asset, ownerId: owner, kind: "DOCUMENT", status: "READY", objectKey: `worker-race/${asset}`, originalName: "synthetic.pdf", contentType: "application/pdf", sizeBytes: 3 } });
 });
 after(async () => {
+  for (const flag of ["AI_ENABLED", "INGESTION_ENABLED"] as const) {
+    if (originalFlags[flag] === undefined) delete process.env[flag];
+    else process.env[flag] = originalFlags[flag];
+  }
+  if (originalWorkerSecret === undefined) delete process.env.INGESTION_WORKER_SECRET;
+  else process.env.INGESTION_WORKER_SECRET = originalWorkerSecret;
   if (!prisma) return;
   await prisma.ingestionJob.deleteMany({ where: { id: { in: [...jobs] } } });
   await prisma.uploadedAsset.deleteMany({ where: { id: asset } });
   await prisma.user.deleteMany({ where: { id: owner } });
   await prisma.$disconnect();
+});
+
+describe("ingestion pause preserves queued work", () => {
+  for (const flag of ["AI_ENABLED", "INGESTION_ENABLED"] as const) {
+    it(`does not claim or read a pending job while ${flag} is disabled, then resumes`, async () => {
+      const id = await job(1);
+      const snapshot = await prisma.ingestionJob.findUniqueOrThrow({ where: { id } });
+      const quotaSnapshot = await prisma.userAiUsage.findMany({ orderBy: { key: "asc" } });
+      let reads = 0, extracts = 0;
+      const dependencies = { database: prisma,
+        readDocument: async () => { reads++; return Buffer.from("pdf"); },
+        extract: async () => { extracts++; return result("Resumed queued document"); } };
+      process.env[flag] = "false";
+      try {
+        await ingestion.processIngestionJob(id, dependencies);
+        assert.deepEqual(await prisma.ingestionJob.findUniqueOrThrow({ where: { id } }), snapshot);
+        assert.deepEqual(await prisma.userAiUsage.findMany({ orderBy: { key: "asc" } }), quotaSnapshot);
+        assert.equal(reads, 0); assert.equal(extracts, 0);
+      } finally { process.env[flag] = "true"; }
+      await ingestion.processIngestionJob(id, dependencies);
+      const actual = await prisma.ingestionJob.findUniqueOrThrow({ where: { id } });
+      assert.equal(actual.status, "COMPLETED"); assert.equal(actual.attemptCount, 2);
+      assert.equal(reads, 1); assert.equal(extracts, 1);
+    });
+
+    it(`requeues without spending an attempt when ${flag} is disabled during document read`, async () => {
+      const id = await job(1); let extracts = 0;
+      try {
+        await ingestion.processIngestionJob(id, { database: prisma,
+          readDocument: async () => { process.env[flag] = "false"; return Buffer.from("pdf"); },
+          extract: async () => { extracts++; return result("Must not extract while paused"); } });
+        const actual = await prisma.ingestionJob.findUniqueOrThrow({ where: { id } });
+        assert.equal(actual.status, "PENDING"); assert.equal(actual.attemptCount, 1);
+        assert.equal(actual.startedAt, null); assert.equal(actual.completedAt, null);
+        assert.equal(actual.errorCode, null); assert.equal(actual.result, null);
+        assert.equal(extracts, 0);
+      } finally { process.env[flag] = "true"; }
+      await run(id, async () => result("Resumed after document read"));
+      assert.equal((await prisma.ingestionJob.findUniqueOrThrow({ where: { id } })).status, "COMPLETED");
+    });
+  }
+
+  it("does not refund or requeue a replacement when an old paused worker returns", async () => {
+    const id = await job();
+    const reading = deferred<void>(), releaseRead = deferred<Uint8Array>();
+    const entered = deferred<void>(), releaseExtract = deferred<ExtractedData>();
+    const old = ingestion.processIngestionJob(id, { database: prisma,
+      readDocument: () => { reading.resolve(); return releaseRead.promise; },
+      extract: async () => { assert.fail("Old paused worker must not extract"); } });
+    let replacement: Promise<void> | undefined;
+    try {
+      await reading.promise; await retryWhileOldWorkerIsAlive(id);
+      replacement = run(id, () => { entered.resolve(); return releaseExtract.promise; });
+      await entered.promise;
+      const snapshot = await prisma.ingestionJob.findUniqueOrThrow({ where: { id } });
+      process.env.INGESTION_ENABLED = "false";
+      releaseRead.resolve(Buffer.from("pdf")); await old;
+      assert.deepEqual(await prisma.ingestionJob.findUniqueOrThrow({ where: { id } }), snapshot);
+    } finally {
+      process.env.INGESTION_ENABLED = "true";
+      releaseRead.resolve(Buffer.from("pdf")); releaseExtract.resolve(result("Replacement survives pause"));
+      await Promise.allSettled([old, ...(replacement ? [replacement] : [])]);
+    }
+    const actual = await prisma.ingestionJob.findUniqueOrThrow({ where: { id } });
+    assert.equal(actual.status, "COMPLETED"); assert.equal(actual.attemptCount, 2);
+  });
+
+  it("refunds capacity rejection caused by a pause but keeps real capacity errors failed", async () => {
+    for (const paused of [true, false]) {
+      const id = await job();
+      try {
+        await run(id, async () => {
+          if (paused) process.env.AI_ENABLED = "false";
+          throw new capacity.AiCapacityError("AI_CAPACITY_UNAVAILABLE");
+        });
+        const actual = await prisma.ingestionJob.findUniqueOrThrow({ where: { id } });
+        assert.equal(actual.status, paused ? "PENDING" : "FAILED");
+        assert.equal(actual.attemptCount, paused ? 0 : 1);
+        assert.equal(actual.errorCode, paused ? null : "INGESTION_FAILED");
+      } finally { process.env.AI_ENABLED = "true"; }
+    }
+  });
+
+  it("keeps worker authentication while paused and reports the queue as paused", async () => {
+    const id = await job();
+    const snapshot = await prisma.ingestionJob.findUniqueOrThrow({ where: { id } });
+    process.env.INGESTION_WORKER_SECRET = "integration-only-worker-secret-at-least-32-characters";
+    const request = (authorized: boolean) => new Request("https://integration.invalid/drain", { method: "POST",
+      headers: authorized ? { authorization: `Bearer ${process.env.INGESTION_WORKER_SECRET}` } : {} });
+    process.env.INGESTION_ENABLED = "false";
+    try {
+      assert.equal((await drain.POST(request(false))).status, 401);
+      const response = await drain.POST(request(true));
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { queued: false, paused: true });
+      assert.deepEqual(await prisma.ingestionJob.findUniqueOrThrow({ where: { id } }), snapshot);
+      delete process.env.INGESTION_WORKER_SECRET;
+      assert.equal((await drain.POST(request(true))).status, 503);
+    } finally { process.env.INGESTION_ENABLED = "true"; }
+  });
 });
 async function job(attemptCount = 0) {
   const id = randomUUID(); jobs.add(id);
