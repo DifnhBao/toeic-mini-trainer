@@ -1,3 +1,4 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { importExtractedQuestions } from "@/app/lib/question-import";
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       );
     }
     console.error("question import failed", {
-      errorType: error instanceof Error ? error.name : "unknown",
+      errorType: safeErrorType(error),
     });
     return NextResponse.json(
       { error: "Không thể lưu dữ liệu; giao dịch đã được hoàn tác." },

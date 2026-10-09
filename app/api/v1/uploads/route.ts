@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/app/lib/prisma";
 import { requestUser } from "@/app/lib/request-user";
 import { hasRole } from "@/app/lib/authorization";
+import { logServerError } from "@/app/lib/server-error-log";
 
 export const runtime = "nodejs";
 
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     if (error instanceof ObjectStorageConfigurationError) {
       return apiError("STORAGE_UNAVAILABLE", "Kho file chưa được cấu hình.", 503);
     }
-    console.error("create upload intent failed", error);
+    logServerError("upload.intent.failed", error);
     return apiError("UPLOAD_INTENT_FAILED", "Không thể chuẩn bị upload.", 503);
   }
 }

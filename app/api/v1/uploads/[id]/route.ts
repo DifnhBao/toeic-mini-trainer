@@ -8,6 +8,7 @@ import {
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { requestUser } from "@/app/lib/request-user";
+import { logServerError } from "@/app/lib/server-error-log";
 
 export const runtime = "nodejs";
 
@@ -53,7 +54,7 @@ export async function GET(
     if (error instanceof ObjectStorageConfigurationError) {
       return apiError("STORAGE_UNAVAILABLE", "Kho file chưa được cấu hình.", 503);
     }
-    console.error("create asset read URL failed", error);
+    logServerError("upload.read.failed", error);
     return apiError("ASSET_READ_FAILED", "Không thể mở file.", 503);
   }
 }

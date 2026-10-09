@@ -12,6 +12,7 @@ import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { requestUser } from "@/app/lib/request-user";
 import { hasRole } from "@/app/lib/authorization";
+import { logServerError } from "@/app/lib/server-error-log";
 
 export const runtime = "nodejs";
 
@@ -49,7 +50,7 @@ export async function POST(
     const verification = await verifyStoredObject(asset);
     if (!verification.valid) {
       await deleteStoredObject(asset.objectKey).catch((deleteError) => {
-        console.error("invalid upload cleanup failed", deleteError);
+        logServerError("upload.invalid_cleanup.failed", deleteError);
       });
       await prisma.uploadedAsset.updateMany({
         where: { id: asset.id, ownerId: user.id, status: "PENDING" },
@@ -72,7 +73,7 @@ export async function POST(
     });
     if (promoted.count > 0) {
       await deleteStoredObject(asset.objectKey).catch((deleteError) => {
-        console.error("staging upload cleanup failed", deleteError);
+        logServerError("upload.staging_cleanup.failed", deleteError);
       });
     }
     return apiJson({ asset: { id: asset.id, status: "READY" as const } });
@@ -83,7 +84,7 @@ export async function POST(
     if (error instanceof ObjectStorageConfigurationError) {
       return apiError("STORAGE_UNAVAILABLE", "Kho file chưa được cấu hình.", 503);
     }
-    console.error("complete upload failed", error);
+    logServerError("upload.complete.failed", error);
     return apiError("UPLOAD_VERIFICATION_FAILED", "Không thể xác minh file.", 503);
   }
 }

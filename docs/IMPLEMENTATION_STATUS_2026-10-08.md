@@ -18,7 +18,7 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 186 kiểm thử đạt; không dùng DB/provider thật; gồm 21 kiểm thử phiên Android đến muộn/storage/đổi tài khoản, chín kiểm thử restore media loopback mới, cùng các guard HTTP, audio nhóm, PDF 50 MiB và backup R2 đã có |
+| Unit/regression | 189 kiểm thử đạt; không dùng DB/provider thật; gồm 21 kiểm thử phiên Android đến muộn/storage/đổi tài khoản, chín kiểm thử restore media loopback và ba kiểm thử giới hạn dữ liệu log lỗi mới, cùng các guard HTTP, audio nhóm, PDF 50 MiB và backup R2 đã có |
 | PostgreSQL integration | 44 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm chín kiểm thử refresh/logout/reuse/rollback, sáu race timeout/retry worker, thống kê, Kho bài, upload/gắn/xuất bản ảnh và audio riêng theo nhóm, dedup và rollback với S3 loopback |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
@@ -120,3 +120,5 @@ Nghiệm thu file thật 09/10: đã upload và OCR/lưu/mở lại thành công
 Bổ sung sau đó 09/10: chủ dự án đã cung cấp ảnh đáp án Test 1. Đã chuẩn hóa cục bộ đủ 100 đáp án Listening, đối chiếu theo hàng/cột và kiểm tra phân bố Part/đáp án Part 2 đạt; chưa nhập lên web hoặc duyệt. Lần kiểm tra sau lời đề nghị cấp lại Browser Use vẫn bị quyền từ chối đã lưu chặn origin. Ảnh/key/media chỉ chuẩn bị local; không coi đây là nghiệm thu full bộ đề hoặc mở beta. Bằng chứng và bước ghép key theo số câu nguồn tại [ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md](ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md).
 
 Bổ sung phục hồi media 09/10: công cụ mới chỉ nhận endpoint loopback, tạo bucket UUID mới, kiểm tra backup trước ghi và không báo thành công nếu cleanup lỗi. Bản backup đã phê duyệt 16 file/18.948.378 byte qua restore/read/hash/metadata/16 range bằng S3 HTTP fixture trong bộ nhớ, dọn dữ liệu/listener đạt; không ghi cloud/plaintext đĩa. 186 unit, TypeScript và lint các tệp sửa đạt; không deploy API hoặc build lại APK vì không đổi runtime ứng dụng. Backend/bucket private thật, liên kết DB/media, snapshot nhất quán, định kỳ/offsite và RPO/RTO vẫn mở. Chi tiết tại [R2_LOCAL_RESTORE_2026-10-09.md](R2_LOCAL_RESTORE_2026-10-09.md).
+
+Bổ sung log lỗi 09/10: bỏ bảy log truyền Error thô trong upload/media/đọc bài; loại lỗi ở các log AI/auth/ingestion/đóng góp/capacity và hook Next đều qua allowlist, không serialize error/stack/cause/metadata hoặc tên lớp tùy ý. 189 unit, TypeScript, lint (ba cảnh báo img cũ), production build Webpack 41/41 đạt. Chưa deploy bản này; API live vẫn `ff80432`, APK không đổi. GitHub connector tiếp tục trả 404 và chưa có installation cho chủ repo; người dùng chọn cấp quyền, cần hoàn tất kết nối rồi mới kiểm tra CI/branch protection. Không suy ra CI xanh từ SSH push. Chi tiết và giới hạn OPS-03 tại [SERVER_LOG_PRIVACY_2026-10-09.md](SERVER_LOG_PRIVACY_2026-10-09.md).

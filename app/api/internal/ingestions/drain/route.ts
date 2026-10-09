@@ -1,3 +1,4 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
 import { after } from "next/server";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { prisma } from "@/app/lib/prisma";
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
     return apiJson({ queued: true }, { status: 202 });
   } catch (error) {
     console.error("ingestion worker sweep failed", {
-      errorType: error instanceof Error ? error.name : "unknown",
+      errorType: safeErrorType(error),
     });
     return apiError("WORKER_UNAVAILABLE", "Worker tạm thời không khả dụng.", 503);
   }

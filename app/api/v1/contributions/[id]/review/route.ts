@@ -1,3 +1,4 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { reviewContributionSchema, sharedQuestionDataSchema } from "@/app/lib/content-contributions";
@@ -134,7 +135,7 @@ export async function POST(
     if (error instanceof Error && error.message === "ASSET_OWNERSHIP_INVALID") {
       return apiError("MEDIA_UNAVAILABLE", "Media không còn sẵn sàng.", 409);
     }
-    console.error("contribution approval failed", { contributionId: id.data, errorType: error instanceof Error ? error.name : "unknown" });
+    console.error("contribution approval failed", { contributionId: id.data, errorType: safeErrorType(error) });
     return apiError("APPROVAL_FAILED", "Không thể duyệt đóng góp lúc này.", 500);
   }
 }

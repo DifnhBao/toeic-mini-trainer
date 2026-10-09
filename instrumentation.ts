@@ -1,4 +1,5 @@
 import type { Instrumentation } from "next";
+import { safeErrorType } from "./app/lib/server-error-log";
 
 // Structured server error events for the host log/alert pipeline. Never log
 // request bodies, headers, query strings, tokens or raw provider errors.
@@ -9,6 +10,6 @@ export const onRequestError: Instrumentation.onRequestError = (error, request, c
     method: request.method,
     route: context.routePath,
     routeType: context.routeType,
-    errorType: error instanceof Error ? error.name : "UnknownError",
+    errorType: safeErrorType(error),
   }));
 };

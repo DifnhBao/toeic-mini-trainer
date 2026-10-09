@@ -1,3 +1,4 @@
+import { safeErrorType } from "./server-error-log";
 import { GoogleGenAI, Type } from "@google/genai";
 import { preparePdfExtraction } from "@/app/lib/pdf-extraction-input";
 import { MAX_INGESTION_OCR_BYTES, MAX_INGESTION_TEXT_CHARS } from "@/app/lib/ingestion-limits";
@@ -39,7 +40,7 @@ async function extractQuestions(
     input = await preparePdfExtraction(section.bytes, section.pageStart);
   } catch (error) {
     console.error("document parse failed", {
-      errorType: error instanceof Error ? error.name : "unknown",
+      errorType: safeErrorType(error),
       parserCode:
         error instanceof Error && error.message.includes("bad XRef entry")
           ? "BAD_XREF_ENTRY"
@@ -231,7 +232,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
     const code = error instanceof IngestionProcessingError ? error.code : "INGESTION_FAILED";
     console.error("ingestion job failed", {
       jobId,
-      errorType: error instanceof Error ? error.name : "unknown",
+      errorType: safeErrorType(error),
     });
     await database.ingestionJob.updateMany({
       where: claim,

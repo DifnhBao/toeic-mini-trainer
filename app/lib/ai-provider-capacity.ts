@@ -1,3 +1,4 @@
+import { safeErrorType } from "./server-error-log";
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { GenerateContentConfig } from "@google/genai";
@@ -42,7 +43,7 @@ export async function acquireAiProviderLease(timeoutMs: number, database: Prisma
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, maxWait: 2_000, timeout: 5_000 });
   } catch (error) {
     if (error instanceof AiCapacityError) throw error;
-    console.error("ai.capacity.acquire.failed", { errorType: error instanceof Error ? error.name : "unknown" });
+    console.error("ai.capacity.acquire.failed", { errorType: safeErrorType(error) });
     throw new AiCapacityError("AI_CAPACITY_UNAVAILABLE");
   }
   return {
@@ -51,7 +52,7 @@ export async function acquireAiProviderLease(timeoutMs: number, database: Prisma
       // A late release only removes its own UUID, never a replacement lease.
       try { await database.userAiUsage.deleteMany({ where: { key } }); }
       catch (error) {
-        console.error("ai.capacity.release.failed", { errorType: error instanceof Error ? error.name : "unknown" });
+        console.error("ai.capacity.release.failed", { errorType: safeErrorType(error) });
         // Keep the lease until expiry; a completed answer must not be discarded.
       }
     },

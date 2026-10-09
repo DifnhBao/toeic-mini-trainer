@@ -1,3 +1,4 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof AiQuotaExceededError) return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt hỏi AI hôm nay.", 429);
     if (error instanceof AiCapacityError) return apiError(error.code, "AI Coach đang bận. Vui lòng thử lại sau.", 503, { "Retry-After": String(error.retryAfterSeconds) });
-    console.error("v1 AI coach error", { errorType: error instanceof Error ? error.name : "unknown" });
+    console.error("v1 AI coach error", { errorType: safeErrorType(error) });
     return apiError("AI_UNAVAILABLE", "AI Coach đang bận. Vui lòng thử lại sau ít phút.", 503);
   }
 }
