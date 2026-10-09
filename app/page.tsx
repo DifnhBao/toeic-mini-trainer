@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import AppHeader from "@/app/components/AppHeader";
 
@@ -83,11 +83,6 @@ export default function Dashboard() {
     ? loadedStats.summary
     : null;
 
-  const weakestPart = useMemo(() => {
-    if (!stats?.partStats.length) return null;
-    return [...stats.partStats].sort((a, b) => a.accuracy - b.accuracy)[0];
-  }, [stats]);
-
   function chooseMode(mode: string) {
     setSelectedPart(mode);
   }
@@ -150,7 +145,7 @@ export default function Dashboard() {
             <div className="divider" />
             <div className="section-heading compact-heading">
               <div><span className="step-kicker">02 · CHỌN PART</span><h2>Luyện đúng điểm cần cải thiện</h2></div>
-              {weakestPart && <button type="button" className="suggestion-link" onClick={() => setSelectedPart(String(weakestPart.part))}>Gợi ý: Part {weakestPart.part} · {weakestPart.accuracy}%</button>}
+              {stats && <Link href="/progress" className="suggestion-link">Xem đánh giá và gợi ý luyện tập →</Link>}
             </div>
             <div className="part-grid" role="group" aria-label="Chọn TOEIC Part">
               {partOptions.map((part) => (
@@ -176,7 +171,7 @@ export default function Dashboard() {
 
           <aside className="dashboard-side">
             <div className="progress-card dark-card">
-              <div className="progress-topline"><span>TIẾN ĐỘ CỦA BẠN</span><Link href="/history">Chi tiết ↗</Link></div>
+              <div className="progress-topline"><span>TIẾN ĐỘ CỦA BẠN</span><Link href="/progress">Phân tích ↗</Link></div>
               {status === "authenticated" ? (
                 <>
                   <div className="accuracy-ring" style={{ "--score": `${stats?.overallAccuracy ?? 0}%` } as React.CSSProperties}><div><strong>{stats?.overallAccuracy ?? 0}%</strong><span>chính xác</span></div></div>

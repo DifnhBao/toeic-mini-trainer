@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
 
-export async function selectPracticeQuestions(userId: string, parts: number[], count: number) {
+export async function selectPracticeQuestions(userId: string, parts: number[], count: number, preferUnseen = false) {
   // Sample in PostgreSQL: only the selected IDs cross the network. Every
   // client uses the same publication/ownership rules and unbiased DB shuffle.
   return prisma.$queryRaw<Array<{ id: string; part: number }>>(Prisma.sql`
@@ -9,7 +9,10 @@ export async function selectPracticeQuestions(userId: string, parts: number[], c
     WHERE part IN (${Prisma.join(parts)})
       AND (("ownerId" IS NULL AND "publicationStatus" IN ('LEGACY', 'PUBLISHED'))
         OR ("ownerId" = ${userId} AND "publicationStatus" = 'PRIVATE'))
-    ORDER BY random() LIMIT ${count}
+    ORDER BY ${preferUnseen ? Prisma.sql`EXISTS (
+      SELECT 1 FROM user_answers ua JOIN test_attempts ta ON ta.id = ua."attemptId"
+      WHERE ua."questionId" = questions.id AND ta."userId" = ${userId}
+    ),` : Prisma.empty} random() LIMIT ${count}
   `);
 }
 

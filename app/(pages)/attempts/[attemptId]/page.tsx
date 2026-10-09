@@ -68,7 +68,7 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
       <AppHeader />
       <main className="page-shell result-page">
         <section className="result-hero">
-          <div className="result-copy"><span className="step-kicker">KẾT QUẢ BÀI LUYỆN</span><h1>{message}</h1><p>{attempt.test.title}</p><div className="result-actions"><Link href="/">Làm bài khác</Link><Link href="/history">Xem lịch sử</Link></div></div>
+          <div className="result-copy"><span className="step-kicker">KẾT QUẢ BÀI LUYỆN</span><h1>{message}</h1><p>{attempt.test.title}</p><div className="result-actions"><Link href="/progress">Phân tích và luyện tiếp</Link><Link href="/">Làm bài khác</Link><Link href="/history">Xem lịch sử</Link></div></div>
           <div className="score-disc"><strong>{percentage}%</strong><span>{score}/{total} câu đúng</span></div>
           <div className="result-breakdown"><div><strong>{score}</strong><span>Đúng</span></div><div><strong>{incorrect}</strong><span>Cần xem lại</span></div><div><strong>{parts.map((part) => `P${part}`).join(", ")}</strong><span>Phần đã luyện</span></div></div>
         </section>

@@ -60,6 +60,11 @@ export default function DashboardScreen() {
           </Pressable>
         </View>
 
+        <Pressable onPress={() => router.push('/insights')} style={styles.smallCard}>
+          <Text style={styles.cardTitle}>Nên tập trung vào đâu? →</Text>
+          <Text style={styles.cardText}>Xem Part cần cải thiện, câu bỏ trống và buổi luyện được gợi ý từ kết quả của bạn.</Text>
+        </Pressable>
+
         <Text style={styles.sectionTitle}>Lối tắt</Text>
         <View style={styles.grid}>
           <Pressable onPress={() => router.push('/practice')} style={styles.smallCard}>

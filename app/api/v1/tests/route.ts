@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 
 const generateTestSchema = z.object({
   count: z.number().int().min(5).max(50),
+  preferUnseen: z.boolean().optional(),
   parts: z.array(z.number().int().min(1).max(7)).min(1).max(7).refine(
     (parts) => new Set(parts).size === parts.length,
     "Parts must be unique",
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
   const body = await parseBoundedJson(request, generateTestSchema);
   if (!body.success) return body.response;
 
-  const selected = await selectPracticeQuestions(user.id, body.data.parts, body.data.count);
+  const selected = await selectPracticeQuestions(user.id, body.data.parts, body.data.count, body.data.preferUnseen);
   if (selected.length === 0) {
     return apiError("NO_QUESTIONS", "Kho câu hỏi chưa có dữ liệu cho phần đã chọn.", 422);
   }

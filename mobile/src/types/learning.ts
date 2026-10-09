@@ -1,3 +1,5 @@
+export type { LearningInsights, PartInsight, PracticeRecommendation } from '../../../shared/learning-insights';
+
 export type QuestionGroup = {
   id?: string;
   groupType?: string;

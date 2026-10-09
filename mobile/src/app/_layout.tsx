@@ -33,6 +33,7 @@ function RootNavigator() {
         <Stack.Screen name="test/[id]" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="result/[id]" options={{ title: 'Kết quả', headerBackTitle: 'Trang chủ' }} />
         <Stack.Screen name="history" options={{ title: 'Lịch sử luyện tập' }} />
+        <Stack.Screen name="insights" options={{ title: 'Phân tích học tập' }} />
       </Stack.Protected>
     </Stack>
   );

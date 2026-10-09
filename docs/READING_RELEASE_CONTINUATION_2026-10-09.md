@@ -35,6 +35,8 @@ Fixture trích xuất được tạo trực tiếp trong DB test; từ gửi duy
 
 CI của baseline `25ed616759c70ee5fc9d6c117151f8d483658148` đã đọc qua GitHub connector: PR run [37907108770](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37907108770), web/integration/mobile và từng bước đều success. Kết quả này chưa thay bằng chứng CI của commit bản sửa mới.
 
+Cập nhật 09/10: bản sửa Reading/thứ tự `89eaa4c0459075394b18e41cd8b27aa28083097b` đã đẩy và CI [37913175672](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37913175672) đạt đủ web/integration/mobile. Công cụ phục hồi backup bổ sung ở `599d739179e5f06d5eb6645493d0733a8501e264` cũng đạt ba job và từng bước tại [37918253730](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37918253730). Hai kết quả này được đọc qua connector, không thay nghiệm thu điện thoại/UI hoặc triển khai API mới.
+
 ## Thứ tự tiếp tục
 
 1. Chốt build, lưu/đẩy bản sửa và xác minh CI đúng SHA; giữ PR #4 ở trạng thái nháp.
