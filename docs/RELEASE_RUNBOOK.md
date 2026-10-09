@@ -98,6 +98,8 @@ Quy trình backup media mã hóa cục bộ, inventory chỉ đọc và kiểm t
 
 Diễn tập restore media chỉ loopback: [R2_LOCAL_RESTORE_2026-10-09.md](R2_LOCAL_RESTORE_2026-10-09.md). Bản backup thật đã qua hash/metadata/range bằng fixture HTTP trong bộ nhớ, không phải bucket cloud hoặc nghiệm thu IAM/DB/media. Công cụ tự tạo bucket UUID mới và dọn các PUT đã được xác nhận; nếu PUT mất phản hồi hoặc cleanup lỗi phải kiểm tra bucket local được báo, không coi lượt thử đạt. Không dùng endpoint/credential production cho công cụ này.
 
+Diễn tập bổ sung trên engine MinIO thật cục bộ và đối chiếu DB/R2 từ gói backup ngày 08/10 đã đạt: [BACKUP_RECOVERY_PAIR_2026-10-09.md](BACKUP_RECOVERY_PAIR_2026-10-09.md). 16 file/hash/metadata/range và 14 asset READY trong DB cũ đều khớp; các container thử cách ly và đã dọn. Bằng chứng này không thay backup mới/định kỳ, snapshot nguyên tử, IAM/cloud restore, offsite hoặc khả năng phục hồi khi mất Windows profile.
+
 ## 6. Những điều chưa được coi là hoàn tất
 
 - Backup định kỳ/offsite/PITR, điểm DB/R2 nhất quán và restore bucket cách ly, cảnh báo và dashboard chi phí trên tài khoản thật; backup DB thật/restore cách ly và backup R2 thật/kiểm tra giải mã thủ công đã có bằng chứng riêng.

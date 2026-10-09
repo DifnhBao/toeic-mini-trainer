@@ -106,9 +106,12 @@ test('verified backup visitor zeroes plaintext after success and callback failur
   await fixture(async directory => {
     const retained: Buffer[] = [];
     await visitVerifiedBackup(directory, async (_object, bytes) => { retained.push(bytes); }, protect);
+    assert.equal(retained.length, 2);
     assert.ok(retained.every(bytes => bytes.every(byte => byte === 0)));
     let failed: Buffer | undefined;
-    await assert.rejects(visitVerifiedBackup(directory, async (_object, bytes) => { failed = bytes; throw new Error('SinkFailed'); }, protect));
-    assert.ok(failed?.every(byte => byte === 0));
+    await assert.rejects(visitVerifiedBackup(directory, async (_object, bytes) => {
+      if (bytes.length > 0) { failed = bytes; throw new Error('SinkFailed'); }
+    }, protect), { message: 'SinkFailed' });
+    assert.ok(failed && failed.length > 0 && failed.every(byte => byte === 0));
   });
 });

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CreateBucketCommand, DeleteBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { CreateBucketCommand, DeleteBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 import { dpapi, verifyBackup, visitVerifiedBackup, type Protector, type RecoveredObject } from './backup-r2-windows.mts';
 
 function fail(code: string): never { throw Object.assign(new Error(code), { code }); }
@@ -18,14 +18,15 @@ const headers = {
 } as const;
 const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 
-export async function verifyLocalRestore(directory: string, endpoint: string, protect: Protector = dpapi) {
+export async function verifyLocalRestore(directory: string, endpoint: string, protect: Protector = dpapi, requestHandler?: S3ClientConfig['requestHandler']) {
   endpoint = validateLocalRestoreEndpoint(endpoint);
   const preflight = await verifyBackup(directory, protect);
   const bucket = `toeic-restore-${randomUUID()}`;
   // Only local fixture credentials, never cloud/default credential providers.
   const client = new S3Client({ endpoint, region: 'us-east-1', forcePathStyle: true, maxAttempts: 1,
     credentials: { accessKeyId: 'toeic-local-restore', secretAccessKey: 'local-restore-only' },
-    followRegionRedirects: false });
+    followRegionRedirects: false, requestHandler,
+    requestChecksumCalculation: 'WHEN_REQUIRED', responseChecksumValidation: 'WHEN_REQUIRED' });
   const send = <T,>(command: T) => client.send(command as Parameters<S3Client['send']>[0], { abortSignal: AbortSignal.timeout(30000) });
   const keys: string[] = [];
   let created = false;
