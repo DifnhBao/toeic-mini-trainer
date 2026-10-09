@@ -12,7 +12,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../Test/backups')
 export const LIMITS = { objects: 1000, bytes: 1024 ** 3, objectBytes: 128 * 1024 ** 2 };
 type Limits = typeof LIMITS;
 export type Entry = { key: string; size: number; etag: string; modified: string };
-type ObjectData = { bytes: Buffer; metadata: Record<string, string>; contentType?: string; cacheControl?: string; contentDisposition?: string; contentEncoding?: string; contentLanguage?: string };
+export type ObjectData = { bytes: Buffer; metadata: Record<string, string>; contentType?: string; cacheControl?: string; contentDisposition?: string; contentEncoding?: string; contentLanguage?: string };
+export type RecoveredObject = Entry & Omit<ObjectData, 'bytes'> & { sha256: string };
+type ObjectVisitor = (object: RecoveredObject, bytes: Buffer) => Promise<void>;
 export type Source = { identity: string; list: () => Promise<Entry[]>; get: (entry: Entry) => Promise<ObjectData> };
 export type Protector = (bytes: Buffer, decrypt?: boolean) => Buffer;
 const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -116,7 +118,7 @@ export function dpapi(bytes: Buffer, decrypt = false): Buffer {
   return Buffer.from(result.stdout.trim(), 'base64');
 }
 
-export async function verifyBackup(directory: string, protect: Protector = dpapi, limits: Limits = LIMITS) {
+async function readBackup(directory: string, protect: Protector, limits: Limits, visit?: ObjectVisitor) {
   const info = await lstat(directory);
   if (!info.isDirectory() || info.isSymbolicLink()) fail('InvalidBackupDirectory');
   const receipt = JSON.parse((await boundedFile(resolve(directory, 'receipt.json'), 4096)).toString('utf8'));
@@ -133,16 +135,34 @@ export async function verifyBackup(directory: string, protect: Protector = dpapi
     let bytes = 0;
     for (const object of manifest.objects) {
       if (typeof object.file !== 'string' || !/^[0-9a-f]{8}\.enc$/.test(object.file) || seenFiles.has(object.file) || !/^[0-9a-f]{64}$/.test(object.sha256)) fail('InvalidManifest');
+      if (!object.metadata || typeof object.metadata !== 'object' || Array.isArray(object.metadata) ||
+        Object.entries(object.metadata).some(([name, value]) => !/^[!#$%&'*+.^_`|~0-9a-z-]+$/i.test(name) || typeof value !== 'string' || /[\r\n]/.test(value))) fail('InvalidManifest');
+      for (const header of ['contentType', 'cacheControl', 'contentDisposition', 'contentEncoding', 'contentLanguage']) {
+        if (object[header] !== undefined && (typeof object[header] !== 'string' || /[\r\n]/.test(object[header]))) fail('InvalidManifest');
+      }
       seenFiles.add(object.file);
       const plain = open(await boundedFile(resolve(directory, object.file), limits.objectBytes + 36), key, `${receipt.id}/${object.file}`);
       try {
         if (plain.length !== object.size || sha(plain) !== object.sha256) fail('ObjectMismatch');
+        if (visit) await visit(object, plain);
         bytes += plain.length;
       } finally { plain.fill(0); }
     }
     if (manifest.objects.length !== receipt.objects || bytes !== receipt.bytes) fail('ReceiptMismatch');
     return { verified: true, objects: manifest.objects.length, bytes };
   } finally { key.fill(0); }
+}
+
+export async function verifyBackup(directory: string, protect: Protector = dpapi, limits: Limits = LIMITS) {
+  return readBackup(directory, protect, limits);
+}
+
+// Preflight the entire authenticated package before exposing any plaintext to a
+// restore sink. The callback must finish using bytes before returning; zeroed
+// buffers are never retained by this reader. Files are checked again per visit.
+export async function visitVerifiedBackup(directory: string, visit: ObjectVisitor, protect: Protector = dpapi, limits: Limits = LIMITS) {
+  await verifyBackup(directory, protect, limits);
+  return readBackup(directory, protect, limits, visit);
 }
 
 export async function backupSource(source: Source, directory: string, protect: Protector = dpapi, limits: Limits = LIMITS) {

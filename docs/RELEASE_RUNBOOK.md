@@ -87,6 +87,8 @@ Client `3cbde63` chặn phản hồi phiên cũ, tuần tự hóa SecureStore v�
 
 Quy trình backup media mã hóa cục bộ, inventory chỉ đọc và kiểm tra giải mã: [R2_BACKUP_2026-10-08.md](R2_BACKUP_2026-10-08.md). Chỉ chạy backup nội dung thật sau phê duyệt tương ứng; kiểm thử fixture không thay backup R2, khôi phục bucket cách ly hoặc phương án mất máy/offsite.
 
+Diễn tập restore media chỉ loopback: [R2_LOCAL_RESTORE_2026-10-09.md](R2_LOCAL_RESTORE_2026-10-09.md). Bản backup thật đã qua hash/metadata/range bằng fixture HTTP trong bộ nhớ, không phải bucket cloud hoặc nghiệm thu IAM/DB/media. Công cụ tự tạo bucket UUID mới và dọn các PUT đã được xác nhận; nếu PUT mất phản hồi hoặc cleanup lỗi phải kiểm tra bucket local được báo, không coi lượt thử đạt. Không dùng endpoint/credential production cho công cụ này.
+
 ## 6. Những điều chưa được coi là hoàn tất
 
 - Backup định kỳ/offsite/PITR, điểm DB/R2 nhất quán và restore bucket cách ly, cảnh báo và dashboard chi phí trên tài khoản thật; backup DB thật/restore cách ly và backup R2 thật/kiểm tra giải mã thủ công đã có bằng chứng riêng.

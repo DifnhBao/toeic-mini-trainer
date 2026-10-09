@@ -18,7 +18,7 @@
 
 | Hạng mục | Kết quả đã quan sát |
 | --- | --- |
-| Unit/regression | 177 kiểm thử đạt; không dùng DB/provider thật; bổ sung 21 kiểm thử phiên Android đến muộn/storage/đổi tài khoản, cùng các guard HTTP, audio nhóm, PDF 50 MiB và backup R2 đã có |
+| Unit/regression | 186 kiểm thử đạt; không dùng DB/provider thật; gồm 21 kiểm thử phiên Android đến muộn/storage/đổi tài khoản, chín kiểm thử restore media loopback mới, cùng các guard HTTP, audio nhóm, PDF 50 MiB và backup R2 đã có |
 | PostgreSQL integration | 44 kiểm thử đạt trên DB loopback `toeic_release_test`, gồm chín kiểm thử refresh/logout/reuse/rollback, sáu race timeout/retry worker, thống kê, Kho bài, upload/gắn/xuất bản ảnh và audio riêng theo nhóm, dedup và rollback với S3 loopback |
 | Schema | 11 migration hiện có áp dụng thành công trên DB test; không thêm migration |
 | Kiểu dữ liệu | TypeScript web và mobile đạt |
@@ -118,3 +118,5 @@ Bổ sung client 09/10: `3cbde63` chặn nhận/trả/retry bằng phiên cũ, t
 Nghiệm thu file thật 09/10: đã upload và OCR/lưu/mở lại thành công cụm 1–4 bằng phiên ADMIN hợp lệ; hai câu đúng phạm vi bìa/hướng dẫn/câu 1–2. Key chưa có, 11 ảnh còn local và MP3 chưa chia đoạn. Upload ảnh câu 1 rồi quyền truy cập site bị Browser Use từ chối theo lựa chọn người dùng; đã dừng mọi thao tác web, không dùng CLI/cookie/browser khác để vượt qua. Snapshot R2 cũ không bao gồm upload mới. Chi tiết tại [ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md](ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md); các cổng nội dung, media, Android và beta vẫn mở.
 
 Bổ sung sau đó 09/10: chủ dự án đã cung cấp ảnh đáp án Test 1. Đã chuẩn hóa cục bộ đủ 100 đáp án Listening, đối chiếu theo hàng/cột và kiểm tra phân bố Part/đáp án Part 2 đạt; chưa nhập lên web hoặc duyệt. Lần kiểm tra sau lời đề nghị cấp lại Browser Use vẫn bị quyền từ chối đã lưu chặn origin. Ảnh/key/media chỉ chuẩn bị local; không coi đây là nghiệm thu full bộ đề hoặc mở beta. Bằng chứng và bước ghép key theo số câu nguồn tại [ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md](ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md).
+
+Bổ sung phục hồi media 09/10: công cụ mới chỉ nhận endpoint loopback, tạo bucket UUID mới, kiểm tra backup trước ghi và không báo thành công nếu cleanup lỗi. Bản backup đã phê duyệt 16 file/18.948.378 byte qua restore/read/hash/metadata/16 range bằng S3 HTTP fixture trong bộ nhớ, dọn dữ liệu/listener đạt; không ghi cloud/plaintext đĩa. 186 unit, TypeScript và lint các tệp sửa đạt; không deploy API hoặc build lại APK vì không đổi runtime ứng dụng. Backend/bucket private thật, liên kết DB/media, snapshot nhất quán, định kỳ/offsite và RPO/RTO vẫn mở. Chi tiết tại [R2_LOCAL_RESTORE_2026-10-09.md](R2_LOCAL_RESTORE_2026-10-09.md).
