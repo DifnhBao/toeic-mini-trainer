@@ -6,6 +6,7 @@ import AiExplainButton from "@/app/components/AiExplainButton";
 import SafePassage from "@/app/components/SafePassage";
 import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
 import { currentExplanationHidden, hiddenExplanationSelection } from "@/app/lib/explanation-policy";
+import { orderAttemptAnswers } from "@/app/lib/attempt-answer-order";
 
 export default async function ResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = await params;
@@ -14,7 +15,10 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
   const rawAttempt = user ? await prisma.testAttempt.findFirst({
     where: { id: attemptId, userId: user.id },
     include: {
-      test: true,
+      test: { select: {
+        id: true, title: true,
+        questions: { select: { questionId: true, orderIndex: true } },
+      } },
       userAnswers: {
         include: {
           question: {
@@ -34,7 +38,7 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
     ? {
         ...rawAttempt,
         userAnswers: await Promise.all(
-          rawAttempt.userAnswers.map(async (answer) => {
+          orderAttemptAnswers(rawAttempt.userAnswers, rawAttempt.test.questions).map(async (answer) => {
             const { explanationCaches, ...question } = answer.question;
             const explanationHidden = currentExplanationHidden(question.contentRevision, explanationCaches);
             return {
