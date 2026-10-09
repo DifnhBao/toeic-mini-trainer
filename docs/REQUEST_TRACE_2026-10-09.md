@@ -29,3 +29,5 @@ Chưa có UI mobile/web tự hiển thị ID khi lỗi, distributed trace qua pr
 ## GitHub sau khi đổi kết nối
 
 Trước đổi kết nối, connector xác thực `thiennn20` và đọc repository trả 404. Người dùng báo đã kết nối, sau đó xác nhận chọn tài khoản `ddinhbao05`. Lần đọc tiếp theo trả lỗi `Unknown tool` cho cả `github.get_user_login` và `github.get_repo`; tìm plugin xác nhận GitHub vẫn installed/enabled. Chưa xác minh được tài khoản mới hoặc kết quả CI. Không dùng lỗi công cụ này để kết luận `ddinhbao05` thiếu quyền hoặc repo không tồn tại; không suy ra CI xanh từ SSH push.
+
+Source và tài liệu đã commit/push bằng SSH tại `82c16e0` trên `codex/release-readiness`. Sau đó thử mở đúng trang Actions bằng Browser Use cũng bị từ chối quyền truy cập `github.com`; đã dừng, không thử HTTP/CLI/browser khác để thay thao tác bị chặn. Người dùng được đề nghị cấp lại quyền Browser Use cho GitHub hoặc cung cấp link/kết quả ba job `web`, `integration`, `mobile`. Bằng chứng local không đóng cổng CI từ xa.
