@@ -29,11 +29,15 @@ Không gọi Google/Apple, DB, R2 hoặc thu hồi phiên thật trong các ki�
 
 ## APK preview
 
-Build thay thế [88bbd6b1-ca59-4153-9bfd-cf43e06661f4](https://expo.dev/accounts/dinhbao05s-team/projects/dinhbao05/builds/88bbd6b1-ca59-4153-9bfd-cf43e06661f4), source đầy đủ `3cbde6358c03c5f5e98a9d5771ce9a810e78be13`, profile preview/internal/Android; trạng thái quan sát lúc 01:51 ngày 09/10 giờ Việt Nam là IN_QUEUE. Chưa có APK FINISHED hoặc hash/chữ ký của bản này để bàn giao.
+Build thay thế [88bbd6b1-ca59-4153-9bfd-cf43e06661f4](https://expo.dev/accounts/dinhbao05s-team/projects/dinhbao05/builds/88bbd6b1-ca59-4153-9bfd-cf43e06661f4), source đầy đủ `3cbde6358c03c5f5e98a9d5771ce9a810e78be13`, profile preview/internal/Android, FINISHED lúc 02:15:20 ngày 09/10 giờ Việt Nam. [Tải APK](https://expo.dev/artifacts/eas/HQsh1uAZ9NxH0pay9CNPlroMv8VH3bT3p4cyEX5zt7Q.apk), 114.438.583 byte; SHA-256 `97A3A1D0E54C070137B6687DF7A94D03709450957CDA2B84D430880ADC7DE245`.
 
 Archive 298 tệp, đủ và khớp hash 67 tệp mobile được theo dõi; không có env, secret, backup, PDF/MP3 nguồn hoặc APK cũ. Upload khoảng 1,8 MB, dùng khóa ký có sẵn và `--freeze-credentials`, không mua gói hoặc gửi store. Log ở `Test/eas-archive-3cbde63-proof.json`, `eas-submit-3cbde63.json`, `eas-build-3cbde63-latest.json`; không đưa metadata cloud lên Git.
 
-Khi EAS hoàn tất: đọc lại đúng build ID, xác nhận FINISHED/source SHA; tải đúng artifact rồi kiểm tra SHA-256, ZIP CRC, manifest/dex/arm64, API domain và marker bản sửa trong JS bundle. Dùng Android SDK apksigner xác minh chữ ký và đối chiếu chứng chỉ với APK Kho bài `dee15f2` trước hướng dẫn cài cập nhật. Không tạo build mới chỉ vì lệnh quan sát hết thời gian; tiếp tục quan sát cùng ID. Kiểm tra file/chữ ký chưa thay MS-01…MS-08 trên thiết bị.
+Đã đọc lại đúng build ID/FINISHED/source SHA và tải artifact tương ứng. ZIP CRC 1.698 mục, manifest/dex và bốn ABI gồm arm64-v8a đạt; bundle có domain API chính và marker `SESSION_CHANGED`, `SESSION_STORAGE_FAILED`, `/api/v1/auth/logout`. Android SDK apksigner xác minh chữ ký v2 hợp lệ, một signer, cùng chứng chỉ SHA-256 `042767669c1def0f9a52a80a0945af451f7aa37dcbb31fdc3a40483706ed2fe6` với APK Kho bài `dee15f2`. Package `com.toeicminitrainer.app`, version 1.0.0/code 1, min SDK 24, target/compile SDK 36. Không tạo build trùng trong lúc chờ.
+
+Log kiểm chứng artifact: `Test/apk-3cbde63-verification.json`, `apk-3cbde63-signature.json`, `apksigner-3cbde63.txt`, `apk-3cbde63-badging.txt`; APK lưu local trong `Test/`, không đưa lên Git. Kiểm tra file/chữ ký chưa thay MS-01…MS-08 trên thiết bị. Cài cập nhật bằng APK cùng package/chứng chỉ; không yêu cầu gỡ bản cũ hoặc xóa dữ liệu để nghiệm thu.
+
+Đã thử chuẩn bị emulator Android 16/API 36 riêng từ image có sẵn, không dùng điện thoại/AVD/tài khoản Google của người dùng. Chỉ cài APK nền `dee15f2`, chưa cài hoặc chạy APK `3cbde63`: System UI có ANR khi khởi động; giảm từ 1080x2400@420 xuống 540x1200@210 giữ dp thì thấy màn hình đăng nhập nền. Host khoảng 7,5 GiB RAM, bộ nhớ trống có lúc chỉ 24 MiB; dừng emulator riêng để tránh ảnh hưởng máy, xác minh độc lập còn 0 tiến trình/cổng QA. Không dùng kết quả này làm bằng chứng native của APK mới hoặc thay Samsung. Log ở `Test/android-qa-3cbde63/`; không thay setting desktop hoặc dừng thiết bị khác.
 
 ## Nghiệm thu thiết bị còn phải thực hiện
 

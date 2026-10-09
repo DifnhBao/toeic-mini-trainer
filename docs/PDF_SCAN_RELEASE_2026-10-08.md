@@ -23,7 +23,7 @@ Draft thiếu answer key giữ đáp án rỗng; người duyệt phải bổ su
 2. Kiểm tra số câu/Part/phương án; bỏ qua ví dụ. Trang 8 bắt đầu Part 3 có câu hỏi in trên giấy; thử 8–11 có ích nhưng không thay thế Part 1/2.
 3. Chủ dự án xác nhận có file đáp án và sẽ gửi đường dẫn; chưa nhận đường dẫn khi lập biên bản. Đối chiếu key trước khi duyệt.
 4. Chưa tự cắt ảnh Part 1/biểu đồ thành media hoặc chia MP3 theo câu. Không coi toàn bộ 100 câu đã sẵn sàng cho người học chỉ vì OCR có kết quả.
-5. Trình duyệt Codex chưa có phiên ADMIN; chưa nghiệm thu OCR/lưu/công khai/audio thật bằng tài khoản chủ dự án. Không ghi/import/seed DB thật bằng script test.
+5. Tại ngày ghi báo cáo 08/10, trình duyệt Codex chưa có phiên ADMIN để nghiệm thu OCR/lưu/công khai/audio thật. Cập nhật 09/10: phiên ADMIN có sẵn đã upload PDF/MP3 và OCR/lưu/mở lại thành công cụm 1–4; chưa công khai hoặc phát audio, quyền truy cập/upload site sau đó bị từ chối. Xem [ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md](ETS_UPLOAD_OCR_ACCEPTANCE_2026-10-09.md). Không ghi/import/seed DB thật bằng script test.
 
 APK Kho bài vẫn là source mobile `dee15f2`; không cần build mới cho sửa web/API này. QA S23 FE của bản Kho bài, Android thứ hai và beta còn mở.
 
