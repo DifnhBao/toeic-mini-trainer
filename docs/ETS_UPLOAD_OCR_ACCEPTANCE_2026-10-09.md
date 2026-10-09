@@ -21,10 +21,18 @@ Quản trị viên có thể tự mở lại tác vụ COMPLETED và gắn ảnh
 
 ## Việc còn lại
 
-- Chưa nhận đường dẫn đáp án dù chủ dự án đã xác nhận có file. Cần đối chiếu key hợp lệ trước duyệt.
+- Đã nhận ảnh đáp án do chủ dự án cung cấp ngày 09/10, chuẩn hóa riêng câu Listening 1–100 và đối chiếu theo hàng/cột. Key còn local, chưa nhập vào tác vụ; phải ghép theo số câu gốc PDF trước duyệt, không theo chỉ số UI được đánh lại trong từng cụm.
 - Các trang 5–14 chưa nghiệm thu OCR thật trong lượt này; chuẩn bị OCR local cho các cụm đã có bằng chứng riêng. Chưa tạo thêm job cho các cụm sau khi quyền site bị rút.
 - 11 ảnh đã cắt vẫn local, chưa gắn vào tác vụ. MP3 còn nguyên bài; chưa chia theo nhóm. Chưa nghiệm thu playback, xuất bản, quyền người học hoặc vòng Listening trên Android.
 - Backup R2 16 object/18.948.378 byte trước đây không bao gồm các upload PDF/audio mới; không coi snapshot đó là điểm khôi phục của lượt nhập này.
 - Không thay runtime hoặc triển khai lại API trong lượt nghiệm thu. APK mới `3cbde63` đã FINISHED/kiểm chứng file và chữ ký riêng; còn MS-01…MS-08 trên S23 FE và thiết bị Android thứ hai.
 
 Kết luận giới hạn: lỗi chặn 15 MB và lỗi không thấy câu ở cụm 1–4 đã qua nghiệm thu upload/OCR/lưu/mở lại trên file thật. Bộ ETS đầy đủ, ảnh/audio khớp nhóm, key, công khai và beta chưa hoàn tất.
+
+## Bổ sung sau khi nhận ảnh đáp án
+
+Chủ dự án cung cấp `D:/ENG/Upload-test/1.png`, SHA-256 `e4c53d0b0200142afd4ef423fb3d9fc8e5c96f12b03372037155bb83ba932a99`. Ảnh có hai cột Listening/Reading; chỉ chép phần 1–100 để phục vụ bộ listening đang nghiệm thu. Không coi phần 101–200 là dữ liệu của bộ này.
+
+Đã chuẩn bị `output/ets-2022-test-1-answer-key/listening-answer-key.json` và bản text cùng thư mục, đều bị loại khỏi Git/Vercel/EAS. Helper local `Test/prepare-ets-answer-key.mjs` kiểm tra hai lượt chép theo hàng và cột khớp nhau, đủ 100 số câu duy nhất/liên tiếp, phân bố Part 1/2/3/4 lần lượt 6/25/39/30 và đáp án Part 2 chỉ A/B/C. Đây là kiểm tra bản chép với ảnh người dùng, không phải xác nhận đáp án bằng nghe MP3 hoặc tài liệu ETS độc lập. JSON là bản đối chiếu cục bộ, không phải payload API để import câu hỏi.
+
+Người dùng đã nói sẽ cấp lại Browser Use. Lần kiểm tra tiếp theo vẫn bị chặn bởi quyền từ chối đã lưu cho origin; chưa có bằng chứng quyền đã được mở. Vì vậy chưa nhập key, gắn ảnh, phát audio hoặc duyệt câu nào. Không dùng CLI/HTTP/cookie/browser khác để thực hiện thay thao tác bị chặn. Sau khi quyền thực sự được mở, đối chiếu hai câu của cụm 1–4 theo số câu nguồn, gắn ảnh tương ứng, kiểm tra audio và lưu/mở lại trước khi làm các cụm còn lại. Không tự xác nhận quyền chia sẻ hoặc công khai nội dung.
