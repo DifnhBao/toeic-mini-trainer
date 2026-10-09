@@ -8,10 +8,11 @@ const report = JSON.parse(readFileSync(resolve(root, process.argv[2] ?? "Test/ve
 if (!Array.isArray(report.files) || !report.files.length) throw new Error("Vercel dry-run file manifest is missing.");
 const files: string[] = report.files.filter((file: { mode: number }) => file.mode !== 16822)
   .map((file: { path: string }) => file.path.replaceAll("\\", "/"));
-const tracked = spawnSync("git", ["ls-files", "-z", "app", "types", "prisma"], { cwd: root, encoding: "utf8", windowsHide: true });
+const tracked = spawnSync("git", ["ls-files", "-z", "app", "types", "prisma", "shared"], { cwd: root, encoding: "utf8", windowsHide: true });
 if (tracked.error || tracked.status !== 0) throw new Error("Cannot verify tracked application sources.");
 // Root runtime entry points are not beneath app/. Missing either silently
 // removes request correlation or framework error reporting from deployment.
+// Shared runtime modules are imported by both proxy/routes and client bundles.
 const expected = [...tracked.stdout.split("\0").filter(Boolean), "proxy.ts", "instrumentation.ts"];
 if (!expected.length) throw new Error("No tracked application sources found.");
 const missing = expected.filter((path) => !files.includes(path));

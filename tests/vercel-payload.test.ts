@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
 
-test("deployment manifest must contain root tracing entry points and must exclude secret/data files", () => {
-  const tracked = spawnSync("git", ["ls-files", "-z", "app", "types", "prisma"], { encoding: "utf8", windowsHide: true });
+test("deployment manifest must contain shared runtime sources and root tracing entry points and exclude secret/data files", () => {
+  const tracked = spawnSync("git", ["ls-files", "-z", "app", "types", "prisma", "shared"], { encoding: "utf8", windowsHide: true });
   assert.equal(tracked.status, 0);
   const paths = [...tracked.stdout.split("\0").filter(Boolean), "proxy.ts", "instrumentation.ts"];
   const directory = mkdtempSync(resolve(tmpdir(), "toeic-payload-"));
@@ -19,7 +19,7 @@ test("deployment manifest must contain root tracing entry points and must exclud
   };
   try {
     assert.equal(check(paths).status, 0);
-    for (const missing of ["proxy.ts", "instrumentation.ts"]) {
+    for (const missing of ["proxy.ts", "instrumentation.ts", "shared/response-diagnostics.ts", "shared/learning-insights.ts"]) {
       const result = check(paths.filter(path => path !== missing));
       assert.notEqual(result.status, 0);
       assert.ok(result.stderr.includes(`Missing application files: ${missing}`));

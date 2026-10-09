@@ -21,6 +21,8 @@ Metro được mở phạm vi chỉ tới `../shared` vì helper dùng lúc ch�
 
 ## Nghiệm thu sau triển khai được phép
 
+Bổ sung kiểm tra gói phát hành: guard Vercel hiện yêu cầu cả thư mục tracked `shared`, ngoài app/types/prisma và proxy/instrumentation. Regression bỏ từng helper shared đã thất bại với guard cũ (thiếu tệp vẫn được chấp nhận), đạt sau sửa, vẫn từ chối env/backup/key. Lint hai tệp sửa đạt; logs `Test/client-support-payload-{red,green,lint}.txt`. Đây là kiểm tra manifest tổng hợp, chưa phải dry-run/upload Vercel thật của source mới. Thay đổi guard không đổi API/mobile runtime; CI commit tiếp theo sẽ xác minh guard trong toàn bộ bộ kiểm thử.
+
 1. Trên web và S23 FE, gây lỗi API bằng dữ liệu thử được phép; ghi thông báo, mã hỗ trợ và deployment/build đang dùng, tránh gửi toàn bộ header/URL/token.
 2. Đối chiếu UUID response với log đã lọc của cùng request; ingestion ghi thêm job ID để nối các lần retry/drain.
 3. Thử timeout, mất mạng và đăng nhập hết hạn: thông báo vẫn đọc được; không có mã giả, chính sách refresh/logout vẫn đúng.
