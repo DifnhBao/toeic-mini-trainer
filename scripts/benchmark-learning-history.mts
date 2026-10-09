@@ -11,11 +11,22 @@ if (!["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) || parsed.pat
 }
 process.env.DATABASE_URL = url;
 const { prisma } = await import("../app/lib/prisma");
-const { learningSummary, learningSummaryQuery, selectPracticeQuestions } = await import("../app/lib/learning-data");
+const { learningSummary, learningSummaryQuery, selectPracticeQuestions, practiceSelectionQuery } = await import("../app/lib/learning-data");
 // The previous production query is retained only for an opt-in comparison.
 // Both variants run against one fixture, alternating ABBA to reduce order bias.
 const compareBaseline = process.argv.includes("--compare-baseline");
 const diverseQuestions = process.argv.includes("--diverse");
+const measureInsights = process.argv.includes("--insights");
+const compareUnseen = process.argv.includes("--compare-unseen");
+if (measureInsights && compareBaseline) throw new Error("Choose either insights or baseline comparison");
+if (compareUnseen && !measureInsights) throw new Error("Unseen comparison requires --insights");
+const baselineUnseenQuery = (userId: string) => Prisma.sql`
+  SELECT id, part FROM questions WHERE part IN (1, 2, 3, 4, 5, 6, 7)
+    AND (("ownerId" IS NULL AND "publicationStatus" IN ('LEGACY', 'PUBLISHED'))
+      OR ("ownerId" = ${userId} AND "publicationStatus" = 'PRIVATE'))
+  ORDER BY EXISTS (SELECT 1 FROM user_answers ua JOIN test_attempts ta ON ta.id = ua."attemptId"
+    WHERE ua."questionId" = questions.id AND ta."userId" = ${userId}), random() LIMIT 20
+`;
 const baselineQuery = (userId: string) => Prisma.sql`
   SELECT q.part, count(*) AS total, sum(CASE WHEN a."isCorrect" THEN 1 ELSE 0 END) AS correct
   FROM user_answers a JOIN test_attempts t ON t.id = a."attemptId"
@@ -99,6 +110,66 @@ try {
     }
   }
   const timings = { selection: [] as number[], summary: [] as number[] };
+  const insightsTimings = { analysis: [] as number[], preferUnseen: [] as number[] };
+  const unseenComparison = { baseline: [] as number[], current: [] as number[] };
+  let explainUnseen: unknown;
+  if (measureInsights) {
+    const { learningInsights } = await import("../app/lib/learning-insights-data");
+    const seen = new Set<string>(diverseQuestions ? questions.map(q => q.id) : selectedIds);
+    explainUnseen = (await prisma.$queryRaw<Array<{ "QUERY PLAN": unknown }>>(Prisma.sql`
+      EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${practiceSelectionQuery(users[0].id, [1, 2, 3, 4, 5, 6, 7], 20, true)}
+    `))[0]["QUERY PLAN"];
+    for (const user of users) await learningInsights(user.id);
+    // Keep the two workloads separate: each includes 20 concurrent workers and
+    // pool wait, but does not mix analysis transactions with test creation.
+    await Promise.all(users.map(async user => {
+      for (let iteration = 0; iteration < 10; iteration++) {
+        const started = performance.now();
+        const result = await learningInsights(user.id);
+        insightsTimings.analysis.push(performance.now() - started);
+        assert.equal(result.summary.attempts, 100);
+        assert.equal(result.summary.answerEvents, 2000);
+        assert.equal(result.window.limited, true);
+        assert.equal(result.summary.skipped, 0);
+        assert.equal(result.summary.taggedQuestions, 0);
+        assert.equal(result.parts.reduce((sum, p) => sum + p.questions, 0), result.summary.uniqueQuestions);
+        if (!diverseQuestions) {
+          assert.equal(result.summary.uniqueQuestions, 20);
+          assert.equal(result.summary.correct, correct);
+        } else assert.ok(result.summary.uniqueQuestions >= 1000 && result.summary.uniqueQuestions <= 2000);
+        for (const part of result.parts) {
+          assert.equal(part.availableQuestions, questions.filter(q => q.part === part.part).length);
+          assert.equal(part.correct, part.part % 2 === 0 ? part.questions : 0);
+        }
+      }
+    }));
+    if (compareUnseen) {
+      for (const user of users) await prisma.$queryRaw(baselineUnseenQuery(user.id));
+      for (const variant of ["baseline", "current", "current", "baseline"] as const) {
+        await Promise.all(users.map(async user => {
+          for (let iteration = 0; iteration < 2; iteration++) {
+            const started = performance.now();
+            const selected = variant === "baseline" ? await prisma.$queryRaw<Array<{ id: string }>>(baselineUnseenQuery(user.id)) :
+              await selectPracticeQuestions(user.id, [1, 2, 3, 4, 5, 6, 7], 20, true);
+            unseenComparison[variant].push(performance.now() - started);
+            assert.equal(selected.length, 20); assert.equal(new Set(selected.map(q => q.id)).size, 20);
+            assert.ok(selected.every(q => seen.has(q.id) === diverseQuestions));
+          }
+        }));
+      }
+    }
+    await Promise.all(users.map(async user => {
+      for (let iteration = 0; iteration < 10; iteration++) {
+        const started = performance.now();
+        const selected = await selectPracticeQuestions(user.id, [1, 2, 3, 4, 5, 6, 7], 20, true);
+        insightsTimings.preferUnseen.push(performance.now() - started);
+        assert.equal(selected.length, 20);
+        assert.equal(new Set(selected.map(q => q.id)).size, 20);
+        if (!diverseQuestions) assert.ok(selected.every(q => !seen.has(q.id)), "Unseen questions must precede seen ones");
+        else assert.ok(selected.every(q => seen.has(q.id)), "Seen fallback must work when this bank is exhausted");
+      }
+    }));
+  } else {
   for (const user of users) await learningSummary(user.id);
   await Promise.all(users.map(async (user) => {
     for (let iteration = 0; iteration < 10; iteration++) {
@@ -113,10 +184,16 @@ try {
       assert.equal(summary.overallAccuracy, Math.round(expectedCorrect / 20_000 * 100));
     }
   }));
+  }
   console.log(JSON.stringify({ questions: questions.length, concurrentUsers: users.length, attemptsPerUser: 1000,
     totalAnswers: 400_000, distinctAnsweredQuestionsPerUser: diverseQuestions ? 10_000 : 20,
     plannerStatistics: "ANALYZE after fixture creation",
-    selection: stats(timings.selection), summary: stats(timings.summary), explainSummary: explain[0]["QUERY PLAN"][0],
+    ...(measureInsights ? { insights: { order: "analysis then unseen selection; separate 20-worker phases, 10 calls each",
+      analysis: stats(insightsTimings.analysis), preferUnseen: stats(insightsTimings.preferUnseen),
+      answerEventsPerAnalysis: 2000, boundedAttemptsPerAnalysis: 100, explainUnseen,
+      ...(compareUnseen ? { comparison: { order: "ABBA, 20 workers, 2 calls per worker per round",
+        baseline: stats(unseenComparison.baseline), current: stats(unseenComparison.current) } } : {}) } } :
+      { selection: stats(timings.selection), summary: stats(timings.summary), explainSummary: explain[0]["QUERY PLAN"][0] }),
     ...(compareBaseline ? { comparison: { order: "ABBA, 20 workers, 5 calls per worker per round",
       baseline: stats(comparison.baseline), current: stats(comparison.current) } } : {}),
     scope: "Local PostgreSQL/Prisma functions, excludes HTTP/auth/network/media/provider and production load" }, null, 2));
@@ -125,7 +202,11 @@ try {
   await prisma.miniTest.deleteMany({ where: { id: { in: users.map((user) => user.testId) } } });
   await prisma.question.deleteMany({ where: { id: { in: questions.map((question) => question.id) } } });
   await prisma.user.deleteMany({ where: { id: { in: users.map((user) => user.id) } } });
-  const remaining = await prisma.question.count({ where: { id: { in: questions.map((question) => question.id) } } });
+  const remaining = await Promise.all([
+    prisma.question.count({ where: { id: { in: questions.map(question => question.id) } } }),
+    prisma.miniTest.count({ where: { id: { in: users.map(user => user.testId) } } }),
+    prisma.user.count({ where: { id: { in: users.map(user => user.id) } } }),
+  ]);
   await prisma.$disconnect();
-  assert.equal(remaining, 0, "Load fixtures were not fully cleaned");
+  assert.deepEqual(remaining, [0, 0, 0], "Load fixtures were not fully cleaned");
 }

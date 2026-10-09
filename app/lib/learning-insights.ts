@@ -49,14 +49,17 @@ export function buildLearningInsights(input: InsightAttempt[], now: Date, limite
     const before = previous.filter(a => a.part === part), after = recent.filter(a => a.part === part);
     const beforeStats = counts(before), afterStats = counts(after), beforeIds = new Set(before.map(a => a.questionId));
     const enoughTrend = before.length >= trendMinimum && after.length >= trendMinimum;
-    const changePoints = enoughTrend ? afterStats.accuracy! - beforeStats.accuracy! : null;
+    const changeNumerator = afterStats.correct * before.length - beforeStats.correct * after.length;
+    const changeDenominator = before.length * after.length;
+    const changePoints = enoughTrend ? Math.round(changeNumerator / changeDenominator * 1000) / 10 : null;
     const availableQuestions = available ? available[part] ?? 0 : null;
     if (availableQuestions !== null && (!Number.isSafeInteger(availableQuestions) || availableQuestions < 0)) throw new Error('InvalidInsightAvailability');
     return { part, title, ...sample, availableQuestions,
       evidence: sample.questions === 0 ? 'none' : sample.questions < partMinimum ? 'limited' : 'initial',
       assessment: sample.questions === 0 ? 'unseen' : sample.questions < partMinimum ? 'collect_more' :
         sample.correct / sample.questions < 0.7 ? 'focus' : sample.correct / sample.questions < 0.8 ? 'consolidate' : 'maintain',
-      trend: { direction: changePoints === null ? 'insufficient' : changePoints >= 10 ? 'up' : changePoints <= -10 ? 'down' : 'stable',
+      // Compare exact count ratios for direction; rounding is only for display.
+      trend: { direction: !enoughTrend ? 'insufficient' : changeNumerator * 10 >= changeDenominator ? 'up' : changeNumerator * 10 <= -changeDenominator ? 'down' : 'stable',
         previousQuestions: before.length, recentQuestions: after.length,
         previousAccuracy: beforeStats.accuracy, recentAccuracy: afterStats.accuracy, changePoints,
         repeatedQuestions: after.filter(a => beforeIds.has(a.questionId)).length },

@@ -36,6 +36,6 @@ Không cần migration hoặc ghi thêm dữ liệu cá nhân. Không đưa nộ
 
 ## Trạng thái phát triển
 
-Ngày 09/10: giai đoạn 1–2 đã có mã triển khai và kiểm thử ban đầu; đang chạy bộ kiểm tra phát hành. API `GET /api/v1/progress/insights`, web `/progress`, Android `/insights`. Link mở từ trang chủ và màn kết quả. Request tạo bài hỗ trợ `preferUnseen` tùy chọn, mặc định giữ chọn ngẫu nhiên như trước; chỉ nút luyện từ phân tích gửi tùy chọn này.
+Ngày 09/10: giai đoạn 1–2 đã có mã triển khai; commit `725b420` đạt unit/integration/build/export và ba job CI. API `GET /api/v1/progress/insights`, web `/progress`, Android `/insights`. Link mở từ trang chủ và màn kết quả. Request tạo bài hỗ trợ `preferUnseen` tùy chọn, mặc định giữ chọn ngẫu nhiên như trước; chỉ nút luyện từ phân tích gửi tùy chọn này. Bổ sung tối ưu truy vấn và làm tròn xu hướng đang được xác minh riêng theo [biên bản nghiệm thu](PERSONAL_LEARNING_INSIGHTS_ACCEPTANCE_2026-10-09.md).
 
 Các nhãn kỹ năng/Part dùng thông tin hiện tại trong kho, không có snapshot độ khó/nhãn tại thời điểm làm. Tỷ lệ hiển thị được làm tròn một chữ số thập phân; phân loại ngưỡng dùng tỷ lệ gốc. Không gọi AI/provider, không gửi lịch sử học ra dịch vụ phân tích bên ngoài. Chưa triển khai production hoặc tạo APK mới cho giao diện này khi chủ dự án đang đi vắng.

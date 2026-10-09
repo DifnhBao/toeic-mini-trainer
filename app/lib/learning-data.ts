@@ -4,16 +4,26 @@ import { prisma } from "@/app/lib/prisma";
 export async function selectPracticeQuestions(userId: string, parts: number[], count: number, preferUnseen = false) {
   // Sample in PostgreSQL: only the selected IDs cross the network. Every
   // client uses the same publication/ownership rules and unbiased DB shuffle.
-  return prisma.$queryRaw<Array<{ id: string; part: number }>>(Prisma.sql`
-    SELECT id, part FROM questions
-    WHERE part IN (${Prisma.join(parts)})
-      AND (("ownerId" IS NULL AND "publicationStatus" IN ('LEGACY', 'PUBLISHED'))
-        OR ("ownerId" = ${userId} AND "publicationStatus" = 'PRIVATE'))
-    ORDER BY ${preferUnseen ? Prisma.sql`EXISTS (
-      SELECT 1 FROM user_answers ua JOIN test_attempts ta ON ta.id = ua."attemptId"
-      WHERE ua."questionId" = questions.id AND ta."userId" = ${userId}
-    ),` : Prisma.empty} random() LIMIT ${count}
-  `);
+  return prisma.$queryRaw<Array<{ id: string; part: number }>>(practiceSelectionQuery(userId, parts, count, preferUnseen));
+}
+
+export function practiceSelectionQuery(userId: string, parts: number[], count: number, preferUnseen = false) {
+  // Build this user's seen set once, instead of looking through history for
+  // each eligible question. Grouping inside LATERAL uses the attemptId index.
+  return Prisma.sql`
+    ${preferUnseen ? Prisma.sql`WITH seen AS MATERIALIZED (
+      SELECT DISTINCT ua."questionId" FROM test_attempts ta
+      CROSS JOIN LATERAL (
+        SELECT "questionId" FROM user_answers WHERE "attemptId" = ta.id GROUP BY "questionId"
+      ) ua WHERE ta."userId" = ${userId}
+    )` : Prisma.empty}
+    SELECT q.id, q.part FROM questions q
+    ${preferUnseen ? Prisma.sql`LEFT JOIN seen ON seen."questionId" = q.id` : Prisma.empty}
+    WHERE q.part IN (${Prisma.join(parts)})
+      AND ((q."ownerId" IS NULL AND q."publicationStatus" IN ('LEGACY', 'PUBLISHED'))
+        OR (q."ownerId" = ${userId} AND q."publicationStatus" = 'PRIVATE'))
+    ORDER BY ${preferUnseen ? Prisma.sql`(seen."questionId" IS NOT NULL),` : Prisma.empty} random() LIMIT ${count}
+  `;
 }
 
 // Keep the parameterized query shared with the local EXPLAIN/benchmark so

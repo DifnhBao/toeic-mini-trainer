@@ -30,6 +30,8 @@ Ngày 09/10/2026. Kế hoạch: [PERSONAL_LEARNING_INSIGHTS_PLAN.md](PERSONAL_LE
 
 Log local trong `Test/insights-*`, không commit. Fixtures chỉ tạo/dọn UUID riêng trong PostgreSQL test, không seed/reset/truncate DB thật. Không migration, không gọi AI hoặc ghi vào DB/storage production. Bản server mới và giao diện Android mới cần phát hành đồng bộ; APK `0941a11` đang nghiệm thu chưa chứa màn này.
 
+Commit tính năng `725b420a749ae1017591467d5df50e8c3f00e454` đã đẩy lên `codex/release-readiness`. CI [37921912620](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37921912620) được đọc qua GitHub connector: web/integration/mobile và từng bước đều success. PR #4 vẫn nháp, chưa merge. Kết quả này chưa chứng minh API production hoặc UI điện thoại đã được cập nhật.
+
 ## Cần kiểm tra sau phát hành có kiểm soát
 
 1. Tài khoản mới: các Part hiện “Chưa có dữ liệu”, không bị ghi nhận 0% yếu; chỉ có nút luyện ở Part có kho phù hợp.
@@ -42,3 +44,9 @@ Log local trong `Test/insights-*`, không commit. Fixtures chỉ tạo/dọn UUI
 8. Rà soát chất lượng nhãn/nội dung/độ khó; sau hai tuần thu nhận ý kiến về đề xuất. Ngưỡng mẫu/tỷ lệ là lựa chọn sản phẩm cần kiểm chứng, không phải thang điểm chuẩn hóa.
 
 Không đánh dấu các mục điện thoại/UI/triển khai là đạt thay cho chủ dự án. Chia audio vẫn để nghiệm thu sau theo yêu cầu trước đó.
+
+## Bổ sung sau CI tính năng
+
+Đã tối ưu lựa chọn câu chưa làm sau khi phép đo lịch sử lớn phát hiện chậm; [biên bản hiệu năng](PERSONAL_LEARNING_INSIGHTS_PERFORMANCE_2026-10-09.md) ghi truy vấn/fixture/các giới hạn. Đã sửa chênh lệch xu hướng: tính từ số đúng/tổng gốc, hiển thị một chữ số thập phân; phân loại tăng/giảm dùng tỷ lệ gốc. Không hiện số dạng `43.400000000000006` và không dùng làm tròn để đẩy qua ngưỡng.
+
+Unit mới có 13 ca, toàn bộ regression local 246/246 đạt với hai tiến trình; TypeScript và lint tệp sửa đạt. 78/78 integration và build trong bảng trên là của bản tính năng trước tối ưu; cần CI đúng SHA bổ sung để xác minh thay đổi cuối. Máy hết dung lượng ổ C và Docker dừng; lượt đo thứ hai chưa hoàn tất/dọn, được ghi rõ trong biên bản, không thay bằng DB thật.

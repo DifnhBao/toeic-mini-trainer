@@ -80,6 +80,19 @@ test('small comparison samples do not receive a trend despite a dramatic accurac
   assert.equal(result.parts[2].trend.direction, 'insufficient'); assert.equal(result.parts[2].trend.changePoints, null);
 });
 
+test('trend displays one decimal without floating artifacts and classifies the unrounded difference', () => {
+  const input = [attempt('old-fraction', 5, 30, 10, 0, 20), attempt('new-fraction', 5, 30, 23, 0, 1),
+    attempt('old-near', 6, 50, 0, 0, 20), attempt('new-near', 6, 101, 10, 0, 1),
+    attempt('old-exact', 7, 10, 3, 0, 20), attempt('new-exact', 7, 10, 4, 0, 1)];
+  const result = buildLearningInsights(input, now);
+  assert.equal(result.parts[4].trend.changePoints, 43.3);
+  assert.equal(result.parts[4].trend.direction, 'up');
+  assert.equal(result.parts[5].trend.changePoints, 9.9);
+  assert.equal(result.parts[5].trend.direction, 'stable');
+  assert.equal(result.parts[6].trend.changePoints, 10);
+  assert.equal(result.parts[6].trend.direction, 'up');
+});
+
 test('only bank-provided skills are counted, duplicate labels count once and low coverage stays visible', () => {
   const a = attempt('tags', 5, 20, 4);
   const tag = { id: 'grammar', name: 'Ngữ pháp' };

@@ -39,9 +39,26 @@ Preflight giải mã/xác thực toàn bộ gói trước khi tạo bucket/PUT; 
 
 Kiểm thử thêm: HTTP binary/Unicode query, interim 100, HEAD, chunked/extension/trailer, header Vary lặp, từ chối header injection/truncated response/framing mâu thuẫn; asset mất/khác MIME/size/ETag; plaintext buffer không rỗng được xóa cả khi callback thành công và khi callback lỗi đúng `SinkFailed`.
 
+## Backup mới lúc 18h13–18h21 ngày 09/10
+
+Đã đọc nguồn và lưu mã hóa trên máy theo phê duyệt DB/R2 trước đó. Không ghi/xóa/khôi phục vào Neon hoặc R2 thật, không tải backup lên Git/cloud.
+
+| Kiểm tra | Kết quả |
+| --- | --- |
+| DB mới | PostgreSQL 18.6; dump DPAPI được giải mã và phục hồi vào container `--network none`, tmpfs; 22 bảng/số bản ghi khớp, đã dọn container; 33,291 giây |
+| R2 mới | 20 object, 147.590.028 byte; AES-256-GCM, khóa bảo vệ bằng DPAPI; giải mã/xác thực và SHA-256 từng file đạt; không có cloud write |
+| Đối chiếu cặp mới | 19/19 asset READY khớp key/dung lượng/MIME/ETag; 1 object bổ sung; thiếu hoặc khác phiên bản/dung lượng/MIME đều 0 |
+| Xác thực cặp | Toàn bộ gói R2 được xác thực; DB phục hồi và đối chiếu 22 bảng, container đã dọn; không gọi cloud; 21,991 giây |
+
+Gói mới: `Test/backups/neon-2026-10-09T11-13-35.986Z.dpapi` và `Test/backups/r2-2026-10-09T11-14-58.806Z-75a13678`. Receipt `Test/backups/pair-aeede902-874f-4764-96fe-caa13c17ef17.json`, kiểm tra lúc `2026-10-09T11:21:01.820Z`; SHA-256 của file DB mã hóa `a3d5db70078f93abeb98ac601e814996bed1b37e2f62072066867cb8be0b19dc`. Không commit các gói/manifest/log riêng tư này.
+
+Cặp mới vẫn **không phải snapshot nguyên tử DB/media**. Object bổ sung không được suy luận là rác. Gói R2 mới lớn hơn giới hạn drill MinIO 128 MiB tổng; chưa phục hồi 20 file mới vào engine. Bằng chứng engine phía trên chỉ áp dụng cho gói 16 file ngày 08/10. Không nới giới hạn để biến kiểm tra thành đạt.
+
+Công cụ DB backup được sửa để theo dõi container trước khi tạo, kiểm tra label sở hữu và dọn trước khi công bố `verified/cleaned`; xóa buffer plaintext cả khi lỗi. Docker dùng image đã có với `--pull never`. Syntax/lint đạt và lượt backup thật ở trên kiểm chứng đường chạy thành công; chưa có fault injection cho mọi lỗi Docker/DPAPI.
+
 ## Các cổng vẫn mở
 
-- Backup mới và định kỳ, retention/cảnh báo quá hạn, RPO đề xuất ≤24 giờ; gói cũ không chứng minh freshness.
+- Backup định kỳ, retention/cảnh báo quá hạn, RPO đề xuất ≤24 giờ; lượt mới chỉ chứng minh thời điểm vừa sao lưu, chưa phải lịch vận hành.
 - Điểm phục hồi DB/media cùng thời điểm và đối chiếu thông qua ứng dụng đã khôi phục.
 - Quyền IAM/cấu hình R2 thật, private bucket/cloud restore có phê duyệt riêng; MinIO local không kiểm chứng các mục này.
 - Bản sao ngoài máy và khóa phục hồi độc lập với Windows profile. DPAPI CurrentUser không tự bảo vệ khỏi mất máy/profile; chưa có ổ lưu ngoài, không tự gửi backup cloud.

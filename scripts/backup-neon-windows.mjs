@@ -18,7 +18,8 @@ const database = new Client({ connectionString: url.href, connectionTimeoutMilli
 const backupDirectory = resolve(__dirname, '../Test/backups');
 const backupFile = resolve(backupDirectory, `neon-${new Date().toISOString().replaceAll(':', '-')}.dpapi`);
 const hash = (buffer) => createHash('sha256').update(buffer).digest('hex');
-let stage = 'connect'; let containerStarted = false;
+let stage = 'connect'; let containerAttempted = false;
+let dump; let restoredDump;
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { timeout: 120000, maxBuffer: 100 * 1024 * 1024, windowsHide: true, ...options });
   if (result.error || result.status !== 0) throw Object.assign(new Error('Operation failed'), { operation: command, exitStatus: result.status });
@@ -28,6 +29,16 @@ function protect(buffer, decrypt = false) {
   const operation = decrypt ? 'Unprotect' : 'Protect';
   const script = `$ErrorActionPreference='Stop'; $bytes=[Convert]::FromBase64String([Console]::In.ReadToEnd()); $entropy=[Text.Encoding]::UTF8.GetBytes('toeic-mini-trainer.backup.v1'); $result=[Security.Cryptography.ProtectedData]::${operation}($bytes,$entropy,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Console]::Out.Write([Convert]::ToBase64String($result))`;
   return Buffer.from(run('pwsh', ['-NoProfile', '-NonInteractive', '-Command', script], { input: buffer.toString('base64'), encoding: 'utf8' }).trim(), 'base64');
+}
+function cleanupRestoreContainer() {
+  if (!containerAttempted) return;
+  const inspected = spawnSync('docker', ['inspect', '--format', '{{index .Config.Labels "toeic.release.restore-id"}}', containerName], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+  if (inspected.status === 1 && /No such (object|container)/i.test(inspected.stderr ?? '')) {
+    containerAttempted = false; return;
+  }
+  if (inspected.status !== 0 || inspected.stdout.trim() !== backupId) throw new Error('RestoreCleanupOwnershipFailed');
+  run('docker', ['rm', '--force', containerName]);
+  containerAttempted = false;
 }
 async function main() {
   const started = Date.now();
@@ -43,8 +54,8 @@ async function main() {
   for (const table of tables) rowCounts[table] = (await database.query(`SELECT count(*)::text AS count FROM public."${table}"`)).rows[0].count;
   stage = 'read-only pg_dump';
   const dumpEnvironment = { ...process.env, PGHOST: url.hostname, PGPORT: url.port || '5432', PGDATABASE: decodeURIComponent(url.pathname.slice(1)), PGUSER: decodeURIComponent(url.username), PGPASSWORD: decodeURIComponent(url.password), PGSSLMODE: 'require', PGCONNECT_TIMEOUT: '15', PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=60000' };
-  const dumpArgs = ['run', '--rm', '--env', 'PGHOST', '--env', 'PGPORT', '--env', 'PGDATABASE', '--env', 'PGUSER', '--env', 'PGPASSWORD', '--env', 'PGSSLMODE', '--env', 'PGCONNECT_TIMEOUT', '--env', 'PGOPTIONS', 'postgres:18', 'pg_dump', '--format=custom', '--no-owner', '--no-privileges', '--no-publications', '--no-subscriptions', '--lock-wait-timeout=10000', `--snapshot=${snapshot}`];
-  const dump = run('docker', dumpArgs, { env: dumpEnvironment });
+  const dumpArgs = ['run', '--pull', 'never', '--rm', '--env', 'PGHOST', '--env', 'PGPORT', '--env', 'PGDATABASE', '--env', 'PGUSER', '--env', 'PGPASSWORD', '--env', 'PGSSLMODE', '--env', 'PGCONNECT_TIMEOUT', '--env', 'PGOPTIONS', 'postgres:18', 'pg_dump', '--format=custom', '--no-owner', '--no-privileges', '--no-publications', '--no-subscriptions', '--lock-wait-timeout=10000', `--snapshot=${snapshot}`];
+  dump = run('docker', dumpArgs, { env: dumpEnvironment });
   if (dump.subarray(0, 5).toString() !== 'PGDMP') throw new Error('Invalid custom archive');
   await database.query('COMMIT');
   await database.end();
@@ -52,11 +63,12 @@ async function main() {
   mkdirSync(backupDirectory, { recursive: true });
   const encrypted = protect(dump);
   writeFileSync(backupFile, encrypted, { flag: 'wx' });
-  const restoredDump = protect(readFileSync(backupFile), true);
+  restoredDump = protect(readFileSync(backupFile), true);
   if (hash(restoredDump) !== hash(dump)) throw new Error('Encrypted backup roundtrip failed');
   stage = 'isolated restore';
-  run('docker', ['run', '--detach', '--name', containerName, '--label', label, '--network', 'none', '--memory', '512m', '--tmpfs', '/var/lib/postgresql:rw,size=256m', '--env', 'POSTGRES_USER=restore', '--env', 'POSTGRES_PASSWORD=isolated-restore-fixture', '--env', 'POSTGRES_DB=toeic_backup_verify', 'postgres:18']);
-  containerStarted = true;
+  // Track before creation: a timeout can occur after Docker created the container.
+  containerAttempted = true;
+  run('docker', ['run', '--pull', 'never', '--detach', '--name', containerName, '--label', label, '--network', 'none', '--memory', '512m', '--tmpfs', '/var/lib/postgresql:rw,size=256m', '--env', 'POSTGRES_USER=restore', '--env', 'POSTGRES_PASSWORD=isolated-restore-fixture', '--env', 'POSTGRES_DB=toeic_backup_verify', 'postgres:18']);
   let ready = false;
   for (let attempt = 0; attempt < 30; attempt++) {
     const check = spawnSync('docker', ['exec', containerName, 'pg_isready', '-U', 'restore', '-d', 'toeic_backup_verify'], { windowsHide: true, timeout: 10000 });
@@ -69,16 +81,16 @@ async function main() {
     const count = run('docker', ['exec', containerName, 'psql', '-X', '-A', '-t', '-U', 'restore', '-d', 'toeic_backup_verify', '-c', `SELECT count(*)::text FROM public."${table}"`], { encoding: 'utf8' }).trim();
     if (count !== rowCounts[table]) throw new Error('Restored row count mismatch');
   }
-  const manifest = { createdAt: new Date().toISOString(), sourceVersion: version, tableCount: tables.length, rowCounts, encryptedFile: backupFile, encryptedSha256: hash(encrypted), plaintextSha256: hash(dump), encryption: 'Windows DPAPI CurrentUser; entropy toeic-mini-trainer.backup.v1', restoreNetwork: 'none', restoreStorage: 'tmpfs', verified: true, elapsedSeconds: (Date.now() - started) / 1000, excludesObjectStorage: true };
+  stage = 'cleanup isolated restore';
+  cleanupRestoreContainer();
+  const manifest = { createdAt: new Date().toISOString(), sourceVersion: version, tableCount: tables.length, rowCounts, encryptedFile: backupFile, encryptedSha256: hash(encrypted), plaintextSha256: hash(dump), encryption: 'Windows DPAPI CurrentUser; entropy toeic-mini-trainer.backup.v1', restoreNetwork: 'none', restoreStorage: 'tmpfs', verified: true, cleaned: true, elapsedSeconds: (Date.now() - started) / 1000, excludesObjectStorage: true };
   writeFileSync(`${backupFile}.json`, JSON.stringify(manifest, null, 2), { flag: 'wx' });
   dump.fill(0); restoredDump.fill(0);
-  console.log(JSON.stringify({ verified: true, sourceVersion: version, tableCount: tables.length, elapsedSeconds: manifest.elapsedSeconds, encryptedFile: backupFile, objectStorageVerified: false }));
+  console.log(JSON.stringify({ verified: true, cleaned: true, sourceVersion: version, tableCount: tables.length, elapsedSeconds: manifest.elapsedSeconds, encryptedFile: backupFile, objectStorageVerified: false }));
 }
 main().catch((error) => { console.error(JSON.stringify({ stage, errorType: error.name, code: error.code, operation: error.operation, exitStatus: error.exitStatus })); process.exitCode = 1; }).finally(async () => {
   await database.end().catch(() => {});
-  if (containerStarted) {
-    const inspected = spawnSync('docker', ['inspect', '--format', '{{index .Config.Labels "toeic.release.restore-id"}}', containerName], { encoding: 'utf8', windowsHide: true });
-    if (inspected.status === 0 && inspected.stdout.trim() === backupId) run('docker', ['rm', '--force', containerName]);
-    else { console.error('Cannot verify ownership of restore container; cleanup skipped'); process.exitCode = 1; }
-  }
+  dump?.fill(0); restoredDump?.fill(0);
+  try { cleanupRestoreContainer(); }
+  catch { console.error(JSON.stringify({ stage: 'cleanup isolated restore', code: 'RestoreCleanupFailed' })); process.exitCode = 1; }
 });
