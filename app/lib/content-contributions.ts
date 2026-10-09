@@ -13,6 +13,10 @@ const legacyContributionSchema = z.object({
   jobId: z.string().uuid(),
   data: sharedQuestionDataSchema,
   rightsConfirmed: z.literal(true),
+  resubmission: z.object({
+    contributionId: z.string().uuid(),
+    expectedUpdatedAt: z.string().datetime(),
+  }).strict().optional(),
 }).strict();
 
 export const submitContributionSchema = z.union([
@@ -21,8 +25,8 @@ export const submitContributionSchema = z.union([
 ]);
 
 export const reviewContributionSchema = z.discriminatedUnion("decision", [
-  z.object({ decision: z.literal("APPROVE"), note: z.string().trim().max(1_000).optional() }).strict(),
-  z.object({ decision: z.literal("REJECT"), note: z.string().trim().min(5).max(1_000) }).strict(),
+  z.object({ decision: z.literal("APPROVE"), note: z.string().trim().max(1_000).optional(), expectedUpdatedAt: z.string().datetime().optional() }).strict(),
+  z.object({ decision: z.literal("REJECT"), note: z.string().trim().min(5).max(1_000), expectedUpdatedAt: z.string().datetime().optional() }).strict(),
 ]);
 
 export function contributionQuestionCount(data: z.infer<typeof sharedQuestionDataSchema>) {

@@ -97,4 +97,4 @@ Diễn tập restore media chỉ loopback: [R2_LOCAL_RESTORE_2026-10-09.md](R2_L
 - APK/Google OAuth, upload/OCR/audio thật của build mới trên điện thoại.
 - Bộ nội dung có quyền sử dụng đủ cho beta và người kiểm duyệt.
 - Beta 10–20 người trong hai tuần; chính sách xóa dữ liệu, support và hồ sơ store.
-- Sửa/gửi lại đóng góp bị từ chối, editor câu đã xuất bản, version tối thiểu APK, offline đầy đủ và iOS.
+- Sửa/gửi lại đóng góp bị từ chối đã có bản mã nguồn qua 203 unit/46 integration; chưa deploy/nghiệm thu UI, chưa hỗ trợ thay media trong bản sửa. Xem [CONTRIBUTION_RESUBMISSION_2026-10-09.md](CONTRIBUTION_RESUBMISSION_2026-10-09.md). Editor câu đã xuất bản, version tối thiểu APK, offline đầy đủ và iOS còn mở.

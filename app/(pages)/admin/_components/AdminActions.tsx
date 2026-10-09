@@ -40,7 +40,7 @@ export function UserControls({ id, currentRole, currentStatus, isSelf }: { id: s
   </div>;
 }
 
-export function ContributionControls({ id, hasAudio, hasImages = false }: { id: string; hasAudio: boolean; hasImages?: boolean }) {
+export function ContributionControls({ id, hasAudio, hasImages = false, expectedUpdatedAt }: { id: string; hasAudio: boolean; hasImages?: boolean; expectedUpdatedAt: string }) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -82,7 +82,7 @@ export function ContributionControls({ id, hasAudio, hasImages = false }: { id: 
     if (!window.confirm(decision === "APPROVE" ? "Bạn đã kiểm tra PDF nguồn, bản quyền, đáp án và media? Nội dung sẽ công khai ngay." : "Xác nhận từ chối tài liệu này?")) return;
     setBusy(true); setNotice("");
     try {
-      await postJson(`/api/v1/contributions/${id}/review`, { decision, note: note.trim() });
+      await postJson(`/api/v1/contributions/${id}/review`, { decision, note: note.trim(), expectedUpdatedAt });
       setNotice("Đã xử lý và ghi nhật ký."); router.refresh();
     } catch (error) { setNotice(error instanceof Error ? error.message : "Không thể duyệt tài liệu."); }
     finally { setBusy(false); }

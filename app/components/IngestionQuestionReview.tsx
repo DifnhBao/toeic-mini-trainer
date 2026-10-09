@@ -89,11 +89,13 @@ export default function IngestionQuestionReview({
   jobId,
   pageRange,
   forSharedLibrary = false,
+  resubmission,
 }: {
   groups: ExtractedGroup[];
   jobId: string;
   pageRange: { start: number; end: number } | null;
   forSharedLibrary?: boolean;
+  resubmission?: { contributionId: string; expectedUpdatedAt: string };
 }) {
   const [entries, setEntries] = useState(() => initialEntries(groups));
   const [reviewGroups, setReviewGroups] = useState(groups);
@@ -239,6 +241,7 @@ export default function IngestionQuestionReview({
           jobId,
           data: buildReviewedContribution(reviewGroups, entries),
           rightsConfirmed: true,
+          ...(resubmission ? { resubmission } : {}),
         }),
       });
       const data = await response.json().catch(() => null);
@@ -257,7 +260,7 @@ export default function IngestionQuestionReview({
       <div className="review-import-head">
         <div>
           <span className="step-kicker">BƯỚC 2</span>
-          <h2 id="question-review-title">Sửa và duyệt từng câu</h2>
+          <h2 id="question-review-title">{resubmission ? "Sửa bộ câu hỏi bị từ chối" : "Sửa và duyệt từng câu"}</h2>
           <p>Kết quả trang {pageRange?.start ?? "?"}–{pageRange?.end ?? "?"}. Đối chiếu PDF gốc; AI có thể chọn sai đáp án.</p>
         </div>
         <div className="text-sm text-slate-700" role="status">
@@ -301,12 +304,12 @@ export default function IngestionQuestionReview({
               <p className="font-semibold">Ảnh Part 1 hoặc biểu đồ · Nhóm {active.groupIndex + 1}</p>
               <p className="mt-1 text-xs text-slate-600">Chọn ảnh đã cắt từ tài liệu. Ảnh áp dụng cho toàn bộ {reviewGroups[active.groupIndex].questions.length} câu trong nhóm; nếu có nhiều ảnh, ghép đủ ảnh và giữ số câu để đối chiếu. Hệ thống chưa tự cắt ảnh từ PDF.</p>
               <label className="mt-3 grid gap-1 font-semibold">{activeGroup?.imageAssetId ? "Thay ảnh của nhóm" : "Gắn ảnh cho nhóm"}
-                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || imported || submittedForReview} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachMedia(file, "IMAGE"); }} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || imported || submittedForReview || Boolean(resubmission)} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachMedia(file, "IMAGE"); }} />
               </label>
               <p className="mt-1 text-xs text-slate-500">JPG/PNG/WebP, tối đa {UPLOAD_RULES.IMAGE.maxBytes / 1024 / 1024} MiB. Ảnh đã gắn được lưu cùng tác vụ, không sửa câu hỏi đã nhập trước đó.</p>
               {activeGroup?.imageAssetId && <div className="mt-2 flex flex-wrap gap-2">
                 <button type="button" disabled={busy} className="ghost-button" onClick={() => void openMedia("IMAGE")}>Xem ảnh đã gắn</button>
-                <button type="button" disabled={busy || imported || submittedForReview} className="ghost-button" onClick={() => void attachMedia(null, "IMAGE")}>Bỏ ảnh khỏi nhóm</button>
+                <button type="button" disabled={busy || imported || submittedForReview || Boolean(resubmission)} className="ghost-button" onClick={() => void attachMedia(null, "IMAGE")}>Bỏ ảnh khỏi nhóm</button>
               </div>}
               {imageUrls[active.groupIndex] && <Image unoptimized src={imageUrls[active.groupIndex]} alt={`Ảnh nhóm câu ${active.groupIndex + 1}`} width={1200} height={900} className="mt-3 max-h-[32rem] w-full object-contain" />}
             </div>
@@ -314,12 +317,12 @@ export default function IngestionQuestionReview({
               <p className="font-semibold">Audio · Nhóm {active.groupIndex + 1}</p>
               <p className="mt-1 text-xs text-slate-600">Gắn đoạn audio khớp toàn bộ câu trong nhóm để người học không phải tìm câu trong file nguyên bài. Hệ thống chưa tự xác định điểm cắt audio.</p>
               <label className="mt-3 grid gap-1 font-semibold">Gắn audio riêng cho nhóm
-                <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,.mp3,.m4a,.wav" disabled={busy || imported || submittedForReview} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachMedia(file, "AUDIO"); }} />
+                <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,.mp3,.m4a,.wav" disabled={busy || imported || submittedForReview || Boolean(resubmission)} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachMedia(file, "AUDIO"); }} />
               </label>
               <p className="mt-1 text-xs text-slate-500">MP3/M4A/WAV, tối đa {UPLOAD_RULES.AUDIO.maxBytes / 1024 / 1024} MiB. Audio lưu cùng tác vụ, không sửa câu hỏi đã nhập trước đó.</p>
               {activeGroup?.audioAssetId && <div className="mt-2 flex flex-wrap gap-2">
                 <button type="button" disabled={busy} className="ghost-button" onClick={() => void openMedia("AUDIO")}>Nghe audio của nhóm</button>
-                <button type="button" disabled={busy || imported || submittedForReview} className="ghost-button" onClick={() => void attachMedia(null, "AUDIO")}>Dùng audio nguồn</button>
+                <button type="button" disabled={busy || imported || submittedForReview || Boolean(resubmission)} className="ghost-button" onClick={() => void attachMedia(null, "AUDIO")}>Dùng audio nguồn</button>
               </div>}
               {audioUrls[active.groupIndex] && <audio key={audioUrls[active.groupIndex]} className="mt-3 w-full" controls preload="none" src={audioUrls[active.groupIndex]}>Trình duyệt không hỗ trợ phát audio.</audio>}
             </div>}
@@ -366,7 +369,7 @@ export default function IngestionQuestionReview({
         <p className="font-bold text-slate-900">{forSharedLibrary ? "BƯỚC 3 · Xuất bản vào kho bài" : "Muốn đóng góp vào kho chung?"}</p>
         <p className="mt-1">PDF gốc vẫn riêng tư. Sau khi kiểm tra từng câu, chuyển sang trang Duyệt nội dung để nghe lại audio và công khai bài cho người học.</p>
         <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={rightsConfirmed} disabled={busy || submittedForReview} onChange={(event) => setRightsConfirmed(event.target.checked)} className="mt-1" /><span>Tôi có quyền chia sẻ nội dung và media này, đã kiểm tra đáp án.</span></label>
-        <button type="button" className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={!canSubmit} onClick={() => void submitForReview()}>{submittedForReview ? "Đã chuyển sang bước xuất bản" : `Chuyển ${counts.approved} câu sang bước xuất bản`}</button>
+        <button type="button" className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={!canSubmit} onClick={() => void submitForReview()}>{submittedForReview ? "Đã chuyển sang bước xuất bản" : resubmission ? `Gửi lại ${counts.approved} câu để duyệt` : `Chuyển ${counts.approved} câu sang bước xuất bản`}</button>
         {submittedForReview && <a className="ml-3 inline-block font-semibold text-blue-700 underline" href="/admin/contributions?status=PENDING">Mở trang Duyệt nội dung →</a>}
       </div>
       {message && <p className="success-message mt-3" role="status">✓ {message}</p>}

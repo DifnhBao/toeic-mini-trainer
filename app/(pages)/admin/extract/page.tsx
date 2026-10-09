@@ -309,7 +309,7 @@ export default function AIExtractPage() {
           {error && <p className="inline-error" role="alert">{error}</p>}
         </section>
 
-        {existingContribution && <section className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-5"><p>Nội dung này đã chuyển sang bước xuất bản ({existingContribution.status}).</p><Link className="mt-2 inline-block font-semibold text-blue-700 underline" href={`/admin/contributions?status=${existingContribution.status}`}>Mở nội dung đã gửi →</Link></section>}
+        {existingContribution && <section className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-5"><p>Nội dung này đã chuyển sang bước xuất bản ({existingContribution.status}).</p><Link className="mt-2 inline-block font-semibold text-blue-700 underline" href={`/admin/contributions?status=${existingContribution.status}`}>Mở nội dung đã gửi →</Link>{existingContribution.status === "REJECTED" && <Link className="ml-4 mt-2 inline-block font-semibold text-blue-700 underline" href={`/admin/contributions/${existingContribution.id}/edit`}>Sửa và gửi lại →</Link>}</section>}
         {extractedData?.data && jobId && !existingContribution && (
             <IngestionQuestionReview key={`${jobId}:${reviewVersion}`} groups={extractedData.data} jobId={jobId} pageRange={processedRange} forSharedLibrary />
         )}

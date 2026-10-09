@@ -34,7 +34,7 @@ export async function POST(
   const contribution = await prisma.contentContribution.findUnique({
     where: { id: id.data },
     select: {
-      id: true, ownerId: true, status: true, data: true,
+      id: true, ownerId: true, status: true, data: true, updatedAt: true, reviewedAt: true,
       sourceJob: {
         select: {
           result: true,
@@ -47,6 +47,11 @@ export async function POST(
   if (contribution.status !== "PENDING") {
     return apiError("ALREADY_REVIEWED", "Đóng góp đã được xử lý.", 409);
   }
+  const expectedUpdatedAt = body.data.expectedUpdatedAt;
+  if ((expectedUpdatedAt && Date.parse(expectedUpdatedAt) !== contribution.updatedAt.getTime()) ||
+      (!expectedUpdatedAt && contribution.reviewedAt)) {
+    return apiError("CONTRIBUTION_CHANGED", "Bản gửi duyệt đã thay đổi. Hãy mở lại trên web và kiểm tra nội dung mới.", 409);
+  }
   if (contribution.ownerId === user.id && user.role !== "ADMIN") {
     return apiError("SELF_REVIEW_NOT_ALLOWED", "Người duyệt không thể tự xét đóng góp của mình.", 403);
   }
@@ -55,8 +60,9 @@ export async function POST(
   if (body.data.decision === "REJECT") {
     const changed = await prisma.$transaction(async (tx) => {
       const result = await tx.contentContribution.updateMany({
-        where: { id: id.data, status: "PENDING" },
-        data: { status: "REJECTED", reviewedById: user.id, reviewedAt, reviewNote: body.data.note },
+        where: { id: id.data, status: "PENDING", updatedAt: contribution.updatedAt },
+        data: { status: "REJECTED", reviewedById: user.id, reviewedAt, reviewNote: body.data.note,
+          updatedAt: new Date(Math.max(Date.now(), contribution.updatedAt.getTime() + 1)) },
       });
       if (result.count === 1) {
         await tx.authorizationAuditEvent.create({
@@ -115,8 +121,9 @@ export async function POST(
           if (ready !== mediaSources.length) throw new Error("ASSET_OWNERSHIP_INVALID");
         }
         const changed = await tx.contentContribution.updateMany({
-          where: { id: id.data, status: "PENDING" },
-          data: { status: "APPROVED", reviewedById: user.id, reviewedAt, reviewNote: body.data.note || null },
+          where: { id: id.data, status: "PENDING", updatedAt: contribution.updatedAt },
+          data: { status: "APPROVED", reviewedById: user.id, reviewedAt, reviewNote: body.data.note || null,
+            updatedAt: new Date(Math.max(Date.now(), contribution.updatedAt.getTime() + 1)) },
         });
         if (changed.count !== 1) throw new Error("ALREADY_REVIEWED");
         await tx.authorizationAuditEvent.create({

@@ -266,3 +266,60 @@ describe("group audio through real APIs, PostgreSQL and loopback S3 fixture", ()
     } finally { storage.setSharedCopyHook(null); await prisma.uploadedAsset.update({ where: { id: clipIds[0] }, data: { status: "READY" } }); }
   });
 });
+
+
+describe("rejected contribution revisions through PostgreSQL and loopback storage", () => {
+  it("resubmits only one rejected revision, retains media and requires fresh review before publication", async () => {
+    const jobId = await makeJob();
+    assert.equal((await attach.POST(await request(admin, { groupIndex: 0, imageAssetId: imageId }), params(jobId))).status, 200);
+    const contributionId = await submitJob(jobId);
+    const initial = await prisma.contentContribution.findUniqueOrThrow({ where: { id: contributionId } });
+    assert.equal((await approve.POST(await request(admin, { decision: "REJECT", note: "Đáp án cần sửa", expectedUpdatedAt: initial.updatedAt.toISOString() }), params(contributionId))).status, 200);
+    const rejected = await prisma.contentContribution.findUniqueOrThrow({ where: { id: contributionId } });
+    const edited = JSON.parse(JSON.stringify(rejected.data)); edited.data[0].questions[0].correctAnswer = "A";
+    const body = { jobId, data: edited, rightsConfirmed: true,
+      resubmission: { contributionId, expectedUpdatedAt: rejected.updatedAt.toISOString() } };
+    assert.deepEqual((await Promise.all([0, 1].map(async () => (await submit.POST(await request(admin, body))).status))).sort(), [200, 409]);
+    const pending = await prisma.contentContribution.findUniqueOrThrow({ where: { id: contributionId } });
+    assert.equal(pending.status, "PENDING"); assert.ok(pending.reviewedAt);
+    assert.ok(pending.updatedAt > rejected.updatedAt); assert.deepEqual(pending.data, edited);
+    assert.equal(await prisma.contentContribution.count({ where: { sourceJobId: jobId } }), 1);
+    assert.equal(await prisma.authorizationAuditEvent.count({ where: { targetId: contributionId, action: "CONTRIBUTION_RESUBMITTED" } }), 1);
+    assert.equal(await prisma.question.count({ where: { contributionId } }), 0);
+    for (const decision of ["APPROVE", "REJECT"]) {
+      assert.equal((await approve.POST(await request(admin, { decision, note: "Old reviewer" }), params(contributionId))).status, 409);
+      assert.equal((await approve.POST(await request(admin, { decision, note: "Old reviewer", expectedUpdatedAt: initial.updatedAt.toISOString() }), params(contributionId))).status, 409);
+    }
+    assert.equal((await submit.POST(await request(foreign, body))).status, 409);
+    assert.equal((await submit.POST(await request(learner, body))).status, 403);
+    assert.equal((await approve.POST(await request(admin, { decision: "APPROVE", expectedUpdatedAt: pending.updatedAt.toISOString() }), params(contributionId))).status, 200);
+    const question = await prisma.question.findFirstOrThrow({ where: { contributionId }, include: { group: true } });
+    assert.equal(question.correctAnswer, "A"); assert.ok(question.group?.imageAssetId); assert.ok(question.group?.audioAssetId);
+    assert.notEqual(question.group?.imageAssetId, imageId); assert.notEqual(question.group?.audioAssetId, audioId);
+    assert.equal((await prisma.uploadedAsset.findUniqueOrThrow({ where: { id: imageId } })).ownerId, admin);
+  });
+
+  it("rolls back an approval and media copies if rejection and resubmission replace its in-flight revision", async () => {
+    const jobId = await makeJob();
+    assert.equal((await attach.POST(await request(admin, { groupIndex: 0, imageAssetId: imageId }), params(jobId))).status, 200);
+    const contributionId = await submitJob(jobId);
+    const initial = await prisma.contentContribution.findUniqueOrThrow({ where: { id: contributionId } });
+    storage.setSharedCopyHook(async () => {
+      storage.setSharedCopyHook(null);
+      assert.equal((await approve.POST(await request(admin, { decision: "REJECT", note: "Sửa trước khi duyệt", expectedUpdatedAt: initial.updatedAt.toISOString() }), params(contributionId))).status, 200);
+      const rejected = await prisma.contentContribution.findUniqueOrThrow({ where: { id: contributionId } });
+      const edited = JSON.parse(JSON.stringify(rejected.data)); edited.data[0].questions[0].correctAnswer = "A";
+      assert.equal((await submit.POST(await request(admin, { jobId, data: edited, rightsConfirmed: true,
+        resubmission: { contributionId, expectedUpdatedAt: rejected.updatedAt.toISOString() } }))).status, 200);
+    });
+    try {
+      assert.equal((await approve.POST(await request(admin, { decision: "APPROVE", expectedUpdatedAt: initial.updatedAt.toISOString() }), params(contributionId))).status, 409);
+      const pending = await prisma.contentContribution.findUniqueOrThrow({ where: { id: contributionId } });
+      assert.equal(pending.status, "PENDING"); assert.equal(JSON.parse(JSON.stringify(pending.data)).data[0].questions[0].correctAnswer, "A");
+      assert.equal(await prisma.question.count({ where: { contributionId } }), 0);
+      assert.equal(await prisma.questionGroup.count({ where: { contributionId } }), 0);
+      assert.ok(![...storage.objects.keys()].some(key => key.includes(`/${contributionId}/`)));
+    } finally { storage.setSharedCopyHook(null); }
+  });
+
+});

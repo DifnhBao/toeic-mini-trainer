@@ -6,8 +6,8 @@
 | --- | --- | --- | --- | --- |
 | Làm bài từ câu đã xuất bản | Có, không lưu lịch sử, tối đa 3 bài/ngày | Có, lưu lịch sử | Có | Có |
 | Dùng kho câu cũ chưa duyệt (`LEGACY`) | Không | Có | Có | Có |
-| Nhập PDF/audio vào kho cá nhân | Không | Có | Có | Có |
-| Gửi bộ câu hỏi vào hàng chờ | Không | Có, phải xác nhận quyền chia sẻ | Có | Có |
+| Nhập PDF/audio mới | Không | Không | Không | Có |
+| Gửi bộ câu hỏi vào hàng chờ | Không | Không | Không | Có, phải xác nhận quyền chia sẻ |
 | Xem PDF nguồn và duyệt/từ chối bộ đóng góp | Không | Không | Có | Có |
 | Quản lý vai trò/trạng thái tài khoản và xuất bản câu cũ | Không | Không | Không | Có |
 | Chatbot cá nhân, giải thích câu sai | Không | Có | Có | Có |
@@ -28,7 +28,7 @@ Không chạy migration, bootstrap, deploy hay thử nghiệm có chi phí trên
 
 ## Giới hạn cần xử lý trước khi mở cho người dùng thật
 
-- Duyệt đang theo **cả bộ đề**, chưa sửa/duyệt từng câu. Người gửi xem trước nhưng không sửa đáp án ngay trong app; câu AI trích sai phải từ chối cả bộ và làm lại. Dashboard web `/admin` đã có danh sách user, job, đóng góp và câu hỏi cũ cùng các thao tác có audit; chưa có chức năng biên tập từng câu hay xử lý hàng loạt. Câu `LEGACY` phải được xem xét thủ công trước khi xuất bản.
+- Duyệt xuất bản vẫn theo **cả bộ đề**. Web đã cho sửa/duyệt/loại từng câu trước khi gửi. Bản mã nguồn ngày 09/10 bổ sung ADMIN chủ sở hữu sửa nội dung/đáp án và gửi lại bộ bị từ chối, dùng lại media và không chạy AI lại; 203 unit/46 integration đạt, chưa deploy hoặc nghiệm thu UI tương tác. Xem [CONTRIBUTION_RESUBMISSION_2026-10-09.md](CONTRIBUTION_RESUBMISSION_2026-10-09.md). Thay media trong bản gửi lại, editor câu đã xuất bản và xử lý hàng loạt còn mở. Câu `LEGACY` phải được xem xét thủ công trước khi xuất bản.
 - Audio đóng góp được sao chép sang object key `shared/audio/...` và asset không thuộc tài khoản người gửi khi duyệt. Cần kiểm thử copy/đọc R2 thật và thiết kế quy trình xóa/thu hồi bản sao nếu admin gỡ nội dung; lỗi giữa thao tác copy R2 và transaction DB vẫn có thể để lại object mồ côi cần dọn.
 - Câu chung cũ được gắn `LEGACY`, không tự xuất bản cho khách. Admin chỉ có thể xuất bản từng câu qua API sau khi kiểm tra; câu có media legacy chưa an toàn bị chặn. Chưa có công cụ rà hàng loạt.
 - Nếu sau này cho phép sửa nội dung/đáp án của một câu đã xuất bản, thao tác sửa phải tăng `contentRevision` và rà lại trạng thái xuất bản; nếu không cache lời giải cũ có thể trở nên sai. Hiện chưa có API sửa câu chung.

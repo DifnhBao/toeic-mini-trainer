@@ -35,7 +35,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "asc" },
         take: 20,
         select: {
-          id: true, createdAt: true, data: true,
+          id: true, createdAt: true, updatedAt: true, data: true,
           owner: { select: { name: true, email: true } },
         },
       })
@@ -99,24 +99,52 @@ export async function POST(request: Request) {
 
   const existing = await prisma.contentContribution.findUnique({
     where: { sourceJobId: job.id },
-    select: { id: true, status: true },
+    select: { id: true, ownerId: true, status: true, createdAt: true, updatedAt: true, reviewedAt: true },
   });
-  if (existing) return apiError("ALREADY_SUBMITTED", "Bộ đề này đã được gửi đóng góp.", 409);
+  const resubmission = "resubmission" in body.data ? body.data.resubmission : undefined;
+  if (resubmission) {
+    if (!existing || existing.id !== resubmission.contributionId || existing.ownerId !== user.id ||
+        existing.status !== "REJECTED" || existing.updatedAt.getTime() !== Date.parse(resubmission.expectedUpdatedAt)) {
+      return apiError("CONTRIBUTION_CHANGED", "Nội dung đã thay đổi. Hãy mở lại bản bị từ chối trước khi gửi lại.", 409);
+    }
+  } else if (existing) return apiError("ALREADY_SUBMITTED", "Bộ đề này đã được gửi đóng góp.", 409);
 
   try {
     const contribution = await prisma.$transaction(async tx => {
       const locked = await tx.ingestionJob.updateMany({
-        where: { id: job.id, ownerId: user.id, updatedAt: job.updatedAt, status: { in: ["COMPLETED", "IMPORTED"] }, contribution: { is: null } },
+        where: { id: job.id, ownerId: user.id, updatedAt: job.updatedAt, status: { in: ["COMPLETED", "IMPORTED"] },
+          contribution: { is: resubmission && existing ? { id: existing.id, status: "REJECTED", updatedAt: existing.updatedAt } : null } },
         data: { updatedAt: new Date(Math.max(Date.now(), job.updatedAt.getTime() + 1)) },
       });
       if (locked.count !== 1) throw new Error("JOB_CHANGED");
+      if (resubmission && existing) {
+        const changed = await tx.contentContribution.updateMany({
+          where: { id: existing.id, ownerId: user.id, status: "REJECTED", updatedAt: existing.updatedAt },
+          data: {
+            status: "PENDING", data: reviewedData, reviewNote: null, reviewedById: null,
+            reviewedAt: existing.reviewedAt ?? existing.updatedAt,
+            // Keep the last review time: a resubmitted PENDING row requires a
+            // client version, so an old review screen cannot approve new content.
+            updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)),
+          },
+        });
+        if (changed.count !== 1) throw new Error("CONTRIBUTION_CHANGED");
+        await tx.authorizationAuditEvent.create({ data: {
+          actorId: user.id, action: "CONTRIBUTION_RESUBMITTED", targetType: "ContentContribution",
+          targetId: existing.id, reason: "Gửi lại nội dung đã sửa; xác nhận lại quyền chia sẻ.",
+        } });
+        return { id: existing.id, status: "PENDING" as const, createdAt: existing.createdAt };
+      }
       return tx.contentContribution.create({
         data: { ownerId: user.id, sourceJobId: job.id, data: reviewedData },
         select: { id: true, status: true, createdAt: true },
       });
     });
-    return apiJson({ contribution, questionsSubmitted: contributionQuestionCount(reviewedData) }, { status: 201 });
+    return apiJson({ contribution, questionsSubmitted: contributionQuestionCount(reviewedData) }, { status: resubmission ? 200 : 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === "CONTRIBUTION_CHANGED") {
+      return apiError("CONTRIBUTION_CHANGED", "Nội dung đã thay đổi. Hãy mở lại trước khi gửi lại.", 409);
+    }
     if (error instanceof Error && error.message === "JOB_CHANGED") {
       return apiError("JOB_CHANGED", "Tài liệu vừa thay đổi hoặc đã gửi duyệt. Hãy mở lại trước khi gửi.", 409);
     }
