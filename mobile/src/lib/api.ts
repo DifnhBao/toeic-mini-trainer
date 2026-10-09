@@ -22,14 +22,20 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}) {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
+    const headers = new Headers({
+      Accept: 'application/json',
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+    });
+    // Headers instances have platform-specific internals. Object spreading
+    // them sends those internals to Expo's native bridge instead of HTTP headers.
+    new Headers(init.headers).forEach((value, name) => headers.set(name, value));
+    const headerPairs: [string, string][] = [];
+    headers.forEach((value, name) => headerPairs.push([name, value]));
+
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
       ...init,
       signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...init.headers,
-      },
+      headers: headerPairs,
     });
 
     const payload = (await response.json().catch(() => null)) as
