@@ -26,7 +26,7 @@ Nghiệm thu: API private/no-store, web build và Android bundle/typecheck đạ
 ## Giai đoạn 3 — Kiểm chứng với người học và cải tiến
 
 1. Chủ dự án nghiệm thu trên Samsung S23 FE: làm/nộp hai Part, mở phân tích, kiểm số câu/đề xuất, đổi tài khoản và mất mạng/thử lại.
-2. Chuẩn hóa nhãn kỹ năng trong kho, rà soát độ khó/phạm vi nội dung; chỉ sau đó mở rộng đề xuất tới kỹ năng cụ thể hoặc chọn câu theo nhãn.
+2. Chuẩn hóa nhãn kỹ năng trong kho, rà soát độ khó/phạm vi nội dung; cần bổ sung công cụ ADMIN quản lý/gắn nhãn vì schema đã có SkillTag nhưng luồng nhập hiện chưa ghi nhãn. Chỉ sau đó mở rộng đề xuất tới kỹ năng cụ thể hoặc chọn câu theo nhãn. Giao diện hiện báo độ phủ và không tự gán nhãn cho dữ liệu cũ.
 3. Theo dõi 2 tuần: người học có hiểu lý do đề xuất, có luyện Part được đề nghị, tỷ lệ bỏ trống và kết quả trên câu mới thay đổi thế nào. Không dùng lượt làm lại cùng câu để khẳng định hiệu quả học tập.
 4. Sau khi có dữ liệu kiểm chứng mới xem xét lịch ôn câu sai/spaced repetition và mục tiêu cá nhân. AI diễn giải là tùy chọn sau, phải có ngân sách/quyền rõ ràng; bản đầu không cần model hoặc dịch vụ trả phí.
 
@@ -36,6 +36,16 @@ Không cần migration hoặc ghi thêm dữ liệu cá nhân. Không đưa nộ
 
 ## Trạng thái phát triển
 
-Ngày 09/10: giai đoạn 1–2 đã có mã triển khai; commit `725b420` đạt unit/integration/build/export và ba job CI. API `GET /api/v1/progress/insights`, web `/progress`, Android `/insights`. Link mở từ trang chủ và màn kết quả. Request tạo bài hỗ trợ `preferUnseen` tùy chọn, mặc định giữ chọn ngẫu nhiên như trước; chỉ nút luyện từ phân tích gửi tùy chọn này. Bổ sung tối ưu truy vấn và làm tròn xu hướng đang được xác minh riêng theo [biên bản nghiệm thu](PERSONAL_LEARNING_INSIGHTS_ACCEPTANCE_2026-10-09.md).
+Ngày 09/10: giai đoạn 1–2 đã có mã triển khai; commit `725b420` đạt unit/integration/build/export và ba job CI. API `GET /api/v1/progress/insights`, web `/progress`, Android `/insights`. Link mở từ trang chủ và màn kết quả. Request tạo bài hỗ trợ `preferUnseen` tùy chọn, mặc định giữ chọn ngẫu nhiên như trước; chỉ nút luyện từ phân tích gửi tùy chọn này. Bổ sung tối ưu truy vấn và làm tròn xu hướng tại `abe13b0` cũng đạt ba job CI, unit Windows 246/246 và integration CI 78/78 theo [biên bản nghiệm thu](PERSONAL_LEARNING_INSIGHTS_ACCEPTANCE_2026-10-09.md).
 
 Các nhãn kỹ năng/Part dùng thông tin hiện tại trong kho, không có snapshot độ khó/nhãn tại thời điểm làm. Tỷ lệ hiển thị được làm tròn một chữ số thập phân; phân loại ngưỡng dùng tỷ lệ gốc. Không gọi AI/provider, không gửi lịch sử học ra dịch vụ phân tích bên ngoài. Chưa triển khai production hoặc tạo APK mới cho giao diện này khi chủ dự án đang đi vắng.
+
+## Lịch tiếp theo dự kiến
+
+| Mốc | Công việc và đầu ra | Điều kiện kết thúc |
+| --- | --- | --- |
+| Ngày đầu sau khi chủ dự án trở lại | Phát hành web/API và APK đồng bộ có kiểm soát; đối chiếu nguồn/build ID, làm hai Part, mở phân tích, đổi tài khoản và mất mạng/thử lại trên S23 FE | Số liệu khớp bài đã nộp, chỉ tạo bài khi bấm luyện, không trộn dữ liệu; đủ tám mục trong biên bản nghiệm thu |
+| 2–3 ngày sau vòng nghiệm thu đầu | Rà soát kho được quyền chia sẻ, ưu tiên Reading; xây luồng ADMIN gắn nhãn được kiểm duyệt và bộ từ điển nhãn | Có thể gắn/sửa nhãn theo quyền ADMIN, người học chỉ đọc tổng hợp; nhãn có hướng dẫn và mẫu đối chiếu, không tự sửa hàng loạt dữ liệu cũ |
+| Sau khi nội dung/điện thoại/vận hành đủ điều kiện | Thử với Android thứ hai và mời 10–20 người học trong 14 ngày; nhận đánh giá về lý do/gợi ý và xem kết quả trên câu mới | Phân biệt đủ/thiếu bằng chứng, phản hồi dùng được, không tính luyện lặp thành tiến bộ; có danh sách sửa cụ thể trước mở rộng |
+
+Đây là ước lượng công việc, không cam kết ngày phát hành. Phụ thuộc nghiệm thu, quyền truy cập và nội dung hợp lệ; ổ C/Docker hiện cần khôi phục trước kiểm thử local tiếp. Theo dõi beta dùng kết quả đã có và phản hồi tự nguyện; chưa thêm tracker hoặc tự gửi báo cáo/dữ liệu người học ra ngoài.
