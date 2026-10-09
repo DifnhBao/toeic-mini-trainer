@@ -33,8 +33,12 @@ Ba biên bản Android do chủ dự án đang sửa được giữ nguyên, kh�
 
 ## Khi trở lại
 
-1. Giải phóng dung lượng ổ C, khôi phục Docker và dọn fixture test bị gián đoạn; không reset DB thật.
-2. Chốt/kiểm thử mã hỗ trợ đang sửa; theo runbook phát hành API và APK đồng bộ, nghiệm thu màn phân tích trên S23 FE theo tám mục trong biên bản.
+Cập nhật 20h44: source mã hỗ trợ `08bfafbaf0e10521eff73bbb199de7c1c0561506` đã đẩy. CI [37938249776](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37938249776) completed/success, web/integration/mobile và từng bước đều đạt: PostgreSQL 78/78 không skip, Linux unit 249 đạt/3 skip/0 lỗi, build web và export/audit Android đạt (1.324 source). Windows local 252/252 không skip. Các đoạn working tree/chờ CI phía trên là trạng thái trước cập nhật này; API/APK chưa phát hành thêm.
+
+Kiểm tra mới lúc 20h38: ổ C có 6.646.755.328 byte trống, Docker 29.8.1 trả lời; không xác định nguyên nhân dung lượng trở lại và không coi là thao tác dọn của agent. Khởi động lại đúng container test cũ, PostgreSQL crash-recovery rồi nhận kết nối. Fixture gián đoạn ngày 09/10 11:36 UTC có 20 user UUID@email benchmark.invalid, 10.000 câu có nội dung/options tổng hợp, 7 test, 120.000 đáp án. Kiểm tra không có câu/test/đáp án liên kết sang tài khoản khác, không có account/session/media/đóng góp của user fixture. Transaction chụp đúng ID, kiểm tra lại thuộc tính và số lượng trước xóa; COMMIT thành công, postcheck tất cả marker/đáp án về 0. Container đã dừng nhẹ, volume giữ nguyên; không reset DB hoặc động tới DB thật. Logs `Test/interrupted-fixture-{audit,cleanup,postcheck}.txt`. Điều này giải quyết fixture còn sót, không làm lượt đo bị lỗi trở thành benchmark đạt và không chứng minh Docker ổn định dưới tải.
+
+1. Theo dõi dung lượng ổ C và sự ổn định Docker; fixture test bị gián đoạn đã dọn theo cập nhật 20h44, không reset DB thật.
+2. Theo runbook phát hành API và APK đồng bộ sau kiểm tra triển khai được phép, nghiệm thu màn phân tích/mã hỗ trợ trên S23 FE theo biên bản.
 3. Hoàn thiện một bộ Reading hợp lệ trong Kho bài, gắn nhãn được kiểm duyệt; kiểm tra với tài khoản người học thật và Android thứ hai.
 4. Hoàn thiện vận hành: backup định kỳ/ngoài máy/khóa, phục hồi DB-media nhất quán, cảnh báo/ngân sách/người xử lý, bảo vệ nhánh; sau đó beta 10–20 người/14 ngày.
 

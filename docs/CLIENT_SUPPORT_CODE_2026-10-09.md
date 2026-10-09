@@ -10,14 +10,14 @@ Chỉ nhận UUID v4 chữ thường dài đúng 36 ký tự từ header phản 
 
 Giới hạn: chưa phải mọi thông báo đều có mã. Lỗi đọc thống kê nền ở trang chủ hiện chỉ đi tới console; job FAILED có job ID để đối chiếu. Upload trực tiếp R2, phát audio, SDK đăng nhập và lỗi mạng không tự có request ID API. Cần tra mã trong log của đúng deployment; không bảo đảm mọi lỗi đều có log tương ứng.
 
-Metro được mở phạm vi chỉ tới `../shared` vì helper dùng lúc chạy nằm ngoài thư mục mobile; không thêm thư mục mã web hoặc node_modules web vào resolver, không thay dependencies/lockfile. Cấu hình theo [Expo](https://docs.expo.dev/guides/monorepos/) và yêu cầu file ngoài projectRoot của [Metro](https://metrobundler.dev/docs/configuration/#watchfolders). Đã kiểm tra loader local nhận đúng projectRoot và duy nhất thư mục shared; việc đóng gói cần CI xác nhận.
+Metro được mở phạm vi chỉ tới `../shared` vì helper dùng lúc chạy nằm ngoài thư mục mobile; không thêm thư mục mã web hoặc node_modules web vào resolver, không thay dependencies/lockfile. Cấu hình theo [Expo](https://docs.expo.dev/guides/monorepos/) và yêu cầu file ngoài projectRoot của [Metro](https://metrobundler.dev/docs/configuration/#watchfolders). Đã kiểm tra loader local nhận đúng projectRoot và duy nhất thư mục shared; CI Android export/audit bundle cũng đạt theo bằng chứng dưới đây.
 
 ## Bằng chứng cục bộ
 
 - Sáu ca mới kiểm tra: lỗi legacy/v1 và giới hạn metadata; ID/body sai; status/code xác thực; HTTP không phải JSON và JSON thành công hỏng; không tự tạo mã cho API cũ/timeout; payload thành công và header caller giữ nguyên.
 - Kiểm thử tập trung 11/11 đạt, gồm mã hỗ trợ, serialization header Android và request trace server. Toàn bộ Windows 252/252 đạt, không skip. Logs trong `Test/client-support-targeted.txt` và `Test/client-support-unit-full.txt`.
 - TypeScript web và mobile đạt; lint toàn bộ 0 lỗi, 3 cảnh báo img đã có; cấu hình Metro lint đạt. Logs `Test/client-support-*` nằm ngoài Git.
-- Chưa chạy lại PostgreSQL local do Docker lỗi I/O/ổ C gần đầy. CI web/integration/mobile sẽ kiểm chứng đúng commit sau khi đẩy; kết quả CI commit trước không bao phủ thay đổi này.
+- Source `08bfafbaf0e10521eff73bbb199de7c1c0561506` đã commit/push. CI [37938249776](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37938249776) completed/success; cả web/integration/mobile và từng bước được xác minh qua connector. Đọc log: PostgreSQL 78/78 không skip, Linux unit 249/252 đạt và 3 skip do FFmpeg/ffprobe/DPAPI Windows (đã chạy đủ trên Windows), build web thành công, Android export/audit bundle 1.324 source đạt. Không chạy lại PostgreSQL local cho source này; CI dùng DB test riêng, không thay bằng DB thật.
 
 ## Nghiệm thu sau triển khai được phép
 

@@ -31,6 +31,8 @@ Unit mặc định lúc tải nặng có một lỗi I/O khi mở file key của
 
 ## Tái lập sau khi Docker hoạt động
 
+Cập nhật 20h44: Docker đã trả lời trở lại và container test cũ đã crash-recovery, nhận kết nối. Đã kiểm tra/dọn đúng fixture tổng hợp còn sót (20 user, 10.000 câu, 7 test, 120.000 đáp án), transaction COMMIT và postcheck marker/đáp án về 0; container dừng nhẹ, volume giữ nguyên. Chi tiết/bằng chứng trong [báo cáo buổi tối](PROGRESS_WHILE_AWAY_2026-10-09.md). Không chạy lại lượt benchmark lỗi, không bổ sung số đo giả định và chưa kết luận môi trường ổn định dưới tải.
+
 ```powershell
 $env:TEST_DATABASE_URL = 'postgresql://test:test@127.0.0.1:55433/toeic_release_test?sslmode=disable'
 $env:ALLOW_INTEGRATION_TEST_DATABASE = 'true'
