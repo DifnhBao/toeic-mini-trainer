@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { validateUploadDescriptor, UPLOAD_RULES } from "@/app/lib/upload-policy";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 export type ExtractedGroup = {
   group?: {
@@ -124,7 +125,7 @@ export default function IngestionQuestionReview({
 
   async function readJson(response: Response) {
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.error?.message || "Không thể xử lý media.");
+    if (!response.ok) throw new Error(apiFailureMessage(response, data, "Không thể xử lý media."));
     return data;
   }
 
@@ -216,7 +217,7 @@ export default function IngestionQuestionReview({
           : { groupIndex: entry.groupIndex, questionIndex: entry.questionIndex, decision: "SKIP" }) }),
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error?.message || "Không thể lưu câu hỏi.");
+      if (!response.ok) throw new Error(apiFailureMessage(response, data, "Không thể lưu câu hỏi."));
       setImported(true);
       setMessage(data.alreadyImported
         ? "Bộ câu hỏi này đã được lưu trước đó; hệ thống không tạo bản trùng."
@@ -245,7 +246,7 @@ export default function IngestionQuestionReview({
         }),
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error?.message || "Không thể gửi đóng góp.");
+      if (!response.ok) throw new Error(apiFailureMessage(response, data, "Không thể gửi đóng góp."));
       setSubmittedForReview(true);
       setMessage("Đã chuyển sang bước xuất bản. Mở trang Duyệt nội dung, kiểm tra PDF/audio và bấm Duyệt & công khai để người học chọn được bài.");
     } catch (submitError) {

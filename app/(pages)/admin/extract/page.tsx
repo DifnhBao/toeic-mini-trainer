@@ -8,6 +8,7 @@ import AppHeader from "@/app/components/AppHeader";
 import IngestionQuestionReview, { type ExtractedGroup } from "@/app/components/IngestionQuestionReview";
 import { MAX_INGESTION_PAGES } from "@/app/lib/ingestion-limits";
 import { UPLOAD_RULES } from "@/app/lib/upload-policy";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 const PDF_LIMIT_MB = UPLOAD_RULES.DOCUMENT.maxBytes / 1024 / 1024;
 
@@ -112,7 +113,7 @@ export default function AIExtractPage() {
   async function readJson(response: Response) {
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(data?.error?.message || data?.error || "Máy chủ không thể xử lý yêu cầu.");
+      throw new Error(apiFailureMessage(response, data, "Máy chủ không thể xử lý yêu cầu."));
     }
     return data;
   }

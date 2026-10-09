@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -31,16 +32,16 @@ export default function ImportPage() {
           body: JSON.stringify(jsonContent),
         });
 
-        const data = await res.json();
-        if (data.error) {
-          setResult(`Lỗi: ${data.error}`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok || data?.error || typeof data?.questionsAdded !== 'number') {
+          setResult(`Lỗi: ${apiFailureMessage(res, data, "Không thể nhập câu hỏi. Hãy kiểm tra lại trước khi thử tiếp.")}`);
         } else {
           setResult(
             `🎉 Thành công! Đã thêm ${data.questionsAdded} câu hỏi mới vào Database.`,
           );
         }
-      } catch {
-        setResult("Lỗi: File tải lên không đúng định dạng JSON hợp lệ.");
+      } catch (error) {
+        setResult(error instanceof SyntaxError ? "Lỗi: File tải lên không đúng định dạng JSON hợp lệ." : "Lỗi kết nối. Hãy kiểm tra lại trước khi thử nhập tiếp.");
       } finally {
         setLoading(false);
       }

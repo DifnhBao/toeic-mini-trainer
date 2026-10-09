@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 async function postJson(path: string, body: object) {
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" });
   const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(payload?.error?.message || payload?.error || `Yêu cầu thất bại (${response.status}).`);
+  if (!response.ok) throw new Error(apiFailureMessage(response, payload, `Yêu cầu thất bại (${response.status}).`));
   return payload;
 }
 
@@ -56,7 +57,7 @@ export function ContributionControls({ id, hasAudio, hasImages = false, expected
     try {
       const response = await fetch(`/api/v1/contributions/${id}/source`, { cache: "no-store" });
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.url) throw new Error(payload?.error?.message || "Không thể lấy PDF nguồn.");
+      if (!response.ok || !payload?.url) throw new Error(apiFailureMessage(response, payload, "Không thể lấy PDF nguồn."));
       setSourceUrl(payload.url);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Không thể mở PDF."); }
     finally { setBusy(false); }
@@ -67,7 +68,7 @@ export function ContributionControls({ id, hasAudio, hasImages = false, expected
     try {
       const response = await fetch(`/api/v1/contributions/${id}/media`, { cache: "no-store" });
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error?.message || "Không thể lấy media.");
+      if (!response.ok) throw new Error(apiFailureMessage(response, payload, "Không thể lấy media."));
       setAudios(payload.audios || []);
       setAudioUrl(payload.audios?.length ? "" : payload.audioUrl || "");
       setImages(payload.images || []);

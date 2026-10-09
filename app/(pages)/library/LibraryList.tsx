@@ -3,11 +3,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCatalogue } from "@/types/library";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 async function read<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, cache: "no-store" });
   const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.error?.message || "Chưa thể tải kho bài. Hãy thử lại.");
+  if (!response.ok) throw new Error(apiFailureMessage(response, data, "Chưa thể tải kho bài. Hãy thử lại."));
   return data;
 }
 export default function LibraryList({ isAdmin }: { isAdmin: boolean }) {

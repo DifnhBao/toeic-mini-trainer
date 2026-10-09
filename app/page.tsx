@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import AppHeader from "@/app/components/AppHeader";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 type PartStat = { part: number; accuracy: number; total: number };
 type ProgressSummary = {
@@ -69,7 +70,7 @@ export default function Dashboard() {
     const controller = new AbortController();
     fetch("/api/progress/summary", { signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error("Không thể tải tiến độ");
+        if (!response.ok) throw new Error(apiFailureMessage(response, null, "Không thể tải tiến độ"));
         return response.json();
       })
       .then((summary: ProgressSummary) => setLoadedStats({ userId, summary }))
@@ -100,8 +101,8 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: testLimit, part: selectedPart }),
       });
-      const data = await response.json();
-      if (!response.ok || !data.testId) throw new Error(data.error || "Không thể tạo bài luyện lúc này.");
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.testId) throw new Error(apiFailureMessage(response, data, "Không thể tạo bài luyện lúc này."));
       router.push(`/tests/${data.testId}`);
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : "Lỗi kết nối.");

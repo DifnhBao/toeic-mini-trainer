@@ -1,4 +1,5 @@
 import { ApiError } from './api-error';
+import { REQUEST_ID_HEADER } from '../../../shared/response-diagnostics';
 export { ApiError } from './api-error';
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -49,12 +50,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}) {
           ? payload.error
           : undefined;
       throw new ApiError(
-        error?.message || 'Máy chủ tạm thời không phản hồi.',
+        typeof error?.message === 'string' && error.message.trim() ? error.message : 'Máy chủ tạm thời không phản hồi.',
         response.status,
-        error?.code,
+        typeof error?.code === 'string' ? error.code : undefined,
+        response.headers.get(REQUEST_ID_HEADER),
       );
     }
-    if (!payload) throw new ApiError('Phản hồi từ máy chủ không hợp lệ.', 502);
+    if (!payload) throw new ApiError('Phản hồi từ máy chủ không hợp lệ.', 502, undefined, response.headers.get(REQUEST_ID_HEADER));
     return payload as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;

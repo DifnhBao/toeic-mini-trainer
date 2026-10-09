@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import type { LearningInsights, PartInsight, PracticeRecommendation } from '@/shared/learning-insights';
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 import './learning-insights.css';
 
 const labels: Record<PartInsight['assessment'], string> = {
@@ -23,8 +24,8 @@ export function LearningInsightsView({ userId }: { userId: string }) {
     if (!activeUserId || activeUserId !== userId) return;
     const controller = new AbortController();
     fetch('/api/v1/progress/insights', { signal: controller.signal, cache: 'no-store' }).then(async response => {
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error?.message || 'Không tải được phân tích.');
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload) throw new Error(apiFailureMessage(response, payload, 'Không tải được phân tích.'));
       if (!controller.signal.aborted) { setLoaded({ userId, value: payload }); setError(''); }
     }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Không tải được phân tích.'); });
     return () => controller.abort();
@@ -36,8 +37,8 @@ export function LearningInsightsView({ userId }: { userId: string }) {
     try {
       const response = await fetch('/api/v1/tests', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parts: [recommendation.part], count: recommendation.count, preferUnseen: true }) });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error?.message || 'Không tạo được bài luyện.');
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.test?.id) throw new Error(apiFailureMessage(response, payload, 'Không tạo được bài luyện.'));
       router.push(`/tests/${payload.test.id}`);
     } catch (e) { setError(e instanceof Error ? e.message : 'Không tạo được bài luyện.'); }
     finally { setStarting(null); }

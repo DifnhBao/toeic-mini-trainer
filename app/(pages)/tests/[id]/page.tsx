@@ -5,6 +5,7 @@ import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SafePassage from "@/app/components/SafePassage";
 import { restoreWebTestDraft } from "@/app/lib/web-test-draft";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 type Question = {
   id: string;
@@ -50,8 +51,8 @@ export default function TestTakingPage({ params }: { params: Promise<{ id: strin
     const controller = new AbortController();
     fetch(`/api/mini-tests/${testId}`, { signal: controller.signal })
       .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Không thể tải bài luyện.");
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data) throw new Error(apiFailureMessage(response, data, "Không thể tải bài luyện."));
         return data;
       })
       .then((data: TestData) => {
@@ -124,8 +125,8 @@ export default function TestTakingPage({ params }: { params: Promise<{ id: strin
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answers, clientSubmissionId: submissionId, durationSeconds: elapsed }),
       });
-      const data = await response.json();
-      if (!response.ok || !data.attemptId) throw new Error(data.error || "Không thể nộp bài.");
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.attemptId) throw new Error(apiFailureMessage(response, data, "Không thể nộp bài."));
       try { window.localStorage.removeItem(`toeic-draft-${testId}`); } catch { /* The saved ID still makes retries safe. */ }
       router.push(`/attempts/${data.attemptId}`);
     } catch (submitError) {

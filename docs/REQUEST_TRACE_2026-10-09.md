@@ -1,6 +1,8 @@
 # Đối chiếu lỗi API bằng mã yêu cầu
 
-Ngày 09/10/2026. Đã kiểm chứng source cục bộ; chưa triển khai. API live vẫn là `ff80432`.
+Ngày 09/10/2026. Đã kiểm chứng source cục bộ; chưa triển khai. API được xác minh gần nhất là `ff80432`. Các phần kiểm chứng dưới đây ghi bằng chứng tại từng thời điểm, không thay xác minh deployment hiện tại.
+
+Cập nhật buổi tối: UI client chính đã được bổ sung mã hỗ trợ, 252 unit Windows đạt; phạm vi và nghiệm thu còn thiếu tại [CLIENT_SUPPORT_CODE_2026-10-09.md](CLIENT_SUPPORT_CODE_2026-10-09.md). Các ghi chú chưa có UI/connector ở phần lịch sử bên dưới là trạng thái lúc kiểm chứng ban đầu. CI và kết nối GitHub sau đó đã được xác minh cho `abe13b0`/`b3d55e1`, xem [báo cáo buổi tối](PROGRESS_WHILE_AWAY_2026-10-09.md); không suy ra CI của thay đổi client mới từ các run cũ.
 
 ## Hành vi
 

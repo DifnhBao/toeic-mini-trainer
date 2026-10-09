@@ -1,6 +1,6 @@
 # Báo cáo công việc khi chủ dự án đi vắng
 
-Cập nhật 18h46 ngày 09/10/2026, giờ Việt Nam. Bản này ghi việc đã kiểm chứng; lịch báo cáo 20h sẽ đọc trạng thái mới nhất. Mục tiêu phát hành tổng thể vẫn chưa hoàn tất.
+Cập nhật 20h11 ngày 09/10/2026, giờ Việt Nam. Bản này ghi việc đã kiểm chứng đến lượt báo cáo buổi tối. Mục tiêu phát hành tổng thể vẫn chưa hoàn tất.
 
 ## Đã làm
 
@@ -19,16 +19,22 @@ CI của `abe13b0`: [37925241914](https://github.com/DifnhBao/toeic-mini-trainer
 
 Chưa triển khai API production hoặc tạo APK cho màn phân tích mới. API được xác minh gần nhất `ff80432`, APK đang nghiệm thu `0941a11`; không coi mã/CI xanh là điện thoại đã có tính năng. PR #4 giữ nháp, không merge.
 
+Head đã đẩy hiện tại `b3d55e152cbd656729e65404f76ff8c80efd7bde` chỉ cập nhật tài liệu so với `abe13b0`; CI [37925949985](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37925949985) được đọc lại trong lượt báo cáo và vẫn completed/success. PR đã cập nhật phạm vi, bằng chứng và các cổng còn mở.
+
+Sau đó đã bắt đầu bổ sung mã hỗ trợ vào thông báo lỗi API web/Android để đối chiếu log. Thay đổi hiện chỉ ở working tree: helper dùng chung, ApiError mobile và các luồng web chính; **chưa kiểm thử, chưa commit/push/deploy**. CI xanh của `b3d55e1` không bao phủ phần đang sửa này. Cần hoàn thiện/kiểm thử trước khi dùng để nghiệm thu; không báo tính năng mã hỗ trợ đã hoàn thành.
+
 ## Trở ngại mới
 
-Ổ C hết dung lượng (0 byte theo phép đọc); Docker Desktop không khởi động được sau lỗi I/O của DB test. Đã ngừng phép đo nặng và không xóa/move tệp cá nhân. Lượt đo với câu lặp cuối chưa hoàn tất và fixture có thể còn trong volume DB test; cần khôi phục môi trường rồi xác minh/dọn theo quyền sở hữu. CI riêng đã kiểm chứng bản sửa cuối; không thay DB thật cho kiểm thử local.
+Cập nhật sau báo cáo 20h11: phần mã hỗ trợ đã hoàn thiện cục bộ, 252/252 unit Windows không skip, TypeScript web/mobile đạt và lint 0 lỗi (3 cảnh báo img cũ). Đã thêm cấu hình Metro chỉ mở thư mục shared và kiểm tra loader/lint đạt. Chưa commit/push/CI cho phần mới tại thời điểm ghi cập nhật này; build web, export Android, PostgreSQL cần được xác minh trên CI trước phát hành. Chi tiết [CLIENT_SUPPORT_CODE_2026-10-09.md](CLIENT_SUPPORT_CODE_2026-10-09.md). Đoạn working tree ở trên giữ trạng thái tại lúc báo cáo 20h11.
+
+Ổ C từng hết dung lượng (0 byte theo phép đọc); trong lượt báo cáo còn 114.126.848 byte, khoảng 109 MiB, vẫn quá ít để tiếp tục phép đo nặng. Docker Desktop không khởi động được sau lỗi I/O của DB test ở lần kiểm tra gần nhất. Đã ngừng phép đo nặng và không xóa/move tệp cá nhân. Lượt đo với câu lặp cuối chưa hoàn tất và fixture có thể còn trong volume DB test; cần khôi phục môi trường rồi xác minh/dọn theo quyền sở hữu. CI riêng đã kiểm chứng bản sửa đã commit; không thay DB thật cho kiểm thử local.
 
 Ba biên bản Android do chủ dự án đang sửa được giữ nguyên, không đưa vào commit của lượt này. Chưa có USB/ổ cứng ngoài: backup ngoài máy và khóa phục hồi độc lập vẫn còn thiếu. Quyền Browser Use lưu chặn trước đó chưa có bằng chứng khôi phục mới; không dùng đường khác vượt quyền.
 
 ## Khi trở lại
 
 1. Giải phóng dung lượng ổ C, khôi phục Docker và dọn fixture test bị gián đoạn; không reset DB thật.
-2. Theo runbook, phát hành API và APK đồng bộ, nghiệm thu màn phân tích trên S23 FE theo tám mục trong biên bản.
+2. Chốt/kiểm thử mã hỗ trợ đang sửa; theo runbook phát hành API và APK đồng bộ, nghiệm thu màn phân tích trên S23 FE theo tám mục trong biên bản.
 3. Hoàn thiện một bộ Reading hợp lệ trong Kho bài, gắn nhãn được kiểm duyệt; kiểm tra với tài khoản người học thật và Android thứ hai.
 4. Hoàn thiện vận hành: backup định kỳ/ngoài máy/khóa, phục hồi DB-media nhất quán, cảnh báo/ngân sách/người xử lý, bảo vệ nhánh; sau đó beta 10–20 người/14 ngày.
 

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import AppHeader from "@/app/components/AppHeader";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 const starterQuestions = [
   "Phân biệt another, other và the other trong Part 5",
@@ -35,8 +36,8 @@ export default function CoachPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, part }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Không thể nhận câu trả lời.");
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data) throw new Error(apiFailureMessage(response, data, "Không thể nhận câu trả lời."));
       setAnswer(data.answer);
     } catch (askError) {
       setError(askError instanceof Error ? askError.message : "Lỗi kết nối.");
