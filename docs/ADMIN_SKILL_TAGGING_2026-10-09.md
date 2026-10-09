@@ -30,7 +30,8 @@ Transaction khóa row question, so toàn bộ `expectedTagIds` với nhãn hiệ
 
 ## Kiểm chứng và nghiệm thu còn lại
 
-- Local: ba unit quy tắc từ điển/input/stale-set, TypeScript web và lint sáu file mã/kiểm thử đã đạt. PostgreSQL CI cần ghi kết quả thực tế trước phát hành.
+- Local: ba unit quy tắc từ điển/input/stale-set, TypeScript web và lint sáu file mã/kiểm thử đã đạt.
+- Source `28edcef40c108677605d93a394a2b433143bc218`: CI [37949687669](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37949687669) completed/success; web/integration/mobile và từng bước đều đã đọc. Log PostgreSQL **84/84 không skip**, gồm cả sáu kịch bản nhãn mới; Linux unit **252/255 đạt, 3 skip, 0 lỗi** (công cụ FFmpeg/ffprobe/DPAPI Windows). Build web compiled 24,3 giây; Android export/audit đạt. Không khẳng định chạy full 255 unit Windows hoặc PostgreSQL local cho source này: máy chỉ còn khoảng 304 MiB RAM trống khi rà môi trường, nên dùng PostgreSQL cách ly của CI cho kiểm tra DB. Commit tài liệu sau source này có CI riêng; không gán kết quả runtime cho HEAD tài liệu khác.
 - Sáu kịch bản PostgreSQL được thêm: quyền ADMIN/ACTIVE/câu private, dữ liệu nhãn sai/Part sai/trường xuất bản, thêm-xóa và giữ nhãn cũ/audit/nội dung không đổi, no-op, hai editor tranh chấp, hai câu cùng tạo một nhãn. Fixture chỉ loopback `toeic_release_test`, dọn theo UUID và chỉ nhãn chuẩn không tồn tại trước test/không còn liên kết; không dùng DB thật.
 - Nghiệm thu UI bằng tài khoản thật vẫn mở: xem hướng dẫn, bỏ chọn/lưu, tab cũ, đổi tài khoản, lỗi mạng/mã hỗ trợ và báo cáo người học sau khi có nhãn đủ mẫu. Unit/CI không chứng minh màn hình trên production hoặc Android.
 - Trước beta, chọn mẫu câu có quyền chia sẻ, hai người rà đối chiếu một phần nhãn và giải quyết khác biệt; ghi độ phủ theo Part. Chưa gắn nhãn dữ liệu thật hoặc khẳng định phân tích kỹ năng đã đủ bằng chứng cho người học.
