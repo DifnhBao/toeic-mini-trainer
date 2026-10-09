@@ -67,7 +67,7 @@ Nền đã có: readiness có secret, cron worker, trạng thái job, quota và 
 
 Cần cấu hình thực tế trên hạ tầng: cảnh báo 5xx, readiness hỏng, job quá hạn, lỗi storage, mức dùng AI và ngân sách; người nhận/kênh trực phải được chỉ định. Chưa có Sentry/OTel hay thông báo ra ngoài được bật tự động.
 
-Bản sửa log ngày 09/10 loại Error thô và tên lớp không được duyệt khỏi log ứng dụng; kiểm chứng và phạm vi tại [SERVER_LOG_PRIVACY_2026-10-09.md](SERVER_LOG_PRIVACY_2026-10-09.md). Bản này đã qua unit/typecheck/lint/build cục bộ, chưa rollout; không coi production hiện có bản sửa hoặc OPS-03 đã đóng. Chưa có request ID xuyên client/API/job và cảnh báo thật.
+Bản sửa log ngày 09/10 loại Error thô và tên lớp không được duyệt khỏi log ứng dụng; kiểm chứng và phạm vi tại [SERVER_LOG_PRIVACY_2026-10-09.md](SERVER_LOG_PRIVACY_2026-10-09.md). Bổ sung ID do server tạo qua response/route/worker tại [REQUEST_TRACE_2026-10-09.md](REQUEST_TRACE_2026-10-09.md), 195 unit và 17 phản hồi HTTP production local đạt. Khi báo lỗi, ghi ID phản hồi và job ID nếu có; tìm trong log đúng deployment, không gửi token/header toàn bộ. Bản này chưa rollout; không coi production hiện có bản sửa hoặc OPS-03 đã đóng. Còn thiếu UI client báo ID, metric, cảnh báo thật và người trực.
 
 | Sự cố | Xử lý |
 | --- | --- |

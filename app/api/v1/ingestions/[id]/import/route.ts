@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { IMPORT_STALE_MS } from "@/app/lib/ingestion-status";
@@ -96,7 +97,7 @@ export async function POST(
     });
     console.error("ingestion import failed", {
       jobId: parsedId.data,
-      errorType: safeErrorType(error),
+      ...requestLogFields(request), errorType: safeErrorType(error),
     });
     return apiError("IMPORT_FAILED", "Không thể lưu câu hỏi; dữ liệu chưa bị nhân đôi.", 500);
   }

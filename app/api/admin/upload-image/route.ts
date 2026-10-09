@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       { status: 200 },
     );
   } catch (error) {
-    logServerError("upload.local.failed", error);
+    logServerError("upload.local.failed", error, request);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

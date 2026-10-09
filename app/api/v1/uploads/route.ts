@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     if (error instanceof ObjectStorageConfigurationError) {
       return apiError("STORAGE_UNAVAILABLE", "Kho file chưa được cấu hình.", 503);
     }
-    logServerError("upload.intent.failed", error);
+    logServerError("upload.intent.failed", error, request);
     return apiError("UPLOAD_INTENT_FAILED", "Không thể chuẩn bị upload.", 503);
   }
 }

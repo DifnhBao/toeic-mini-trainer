@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { importExtractedQuestions } from "@/app/lib/question-import";
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       );
     }
     console.error("question import failed", {
-      errorType: safeErrorType(error),
+      ...requestLogFields(request), errorType: safeErrorType(error),
     });
     return NextResponse.json(
       { error: "Không thể lưu dữ liệu; giao dịch đã được hoàn tác." },

@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import {
   contributionQuestionCount,
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
       return apiError("ALREADY_SUBMITTED", "Bộ đề này đã được gửi đóng góp.", 409);
     }
-    console.error("contribution submit failed", { errorType: safeErrorType(error) });
+    console.error("contribution submit failed", { ...requestLogFields(request), errorType: safeErrorType(error) });
     return apiError("SUBMIT_FAILED", "Không thể gửi đóng góp lúc này.", 500);
   }
 }

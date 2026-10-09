@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import {
   enforceAuthRateLimit,
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       return apiError("ACCOUNT_LINK_REQUIRED", "Email này đã có tài khoản. Hãy đăng nhập bằng phương thức ban đầu.", 409);
     }
     console.error("mobile Google session creation failed", {
-      errorType: safeErrorType(error),
+      ...requestLogFields(request), errorType: safeErrorType(error),
     });
     return apiError("AUTH_SERVICE_UNAVAILABLE", "Đăng nhập tạm thời không khả dụng.", 503);
   }

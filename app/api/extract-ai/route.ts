@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 import { writeFile, mkdir } from "fs/promises";
@@ -174,7 +175,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof AiQuotaExceededError) return NextResponse.json({ error: "Bạn đã dùng hết lượt nhập tài liệu hôm nay." }, { status: 429 });
     if (error instanceof AiCapacityError) return NextResponse.json({ error: "AI đang bận. Vui lòng thử lại sau." }, { status: 503, headers: { "Retry-After": String(error.retryAfterSeconds) } });
-    console.error("Lỗi extract AI:", { errorType: safeErrorType(error) });
+    console.error("Lỗi extract AI:", { ...requestLogFields(request), errorType: safeErrorType(error) });
     return NextResponse.json(
       { error: "Xảy ra lỗi trong quá trình xử lý." },
       { status: 500 },

@@ -1,3 +1,5 @@
+import { requestLogFields } from "./request-trace";
+
 // Error names can be controlled by SDK payloads or custom errors. Keep only
 // known class labels; never serialize the Error, its stack/cause or metadata.
 const ERROR_TYPES = new Set([
@@ -27,6 +29,6 @@ type ServerErrorEvent =
   | "upload.local.failed"
   | "test.read.failed";
 
-export function logServerError(event: ServerErrorEvent, error: unknown) {
-  console.error(JSON.stringify({ event, timestamp: new Date().toISOString(), errorType: safeErrorType(error) }));
+export function logServerError(event: ServerErrorEvent, error: unknown, request?: Pick<Request, "headers">) {
+  console.error(JSON.stringify({ event, timestamp: new Date().toISOString(), ...requestLogFields(request), errorType: safeErrorType(error) }));
 }

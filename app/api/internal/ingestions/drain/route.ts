@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { REQUEST_ID_HEADER, requestLogFields } from "@/app/lib/request-trace";
 import { after } from "next/server";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { prisma } from "@/app/lib/prisma";
@@ -56,13 +57,15 @@ export async function POST(request: Request) {
 
     // Respond promptly; Next/Vercel keeps the invocation alive for this task.
     // processIngestionJob atomically claims PENDING so concurrent triggers are safe.
+    const requestId = request.headers.get(REQUEST_ID_HEADER) ?? undefined;
     after(async () => {
       const { processIngestionJob } = await import("@/app/lib/toeic-ingestion");
-      await processIngestionJob(candidate.id);
+      await processIngestionJob(candidate.id, undefined, requestId);
     });
     return apiJson({ queued: true }, { status: 202 });
   } catch (error) {
     console.error("ingestion worker sweep failed", {
+      ...requestLogFields(request),
       errorType: safeErrorType(error),
     });
     return apiError("WORKER_UNAVAILABLE", "Worker tạm thời không khả dụng.", 503);

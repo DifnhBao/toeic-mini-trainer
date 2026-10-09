@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
     await prisma.questionExplanationCache.updateMany({ where: { id: cache.id, status: "GENERATING" }, data: { status: "FAILED" } });
     if (error instanceof AiQuotaExceededError) return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt tạo lời giải hôm nay.", 429);
     if (error instanceof AiCapacityError) return apiError(error.code, "AI đang bận. Vui lòng thử lại sau.", 503, { "Retry-After": String(Math.max(60, error.retryAfterSeconds)) });
-    console.error("canonical explanation failed", { errorType: safeErrorType(error) });
+    console.error("canonical explanation failed", { ...requestLogFields(request), errorType: safeErrorType(error) });
     return apiError("AI_UNAVAILABLE", "Chưa tạo được lời giải. Vui lòng thử lại sau.", 503);
   }
 }

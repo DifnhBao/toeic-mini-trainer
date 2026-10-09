@@ -54,7 +54,7 @@ export async function GET(
     if (error instanceof ObjectStorageConfigurationError) {
       return apiError("STORAGE_UNAVAILABLE", "Kho file chưa được cấu hình.", 503);
     }
-    logServerError("upload.read.failed", error);
+    logServerError("upload.read.failed", error, request);
     return apiError("ASSET_READ_FAILED", "Không thể mở file.", 503);
   }
 }

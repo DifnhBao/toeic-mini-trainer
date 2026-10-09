@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { REQUEST_ID_HEADER } from "@/app/lib/request-trace";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { prisma } from "@/app/lib/prisma";
@@ -34,6 +35,7 @@ export async function POST(
     return apiError("JOB_NOT_RETRYABLE", "Tác vụ không thể thử lại hoặc đã quá 3 lần.", 409);
   }
 
-  after(() => processIngestionJob(parsedId.data));
+  const requestId = request.headers.get(REQUEST_ID_HEADER) ?? undefined;
+  after(() => processIngestionJob(parsedId.data, undefined, requestId));
   return apiJson({ job: { id: parsedId.data, status: "PENDING" as const } }, { status: 202 });
 }

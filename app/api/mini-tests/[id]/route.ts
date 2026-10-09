@@ -71,7 +71,7 @@ export async function GET(
     );
     return NextResponse.json({ ...test, questions }, { status: 200 });
   } catch (error) {
-    logServerError("test.read.failed", error);
+    logServerError("test.read.failed", error, request);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

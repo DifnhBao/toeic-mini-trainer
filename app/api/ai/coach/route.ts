@@ -1,4 +1,5 @@
 import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { requestUser } from "@/app/lib/request-user";
@@ -67,7 +68,7 @@ Chỉ dùng văn bản thường: đoạn ngắn và danh sách đánh số. Kh�
   } catch (error) {
     if (error instanceof AiQuotaExceededError) return NextResponse.json({ error: "Bạn đã dùng hết lượt hỏi AI hôm nay." }, { status: 429 });
     if (error instanceof AiCapacityError) return NextResponse.json({ error: "AI Coach đang bận. Vui lòng thử lại sau." }, { status: 503, headers: { "Retry-After": String(error.retryAfterSeconds) } });
-    console.error("AI Coach error", { errorType: safeErrorType(error) });
+    console.error("AI Coach error", { ...requestLogFields(request), errorType: safeErrorType(error) });
     return NextResponse.json({ error: "AI Coach đang bận. Vui lòng thử lại sau ít phút." }, { status: 503 });
   }
 }

@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { REQUEST_ID_HEADER } from "@/app/lib/request-trace";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
@@ -98,7 +99,8 @@ export async function POST(request: Request) {
     select: { id: true, status: true, createdAt: true },
   });
 
-  after(() => processIngestionJob(job.id));
+  const requestId = request.headers.get(REQUEST_ID_HEADER) ?? undefined;
+  after(() => processIngestionJob(job.id, undefined, requestId));
   return apiJson(
     { job: { ...job, createdAt: job.createdAt.toISOString() } },
     { status: 202 },

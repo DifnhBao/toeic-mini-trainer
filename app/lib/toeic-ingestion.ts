@@ -1,4 +1,5 @@
 import { safeErrorType } from "./server-error-log";
+import { requestIdFields } from "./request-trace";
 import { GoogleGenAI, Type } from "@google/genai";
 import { preparePdfExtraction } from "@/app/lib/pdf-extraction-input";
 import { MAX_INGESTION_OCR_BYTES, MAX_INGESTION_TEXT_CHARS } from "@/app/lib/ingestion-limits";
@@ -178,7 +179,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
   database: prisma,
   readDocument: readStoredObject,
   extract: extractQuestions,
-}) {
+}, requestId?: string) {
   const { database, readDocument, extract } = dependencies;
   const claimed = await database.ingestionJob.updateManyAndReturn({
     where: { id: jobId, status: "PENDING", attemptCount: { lt: 3 } },
@@ -232,6 +233,7 @@ export async function processIngestionJob(jobId: string, dependencies = {
     const code = error instanceof IngestionProcessingError ? error.code : "INGESTION_FAILED";
     console.error("ingestion job failed", {
       jobId,
+      ...requestIdFields(requestId),
       errorType: safeErrorType(error),
     });
     await database.ingestionJob.updateMany({

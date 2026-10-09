@@ -50,7 +50,7 @@ export async function POST(
     const verification = await verifyStoredObject(asset);
     if (!verification.valid) {
       await deleteStoredObject(asset.objectKey).catch((deleteError) => {
-        logServerError("upload.invalid_cleanup.failed", deleteError);
+        logServerError("upload.invalid_cleanup.failed", deleteError, request);
       });
       await prisma.uploadedAsset.updateMany({
         where: { id: asset.id, ownerId: user.id, status: "PENDING" },
@@ -73,7 +73,7 @@ export async function POST(
     });
     if (promoted.count > 0) {
       await deleteStoredObject(asset.objectKey).catch((deleteError) => {
-        logServerError("upload.staging_cleanup.failed", deleteError);
+        logServerError("upload.staging_cleanup.failed", deleteError, request);
       });
     }
     return apiJson({ asset: { id: asset.id, status: "READY" as const } });
@@ -84,7 +84,7 @@ export async function POST(
     if (error instanceof ObjectStorageConfigurationError) {
       return apiError("STORAGE_UNAVAILABLE", "Kho file chưa được cấu hình.", 503);
     }
-    logServerError("upload.complete.failed", error);
+    logServerError("upload.complete.failed", error, request);
     return apiError("UPLOAD_VERIFICATION_FAILED", "Không thể xác minh file.", 503);
   }
 }
