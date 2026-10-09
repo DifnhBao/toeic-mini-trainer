@@ -42,3 +42,22 @@ Sau áp dụng, đọc lại protection qua connector, đối chiếu checks/App
 2. Bật/xác minh bảo vệ nhánh bằng quyền được phép; không dùng SSH push thành công thay bằng chứng.
 3. Hoàn tất quyền Browser Use cho nghiệm thu web hoặc nhận biên bản thao tác từ chủ dự án. API live được xác minh gần nhất vẫn `ff80432`; chưa promote các sửa mới.
 4. Nghiệm thu web ADMIN/người học, media có quyền sử dụng, APK `3cbde63` trên S23 FE và Android thứ hai; cấu hình cảnh báo/backup/ngân sách, rồi mới mở beta theo runbook.
+
+## Cập nhật sau khi khôi phục kết nối
+
+GitHub đã được cài/kết nối lại; đọc profile và repo xác nhận `DifnhBao` có quyền hợp lệ. Các mô tả mất kết nối ở trên là lịch sử, không còn là điều kiện chặn tại thời điểm cập nhật này.
+
+Commit được đối chiếu là `f5fed440429163e4dbcf4401ab55693c44cbfb02` (head PR #4 tại thời điểm đọc). Hai run đều `completed/success` và từng bước job đã kiểm tra:
+
+| Run | Sự kiện | web | integration | mobile |
+| --- | --- | --- | --- | --- |
+| [37877046329](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37877046329) | pull_request | 113647919055 success | 113647918831 success | 113647919116 success |
+| [37877041742](https://github.com/DifnhBao/toeic-mini-trainer/actions/runs/37877041742) | push | 113647905760 success | 113647905608 success | 113647905481 success |
+
+PR vẫn `draft=true`, `merged=false`, `mergeable=true`; không merge, yêu cầu reviewer hoặc promote. Đọc lại master vẫn `protected=false`, required checks rỗng và rulesets rỗng. Cấu hình đề xuất vẫn chưa được áp dụng; Browser Use chưa có quyền mới để làm bước quản trị đó.
+
+Đã đọc metadata bằng Vercel CLI (không HTTP smoke vào website hoặc chạy luồng quản trị): inventory gắn SHA `f5fed44` với URL `toeic-mini-trainer-laagf926a-le-dinh-bao-s-projects.vercel.app`; inspect URL xác nhận deployment `dpl_FBqNuqK4ioFJZTXKrQmkp3V7iHaT`, target preview, READY. Đây là preview được tích hợp GitHub tạo tự động từ lần push, không phải deploy/promote mới trong lượt kiểm tra này. Build READY không chứng minh cấu hình DB/secret preview độc lập, OAuth, UI, nội dung hoặc media đạt.
+
+Inspect alias `toeic-mini-trainer.vercel.app` vẫn trả deployment `dpl_AByFEsgTytEtXqdCk63cXsQFUwA7`, target production, READY; inventory cùng URL deployment gắn SHA `ff804320de3b0c0e19a978e5442cc9f496edc6ef`. Chỉ đọc trạng thái Vercel, không thay alias/config/secret hoặc ghi DB/storage. Các cổng Browser Use, thiết bị và vận hành vẫn mở.
+
+Log metadata giữ local trong `Test/vercel-current-release-state.txt`, `Test/vercel-inspect-preview-f5fed44.txt`, `Test/vercel-inspect-current-canonical.txt`; không commit log. Các kết quả CI trên chỉ chứng minh đúng SHA đã đọc; commit tài liệu tiếp theo có lượt CI riêng cần đối chiếu riêng trước merge.

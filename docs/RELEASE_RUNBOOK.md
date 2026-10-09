@@ -15,6 +15,8 @@ Workflow `quality.yml` có ba job web/integration/mobile; không dùng secret pr
 
 Đã xác minh remote push CI của `6ff0597`: run `37875985993`, cả ba job success. PR nháp #4 chưa merge; master hiện protected=false, rulesets rỗng. Payload `.github/branch-protection-master.json` mới chuẩn bị, chưa áp dụng; cần đọc lại cấu hình sau khi bật và kiểm tra CI riêng của PR đúng head. Bằng chứng và hướng dẫn tại [GITHUB_RELEASE_GATE_2026-10-09.md](GITHUB_RELEASE_GATE_2026-10-09.md). Plugin GitHub không còn khả dụng ở lượt tiếp theo; kết quả đã đọc không chứng minh CI của commit mới hoặc PR đã đạt.
 
+Cập nhật sau kết nối lại: `f5fed44` đã đạt cả push run `37877041742` và PR run `37877046329`, đủ web/integration/mobile. Master vẫn chưa được bảo vệ. Vercel có preview tự động của SHA này READY; metadata domain chính vẫn production `ff80432`. Chưa nghiệm thu preview hoặc promote. Giữ PR nháp; đối chiếu CI của mọi head mới, quyền Browser Use và cổng thiết bị/vận hành trước quyết định phát hành.
+
 ## 2. Test PostgreSQL cách ly trên Windows
 
 Yêu cầu Docker đã cài và chạy. Không dùng database hiện tại hoặc `.env` làm đích test.
