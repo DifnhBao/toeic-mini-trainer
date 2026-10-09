@@ -2,8 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { z } from "zod";
 import { withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
 
-export const EXPLANATION_PROMPT_VERSION = 1;
-export const EXPLANATION_LOCALE = "vi";
+export { EXPLANATION_PROMPT_VERSION, EXPLANATION_LOCALE } from "./explanation-policy";
 
 export const canonicalExplanationSchema = z.object({
   correctReason: z.string().trim().min(1).max(2_000),

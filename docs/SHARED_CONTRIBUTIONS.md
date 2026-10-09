@@ -16,6 +16,8 @@
 
 Lời giải sai được tạo một lần dưới dạng phân tích cho mọi lựa chọn của một câu và lưu theo `questionId + contentRevision + locale + promptVersion`. Người dùng khác đọc cache mà không gọi Gemini. Admin có API ẩn lời giải sai của câu đã xuất bản (`POST /api/v1/admin/questions/{id}/explanation/hide`, kèm `reason`); cache `HIDDEN` không được trả cho ai. Bài khách chỉ nhận lời giải đã có sẵn, không kích hoạt AI. Giới hạn tạo lời giải và coach hiện là 20 lần/người/ngày mỗi loại. Nhập PDF dùng tối đa 3 lần/người/ngày, riêng admin 10 lần/ngày, với bộ đếm bền vững trong DB để tránh phát sinh nhiều lượt gọi model ngoài ý muốn trên Vercel.
 
+Bản mã nguồn 09/10 sửa quyền ghi cache sau timeout/retry và đường lịch sử trả bản sao lời giải đã ẩn. Cache/bản sao lưu chung transaction; hide xóa bản sao, lịch sử web/Android lọc HIDDEN theo revision. 209 unit/61 PostgreSQL integration đạt, provider dùng phản hồi giả; chưa deploy. Phản hồi đã gửi và dữ liệu đang mở/offline trên thiết bị không bị thu hồi từ xa. Phạm vi, kiểm chứng và hạn chế rollback tại [EXPLANATION_CACHE_RECOVERY_2026-10-09.md](EXPLANATION_CACHE_RECOVERY_2026-10-09.md).
+
 ## Trình tự phát hành staging — chưa tự động thực hiện
 
 1. Duyệt diff và ba migration mới `20260928120000_add_content_contributions`, `20260928130000_add_roles_and_publication_status`, `20260928140000_allow_system_owned_shared_assets`. Không sửa migration đã áp dụng. Chụp nhánh backup Neon, kiểm tra `npx prisma migrate status`, rồi `npx prisma migrate deploy` trên staging từ môi trường tin cậy. Tuyệt đối không chạy seed demo lên Neon thật.

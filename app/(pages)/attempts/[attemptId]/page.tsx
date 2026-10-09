@@ -5,6 +5,7 @@ import AppHeader from "@/app/components/AppHeader";
 import AiExplainButton from "@/app/components/AiExplainButton";
 import SafePassage from "@/app/components/SafePassage";
 import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
+import { currentExplanationHidden, hiddenExplanationSelection } from "@/app/lib/explanation-policy";
 
 export default async function ResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = await params;
@@ -19,6 +20,7 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
           question: {
             include: {
               group: { include: { audioAsset: true, imageAsset: true, contribution: { select: { status: true } } } },
+              explanationCaches: hiddenExplanationSelection,
             },
           },
           aiExplanation: true,
@@ -32,13 +34,16 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
     ? {
         ...rawAttempt,
         userAnswers: await Promise.all(
-          rawAttempt.userAnswers.map(async (answer) => ({
-            ...answer,
-            question: {
-              ...answer.question,
-              group: await resolveQuestionGroupMedia(answer.question.group, rawAttempt.userId),
-            },
-          })),
+          rawAttempt.userAnswers.map(async (answer) => {
+            const { explanationCaches, ...question } = answer.question;
+            const explanationHidden = currentExplanationHidden(question.contentRevision, explanationCaches);
+            return {
+              ...answer,
+              explanationHidden,
+              aiExplanation: explanationHidden ? null : answer.aiExplanation,
+              question: { ...question, group: await resolveQuestionGroupMedia(question.group, rawAttempt.userId) },
+            };
+          }),
         ),
       }
     : null;
@@ -84,7 +89,7 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
                   })}
                 </div>
                 {!userAnswer.selectedOption && <p className="unanswered-note">Bạn đã bỏ trống câu này.</p>}
-                {!userAnswer.isCorrect && <AiExplainButton userAnswerId={userAnswer.id} initialExplanation={userAnswer.aiExplanation} />}
+                {!userAnswer.isCorrect && <AiExplainButton key={`${userAnswer.id}:${userAnswer.explanationHidden ? "hidden" : "visible"}`} userAnswerId={userAnswer.id} initialExplanation={userAnswer.aiExplanation} />}
               </article>
             );
           })}

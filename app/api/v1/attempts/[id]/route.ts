@@ -3,6 +3,7 @@ import { apiError, apiJson } from "@/app/lib/api-response";
 import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { prisma } from "@/app/lib/prisma";
 import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
+import { currentExplanationHidden, hiddenExplanationSelection } from "@/app/lib/explanation-policy";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,8 @@ export async function GET(
               content: true,
               options: true,
               correctAnswer: true,
+              contentRevision: true,
+              explanationCaches: hiddenExplanationSelection,
               group: {
                 select: {
                   passageText: true,
@@ -57,13 +60,14 @@ export async function GET(
   if (!attempt) return apiError("ATTEMPT_NOT_FOUND", "Không tìm thấy kết quả.", 404);
 
   const userAnswers = await Promise.all(
-    attempt.userAnswers.map(async (answer) => ({
-      ...answer,
-      question: {
-        ...answer.question,
-        group: await resolveQuestionGroupMedia(answer.question.group, user.id),
-      },
-    })),
+    attempt.userAnswers.map(async (answer) => {
+      const { explanationCaches, contentRevision, ...question } = answer.question;
+      return {
+        ...answer,
+        aiExplanation: currentExplanationHidden(contentRevision, explanationCaches) ? null : answer.aiExplanation,
+        question: { ...question, group: await resolveQuestionGroupMedia(question.group, user.id) },
+      };
+    }),
   );
 
   return apiJson({
