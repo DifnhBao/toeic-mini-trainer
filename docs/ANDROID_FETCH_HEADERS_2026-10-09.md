@@ -29,6 +29,20 @@ APK sửa lỗi đã build và kiểm tra gói cài đặt đạt:
 - API đóng gói vẫn là `https://toeic-mini-trainer.vercel.app`. Không chuyển production API trong lần sửa này.
 - Bằng chứng cục bộ, Git-ignored: `Test/apk-0941a11-verification.json`, `Test/apksigner-0941a11.txt`, `Test/apk-0941a11-badging.txt`.
 
-Chưa xác minh bản sửa trên thiết bị Android thật. Ba màn hình trong ảnh người dùng cùng báo lỗi truyền header; các mục MS-01/MS-02/MS-07 được người dùng đánh dấu lỗi trên bản trước vẫn cần kiểm tra lại sau khi cài bản này. Người dùng báo MS-04/MS-05 đạt trên bản trước; kết quả đó không tự áp dụng cho APK mới. MS-03 hiện ghi thao tác đăng nhập offline, chưa đủ bằng chứng cho toàn bộ kịch bản logout offline.
+## Kết quả điện thoại do người dùng cung cấp ngày 09/10
+
+Sau khi được gửi APK `0941a11`, người dùng báo:
+
+| Thao tác | Kết quả được báo | Phạm vi kết luận |
+| --- | --- | --- |
+| Tải Kho bài | “Kho bài đang được chuẩn bị” | Hiển thị trạng thái danh sách rỗng, không còn báo lỗi NativeRequest trong lần thử này; chưa nghiệm thu mở bài từ Kho bài |
+| Tạo bài luyện | Hoạt động bình thường | Đạt thao tác tạo bài trong lần thử được báo |
+| Mở/nộp bài | Hoạt động bình thường | Đạt thao tác mở/nộp trong lần thử được báo; chưa có kết quả xem lại lịch sử hoặc nộp trùng khi mất phản hồi |
+
+Thiết bị đã khai báo trong phiên: Samsung S23 FE / Android 16 / OneUI 8.5. Người dùng chưa ghi loại mạng, Part, số câu, tài khoản hoặc ảnh kết quả cho lần thử mới; đây là báo cáo người dùng, không phải agent quan sát màn hình điện thoại hay log HTTP.
+
+Đối chiếu `mobile/src/app/(tabs)/library.tsx`: thông báo này hiện khi đã hết loading, không có error và `catalogue.lessons` rỗng. `app/lib/shared-library.ts` chỉ đưa vào Kho bài các nhóm chung có đóng góp APPROVED và câu PUBLISHED. Vì vậy thông báo danh sách rỗng không đồng nghĩa toàn hệ thống không có câu để luyện ngẫu nhiên. Chưa đọc DB/cloud trong lượt đối chiếu này; không suy ra số lượng toàn bộ câu/bộ đề. Bộ ETS hiện vẫn thiếu bước hoàn thiện/duyệt/xuất bản theo biên bản OCR và quyền Browser Use còn chặn.
+
+Lỗi truyền headers đã qua ba thao tác hồi quy được báo trên điện thoại. Các mục MS-01/MS-02/MS-07 từng được đánh dấu lỗi trên bản trước vẫn cần kiểm tra lại đầy đủ; báo cáo tạo/mở/nộp không chứng minh đổi tài khoản, Back/deep link hoặc cách ly lịch sử đạt. Người dùng báo MS-04/MS-05 đạt trên bản trước; kết quả đó không tự áp dụng cho APK mới. MS-03 hiện ghi thao tác đăng nhập offline, chưa đủ bằng chứng cho toàn bộ kịch bản logout offline. Chưa đóng nghiệm thu Listening có ảnh/audio, mạng Wi-Fi/4G, Android thứ hai hoặc beta.
 
 Cài cập nhật, giữ dữ liệu. Kiểm tra lại Kho bài → tải lại; Luyện tập → tạo bài; mở bài đang làm → chọn đáp án/nộp → lịch sử. Kiểm tra refresh sau khi để ứng dụng ít nhất 16 phút. Thử Wi-Fi và 4G. Các kiểm tra cách ly tài khoản/offline trong biên bản `ANDROID_RETEST_3CBDE63_2026-10-09.md` vẫn cần làm lại trên APK mới; thành công của unit/export không thay thế nghiệm thu điện thoại.
