@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { exportClip, listeningGroups, probeAudio, validateSegment, type Segment } from "./lib/listening-segments.mts";
 
 const sourceArgument = process.argv[2];
@@ -23,6 +24,23 @@ if (await realpath(output) === path.dirname(source)) throw new Error("Hãy chọ
 const manifestPath = path.join(output, "segments.json");
 let segments: Segment[] = [];
 const exports = new Map<string, { fileName: string; duration: number }>();
+const aiSchema = z.object({ sourceSha256: z.string(), duration: z.number(),
+  candidates: z.array(z.object({ segment: z.object({ part: z.number(), first: z.number(), last: z.number(), start: z.number(), end: z.number(), reviewed: z.literal(false) }).strict() })).max(54),
+  unresolved: z.array(z.object({ first: z.number(), last: z.number(), reason: z.string().max(1000) })).max(54),
+});
+async function aiProposals() {
+  const file = path.join(output, "ai-proposals.json");
+  if ((await stat(file)).size > 1024 * 1024) throw new Error("File đề xuất AI quá lớn.");
+  const data = aiSchema.parse(JSON.parse(await readFile(file, "utf8")));
+  if (data.sourceSha256 !== sourceSha256 || data.duration !== duration) throw new Error("Đề xuất AI thuộc file audio khác.");
+  const checked: Segment[] = [];
+  for (const candidate of data.candidates.toSorted((a, b) => a.segment.first - b.segment.first)) {
+    const segment = validateSegment(candidate.segment, duration, checked);
+    if (checked.some(existing => existing.first === segment.first)) throw new Error("Đề xuất AI trùng số câu.");
+    checked.push(segment);
+  }
+  return { candidates: checked, unresolved: data.unresolved };
+}
 try {
   const saved = JSON.parse(await readFile(manifestPath, "utf8"));
   if (saved.sourceSha256 !== sourceSha256 || saved.duration !== duration || !Array.isArray(saved.segments)) throw new Error("Thư mục xuất thuộc file nguồn khác hoặc manifest không hợp lệ.");
@@ -95,18 +113,38 @@ const server = createServer(async (request, response) => {
       response.setHeader("Content-Type", name.endsWith("html") ? "text/html; charset=utf-8" : name.endsWith("js") ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8");
       response.end(await readFile(path.join(uiDirectory, name))); return;
     }
-    if (url.pathname === "/state" && request.method === "GET") { json(response, 200, { sourceFile: path.basename(source), sourceSha256, duration, output, groups: listeningGroups(), segments }); return; }
+    if (url.pathname === "/state" && request.method === "GET") {
+      let ai: { available: boolean; count: number; error?: string } = { available: false, count: 0 };
+      try { ai = { available: true, count: (await aiProposals()).candidates.length }; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") ai.error = "File đề xuất AI không hợp lệ; hãy chạy lại bước nhận dạng."; }
+      json(response, 200, { sourceFile: path.basename(source), sourceSha256, duration, output, groups: listeningGroups(), segments, ai }); return;
+    }
     if (url.pathname === "/audio" && ["GET", "HEAD"].includes(request.method || "")) { await streamAudio(request, response, source); return; }
     if (url.pathname.startsWith("/clip/") && ["GET", "HEAD"].includes(request.method || "")) {
       const exported = exports.get(url.pathname.slice(6));
       if (!exported) { json(response, 404, { error: "Đoạn chưa xuất trong phiên này." }); return; }
       await streamAudio(request, response, path.join(output, exported.fileName)); return;
     }
-    if (["/save", "/export"].includes(url.pathname) && request.method === "POST") {
+    if (["/save", "/export", "/ai/import"].includes(url.pathname) && request.method === "POST") {
       if (mutating) { json(response, 409, { error: "Đang lưu/cắt đoạn khác; hãy đợi." }); return; }
       if (!request.headers["content-type"]?.startsWith("application/json")) { json(response, 415, { error: "Cần dữ liệu JSON." }); return; }
       mutating = true;
       try {
+        if (url.pathname === "/ai/import") {
+          const proposals = await aiProposals();
+          const additions: Segment[] = [];
+          const conflicts: number[] = [];
+          for (const proposed of proposals.candidates) {
+            if (segments.some(saved => saved.first === proposed.first)) continue;
+            try { additions.push(validateSegment(proposed, duration, [...segments, ...additions])); }
+            catch { conflicts.push(proposed.first); }
+          }
+          const previous = segments;
+          segments = [...segments, ...additions];
+          try { await save(); } catch (error) { segments = previous; throw error; }
+          json(response, 200, { segments, added: additions.length, conflicts, unresolved: proposals.unresolved });
+          return;
+        }
         const segment = validateSegment(await body(request), duration, segments);
         if (url.pathname === "/export" && !segment.reviewed) throw new Error("Nghe đối chiếu và xác nhận đúng đoạn trước khi xuất.");
         const previous = segments;
@@ -134,5 +172,5 @@ server.listen(0, "127.0.0.1", () => {
   authority = `127.0.0.1:${address.port}`;
   console.log(`Mở trên máy này: http://${authority}/?key=${key}`);
   console.log(`Audio: ${path.basename(source)} (${duration.toFixed(3)} giây). Thư mục xuất: ${output}`);
-  console.log("Chỉ xử lý cục bộ. Ctrl+C để đóng. Không tự xác định câu hoặc đưa audio lên web.");
+  console.log("Chỉ xử lý cục bộ. Ctrl+C để đóng. Nếu đã nhận dạng, dùng nút Nạp mốc AI đề xuất. Không tự upload audio lên web.");
 });

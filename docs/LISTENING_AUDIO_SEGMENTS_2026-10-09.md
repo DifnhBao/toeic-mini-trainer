@@ -1,5 +1,7 @@
 # Chuẩn bị các đoạn audio Listening
 
+**Cập nhật:** đã bổ sung bước nhận dạng lời nói miễn phí trên CPU và nạp mốc AI vào công cụ này. Xem [quy trình AI cục bộ](./LISTENING_AI_LOCAL_2026-10-09.md). Phần dưới mô tả cách nghe/chỉnh mốc và gắn clip vào nhóm; không cần tự tìm từ đầu nếu đã nạp đề xuất AI.
+
 ## Vấn đề và cách xử lý
 
 File `TEST 1.mp3` do người dùng cung cấp dài **2762,867567 giây (~46 phút 03 giây)**, 44.275.491 byte. Trang nhập đề hiện gắn nguyên file nguồn cho nhóm nếu chưa thay bằng audio riêng. Chức năng gắn audio riêng đã có trên web/API; APK hiện tại phát được cùng định dạng MP3 qua `group.audioUrl`.
@@ -15,7 +17,7 @@ Theo cấu trúc đề TOEIC Listening 100 câu:
 | 3 | 32–70 | Hội thoại cùng ba câu hỏi | 13 |
 | 4 | 71–100 | Bài nói cùng ba câu hỏi | 10 |
 
-Tổng **54 đoạn**, không phải 100 đoạn rời. Đây là mẫu đánh số; công cụ không nhận dạng nội dung MP3 hoặc tự suy ra mốc theo khoảng im lặng. Quản trị viên cần đối chiếu PDF, nghe đầu/cuối và xác nhận. Giữ khoảng lặng ngắn ở hai đầu, không cắt mất lời đọc số câu/đáp án hoặc lẫn câu kế tiếp.
+Tổng **54 đoạn**, không phải 100 đoạn rời. Luồng thủ công dùng mẫu đánh số này; luồng AI bổ sung nhận dạng lời đọc số câu/nhóm, không suy ra mốc chỉ từ khoảng im lặng. Quản trị viên cần đối chiếu PDF, nghe đầu/cuối và xác nhận. Giữ khoảng lặng ngắn ở hai đầu, không cắt mất lời đọc số câu/đáp án hoặc lẫn câu kế tiếp.
 
 ## Mở công cụ trên máy này
 
@@ -50,4 +52,4 @@ Với bản nháp trang 1–4 hiện tại, làm hai đoạn cho **câu 1 và 2*
 
 Kết quả trên máy này: **5/5 ca đạt, không bỏ qua**; TypeScript toàn repo và ESLint các file thay đổi đạt; JavaScript của công cụ qua kiểm tra cú pháp. Công cụ đã khởi động với file ETS thật, đọc được thời lượng, không báo lỗi; working set lúc khởi động khoảng 28 MiB. Chưa có kiểm tra giao diện/phát tiếng bằng browser tự động hoặc xác nhận nghe từ người dùng.
 
-Chưa xác nhận mốc nội dung cho 54 đoạn ETS, chưa gắn clip vào bản nháp thật và chưa nghe audio trên điện thoại. Browser Use vẫn có lỗi quyền đã ghi nhận; không dùng giao thức khác để tự thao tác website bị chặn. Người dùng có thể dùng công cụ và gắn clip bằng trình duyệt của mình ngay.
+Luồng AI đã tạo 54 mốc đề xuất cho ETS; xem biên bản AI ở liên kết trên. Chưa có xác nhận nghe nội dung từ người dùng, chưa gắn clip vào bản nháp thật và chưa nghe audio trên điện thoại. Browser Use vẫn có lỗi quyền đã ghi nhận; không dùng giao thức khác để tự thao tác website bị chặn. Người dùng có thể dùng công cụ và gắn clip bằng trình duyệt của mình ngay.

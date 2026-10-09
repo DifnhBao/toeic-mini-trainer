@@ -64,7 +64,16 @@ export async function probeAudio(file: string) {
 export async function exportClip(source: string, directory: string, input: Segment, duration: number) {
   const segment = validateSegment(input, duration);
   if (!segment.reviewed) throw new Error("Nghe đối chiếu và xác nhận đúng đoạn trước khi xuất.");
-  const fileName = clipName(segment);
+  return encodeClip(source, directory, segment, clipName(segment));
+}
+
+// AI draft clips are separate files; this never grants human review/approval.
+export async function exportDraftClip(source: string, directory: string, input: Segment, duration: number) {
+  const segment = validateSegment({ ...input, reviewed: false }, duration);
+  return encodeClip(source, directory, segment, `draft-${clipName(segment)}`);
+}
+
+async function encodeClip(source: string, directory: string, segment: Segment, fileName: string) {
   const destination = path.join(directory, fileName);
   try { await access(destination); throw new Error("File đã tồn tại. Công cụ không ghi đè audio đã xuất."); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }

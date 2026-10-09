@@ -83,8 +83,22 @@ async function persist(exporting) {
   }
 }
 element("save").onclick = () => persist(false); element("export").onclick = () => persist(true);
+element("ai-import").onclick = async () => {
+  if (busy) return;
+  busy = true; stopPreview(); audio.pause();
+  for (const control of document.querySelectorAll("button,input,select")) control.disabled = true;
+  try {
+    const response = await fetch(`/ai/import?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const data = await response.json(); if (!response.ok) throw Error(data.error || "Chưa có kết quả nhận dạng AI.");
+    state.segments = data.segments; select(active);
+    element("ai-status").textContent = `Đã nạp ${data.added} mốc mới. Giữ nguyên mốc bạn đã lưu. ${data.unresolved.length} nhóm chưa nhận dạng đủ; ${data.conflicts.length} mốc bị bỏ qua do chồng lấn.`;
+    status("Mốc AI đã được nạp. Chọn nhóm và bấm Nghe thử đoạn đã chọn để kiểm tra.");
+  } catch (error) { status(error.message, true); }
+  finally { busy = false; for (const control of document.querySelectorAll("button,input,select")) control.disabled = false; element("export").disabled = !element("reviewed").checked; renderGroups(); }
+};
 request("/state").then(data => {
   state = data; element("source").textContent = `${data.sourceFile} · ${time(data.duration)} · file gốc`;
   element("output").textContent = `Nơi lưu MP3 và mốc cắt: ${data.output}`;
+  element("ai-status").textContent = data.ai?.error || (data.ai?.available ? `Đã có ${data.ai.count}/54 mốc AI đề xuất. Bấm nạp để bắt đầu nghe duyệt.` : "Chưa có kết quả AI. Có thể nạp sau khi bước nhận dạng trên máy hoàn tất.");
   audio.src = `/audio?key=${key}`; select(data.groups[0]);
 }).catch(error => status(error.message, true));

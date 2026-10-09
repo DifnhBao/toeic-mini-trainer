@@ -6,7 +6,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { get } from "node:http";
-import { exportClip, listeningGroups, probeAudio, runMediaCommand, validateSegment } from "../scripts/lib/listening-segments.mts";
+import { exportClip, exportDraftClip, listeningGroups, probeAudio, runMediaCommand, validateSegment } from "../scripts/lib/listening-segments.mts";
 import { formatTime, parseTime } from "../scripts/listening-audio-ui/time.mjs";
 
 const reviewed = { part: 1, first: 1, last: 1, start: 1, end: 2, reviewed: true };
@@ -74,6 +74,9 @@ test("FFmpeg export selects the requested sound, validates duration and preserve
     await assert.rejects(exportClip(source, directory, reviewed, 3), /không ghi đè/);
     assert.equal(createHash("sha256").update(await readFile(output)).digest("hex"), exportedHash);
     assert.equal(createHash("sha256").update(await readFile(source)).digest("hex"), original);
+    const draft = await exportDraftClip(source, directory, { ...reviewed, reviewed: false }, 3);
+    assert.ok(draft.fileName.startsWith("draft-part1-q001"));
+    assert.ok(Math.abs(draft.duration - 1) < 0.2);
     await assert.rejects(exportClip(path.join(directory, "missing.mp3"), directory, { ...reviewed, start: 0, end: 1 }, 3));
     assert.ok((await readdir(directory)).every(name => !name.startsWith(".cut-")));
   } finally { await rm(directory, { recursive: true, force: true }); }
@@ -122,6 +125,17 @@ test("local tool streams ranges, guards private audio and persists/reopens revie
     const post = (route: string, data: unknown) => fetch(endpoint(route), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     assert.equal((await post("/export", { ...reviewed, reviewed: false })).status, 400);
     assert.equal((await post("/save", reviewed)).status, 200);
+    const proposed = { ...reviewed, first: 2, last: 2, start: 2, end: 2.8, reviewed: false };
+    const proposals = { sourceSha256: createHash("sha256").update(await readFile(source)).digest("hex"), duration: 3, candidates: [{ segment: proposed }], unresolved: [] };
+    await writeFile(path.join(output, "ai-proposals.json"), JSON.stringify(proposals));
+    assert.equal((await (await fetch(endpoint("/state"))).json()).ai.count, 1);
+    const imported = await post("/ai/import", {}); assert.equal(imported.status, 200);
+    assert.equal((await imported.json()).added, 1);
+    assert.equal((await (await post("/ai/import", {})).json()).added, 0);
+    await writeFile(path.join(output, "ai-proposals.json"), JSON.stringify({ ...proposals, sourceSha256: "wrong" }));
+    assert.equal((await post("/ai/import", {})).status, 400);
+    await writeFile(path.join(output, "ai-proposals.json"), JSON.stringify({ ...proposals, candidates: [{ segment: { ...proposed, reviewed: true } }] }));
+    assert.equal((await post("/ai/import", {})).status, 400);
     const exported = await post("/export", reviewed); assert.equal(exported.status, 200);
     const data = await exported.json();
     const clip = await fetch(endpoint(`/clip/${data.fileName}`)); assert.equal(clip.status, 200);
@@ -130,7 +144,7 @@ test("local tool streams ranges, guards private audio and persists/reopens revie
     assert.equal((await post("/save", { ...reviewed, first: 2, last: 2, start: 1.5, end: 2.5 })).status, 400);
     assert.equal((await post("/save", { ...reviewed, extra: "x".repeat(17000) })).status, 400);
     await stop(child); running = await startTool(source, output); child = running.child; url = running.url;
-    const restored = await (await fetch(endpoint("/state"))).json(); assert.deepEqual(restored.segments, [reviewed]);
+    const restored = await (await fetch(endpoint("/state"))).json(); assert.deepEqual(restored.segments, [reviewed, proposed]);
     const manifest = JSON.parse(await readFile(path.join(output, "segments.json"), "utf8"));
     assert.equal(manifest.sourceSha256, createHash("sha256").update(await readFile(source)).digest("hex"));
   } finally { if (child) await stop(child); await rm(directory, { recursive: true, force: true }); }
