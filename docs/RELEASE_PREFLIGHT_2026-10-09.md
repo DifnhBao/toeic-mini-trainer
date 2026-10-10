@@ -39,3 +39,15 @@ Khi source workflow đã qua CI và chủ dự án sẵn sàng: mở GitHub Acti
 - Quiesce writer cũ/công tắc AI theo runbook; auth/session/đổi tài khoản/không lộ lời giải, scoring và nộp trùng bằng tài khoản thật trên runtime mới.
 - Sau API được phát hành đúng phạm vi, tạo APK đúng source/API và nghiệm thu S23 FE/Android thứ hai. Chưa build APK chỉ vì bundle xanh.
 - Nội dung có quyền chia sẻ, nhãn thật đủ độ phủ, backup định kỳ/ngoài máy/khóa, cảnh báo/ngân sách/người xử lý và beta vẫn mở. Audio tự chia vẫn tạm gác.
+
+## Tiếp tục ngày 10/10/2026 — CI và địa chỉ worker
+
+Đọc lại run `37953423660` của source `98a626f75fce8b8b6b03638072f45f867683267a`: completed/success, ba job web/integration/mobile và từng bước success. Log web có 260 test / 257 pass / 3 skip / 0 fail, build compiled 25,7 giây; PostgreSQL 84/84 pass, không skip. Ba skip Linux là phạm vi đã ghi ở các biên bản trước, không suy ra full Windows mới đã chạy. Android export/kiểm tra bundle đạt, không phải APK hoặc nghiệm thu thiết bị.
+
+Phát hiện allowlist runner mới chưa nhận alias phụ đã có của chính project: `https://toeic-mini-trainer-le-dinh-bao-s-projects.vercel.app`. Bổ sung đúng origin này, giữ giới hạn HTTPS/path/credentials/query/hash và các deployment cùng project/team. Receipt thêm `targetKind` = canonical / team-alias / deployment; không xuất URL/key/body. Điều này giúp đọc cấu hình GitHub mà không tải secret về máy, nhưng chưa đối chiếu được target thật vì chưa chạy workflow.
+
+Local sáu test runner đạt; bổ sung kiểm tra alias/deployment chỉ đúng một GET và không POST, chặn userinfo/fragment/port khác/domain giả/team khác trước network. Web TypeScript, lint hai file sửa và diff whitespace đạt. Không gọi cloud/AI/DB/R2 qua các test giả lập; không đổi khóa/domain/lịch.
+
+Thử mở GitHub Actions bằng Browser Use ngày 10/10 vẫn bị từ chối bởi saved user permission. Không chuyển sang trình duyệt/API khác để thay thao tác UI bị chặn. Connector GitHub tiếp tục được dùng độc lập để đọc CI đã cho phép; endpoint deployment collection không được connector hỗ trợ (400), không coi đó là deployment lỗi hoặc repository mất quyền. Chưa dispatch/rerun worker.
+
+Sau khi source bổ sung qua CI, bước cần chủ dự án thực hiện vẫn là Run workflow trên **codex/release-readiness**, **readiness-only**, gửi link run. Không chọn master/drain. Các cổng phát hành ở trên vẫn mở; source/API/APK chưa tự trở thành cùng một bản nhờ CI xanh.

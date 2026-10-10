@@ -23,9 +23,36 @@ test('unsafe target, unknown mode and malformed key are rejected before network'
   let calls = 0; const fetcher = async () => { calls++; return json({ ready: true }); };
   for (const patch of [{ url: 'https://attacker.invalid/api/internal/ingestions/drain' }, { url: url+'?token=private' },
     { url: 'http://toeic-mini-trainer.vercel.app/api/internal/ingestions/drain' }, { url: url.replace('/drain','/delete') },
+    { url: url+'#private' }, { url: url.replace('https://','https://user:private@') },
+    { url: url.replace('.vercel.app/','.vercel.app.attacker.invalid/') },
+    { url: url.replace('.vercel.app/','.vercel.app:8443/') },
+    { url: url.replace('toeic-mini-trainer.vercel.app','toeic-mini-trainer-other-team.vercel.app') },
     { mode: 'guessed' }, { secret: 'short' }, { secret: secret+'\n' }])
     await assert.rejects(probeWorker({ url, secret, fetcher, ...patch }));
   assert.equal(calls,0);
+});
+
+test('readiness accepts the existing project aliases and deployment, with a safe target classification', async () => {
+  for (const [origin, kind] of [
+    ['https://toeic-mini-trainer.vercel.app', 'canonical'],
+    ['https://toeic-mini-trainer-le-dinh-bao-s-projects.vercel.app', 'team-alias'],
+    ['https://toeic-mini-trainer-r36raf45w-le-dinh-bao-s-projects.vercel.app', 'deployment'],
+  ]) {
+    let calls = 0;
+    const receipt = await probeWorker({ url: origin+'/api/internal/ingestions/drain', secret, fetcher: async (endpoint, init) => {
+      calls++;
+      assert.ok(endpoint instanceof URL);
+      assert.equal(endpoint.origin, origin);
+      assert.equal(endpoint.pathname, '/api/internal/ready');
+      assert.equal(init?.method, 'GET');
+      return json({ ready: true });
+    } });
+    assert.equal(calls, 1);
+    assert.equal(receipt.targetKind, kind);
+    assert.equal(receipt.canonicalTarget, kind === 'canonical');
+    assert.equal(receipt.workerCalled, false);
+    assert.equal(JSON.stringify(receipt).includes(origin), false);
+  }
 });
 
 test('HTTP success alone cannot trigger a worker when readiness body is false or invalid', async () => {
