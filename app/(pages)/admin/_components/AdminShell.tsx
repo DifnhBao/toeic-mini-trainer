@@ -4,11 +4,11 @@ import AppHeader from "@/app/components/AppHeader";
 const links = [
   { href: "/admin", label: "Tổng quan" },
   { href: "/admin/users", label: "Người dùng" },
-  { href: "/admin/contributions", label: "Duyệt đóng góp" },
+  { href: "/admin/contributions", label: "Duyệt nội dung" },
   { href: "/admin/ingestions", label: "Tài liệu & xử lý" },
   { href: "/admin/questions", label: "Kho câu hỏi" },
   { href: "/admin/audit", label: "Nhật ký quản trị" },
-  { href: "/admin/extract", label: "Nhập PDF" },
+  { href: "/admin/extract", label: "Nhập đề & audio" },
   { href: "/admin/import", label: "Nhập JSON" },
 ];
 

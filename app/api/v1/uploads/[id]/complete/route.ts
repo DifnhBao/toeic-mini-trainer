@@ -11,6 +11,8 @@ import {
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { requestUser } from "@/app/lib/request-user";
+import { hasRole } from "@/app/lib/authorization";
+import { logServerError } from "@/app/lib/server-error-log";
 
 export const runtime = "nodejs";
 
@@ -22,8 +24,10 @@ export async function POST(
 ) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
+  if (!hasRole(user, "ADMIN")) return apiError("ADMIN_CONTENT_ONLY", "Chỉ quản trị viên được nhập đề và audio trên web.", 403);
 
-  const limit = takeRateLimit(request, `mobile-upload-complete:${user.id}`, 30, 10 * 60_000);
+  const limit = await takeRateLimit(request, `mobile-upload-complete:${user.id}`, 30, 10 * 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn xác nhận upload quá nhanh.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),
@@ -46,7 +50,7 @@ export async function POST(
     const verification = await verifyStoredObject(asset);
     if (!verification.valid) {
       await deleteStoredObject(asset.objectKey).catch((deleteError) => {
-        console.error("invalid upload cleanup failed", deleteError);
+        logServerError("upload.invalid_cleanup.failed", deleteError, request);
       });
       await prisma.uploadedAsset.updateMany({
         where: { id: asset.id, ownerId: user.id, status: "PENDING" },
@@ -69,7 +73,7 @@ export async function POST(
     });
     if (promoted.count > 0) {
       await deleteStoredObject(asset.objectKey).catch((deleteError) => {
-        console.error("staging upload cleanup failed", deleteError);
+        logServerError("upload.staging_cleanup.failed", deleteError, request);
       });
     }
     return apiJson({ asset: { id: asset.id, status: "READY" as const } });
@@ -80,7 +84,7 @@ export async function POST(
     if (error instanceof ObjectStorageConfigurationError) {
       return apiError("STORAGE_UNAVAILABLE", "Kho file chưa được cấu hình.", 503);
     }
-    console.error("complete upload failed", error);
+    logServerError("upload.complete.failed", error, request);
     return apiError("UPLOAD_VERIFICATION_FAILED", "Không thể xác minh file.", 503);
   }
 }

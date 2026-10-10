@@ -1,0 +1,94 @@
+name: Release quality checks
+
+on:
+  pull_request:
+  push:
+    branches: [main, master, 'codex/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://test:test@127.0.0.1:5432/toeic_release_test?sslmode=disable
+      NEXTAUTH_SECRET: ci-only-nextauth-secret-never-deployed
+      MOBILE_JWT_SECRET: ci-only-mobile-jwt-secret-never-deployed
+      GUEST_TEST_SECRET: ci-only-guest-test-secret-never-deployed
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run audit:dependencies -- --project web
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: toeic_release_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U test -d toeic_release_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://test:test@127.0.0.1:5432/toeic_release_test?sslmode=disable
+      TEST_DATABASE_URL: postgresql://test:test@127.0.0.1:5432/toeic_release_test?sslmode=disable
+      ALLOW_INTEGRATION_TEST_DATABASE: "true"
+      MOBILE_JWT_SECRET: ci-only-mobile-jwt-secret-never-deployed
+      RATE_LIMIT_STORE: database
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run test:integration
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_API_URL: https://example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx expo install --check
+      - run: npm --prefix .. run audit:dependencies -- --project mobile
+      - run: npx expo export --platform android --source-maps --output-dir dist-android
+      - run: npm --prefix .. run check:mobile-bundle

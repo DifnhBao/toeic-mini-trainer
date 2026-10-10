@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
 import { requestUser } from "@/app/lib/request-user";
+import { logServerError } from "@/app/lib/server-error-log";
 
 export async function GET(
   request: Request,
@@ -70,7 +71,7 @@ export async function GET(
     );
     return NextResponse.json({ ...test, questions }, { status: 200 });
   } catch (error) {
-    console.error("Lỗi lấy test:", error);
+    logServerError("test.read.failed", error, request);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

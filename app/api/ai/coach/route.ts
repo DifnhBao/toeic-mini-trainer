@@ -1,9 +1,20 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { requestUser } from "@/app/lib/request-user";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
+import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
+import { z } from "zod";
+import { parseBoundedJson } from "@/app/lib/mobile-api";
+import { takeRateLimit } from "@/app/lib/rate-limit";
 
 const ai = new GoogleGenAI({});
+export const maxDuration = 60;
+const schema = z.object({
+  message: z.string().trim().min(1).max(2000),
+  part: z.string().trim().max(20).optional(),
+}).strict();
 
 export async function POST(request: Request) {
   try {
@@ -12,17 +23,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Vui lòng đăng nhập để dùng AI Coach." }, { status: 401 });
     }
 
-    const body = await request.json();
-    const message = typeof body.message === "string" ? body.message.trim() : "";
-    const part = typeof body.part === "string" ? body.part.slice(0, 20) : "Tổng hợp";
-
-    if (!message || message.length > 2000) {
-      return NextResponse.json({ error: "Câu hỏi cần từ 1 đến 2.000 ký tự." }, { status: 400 });
+    const limit = await takeRateLimit(request, `mobile-ai-coach:${user.id}`, 10, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: "AI Coach tạm thời bận. Vui lòng thử lại sau." }, {
+        status: limit.unavailable ? 503 : 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      });
     }
-
-    if (!(await consumeDailyAiCall(user.id, "coach", 20))) {
-      return NextResponse.json({ error: "Bạn đã dùng hết lượt hỏi AI hôm nay." }, { status: 429 });
+    const body = await parseBoundedJson(request, schema);
+    if (!body.success) {
+      const data = await body.response.json();
+      return NextResponse.json({ error: data.error.message }, { status: body.response.status });
     }
+    const { message } = body.data;
+    const part = body.data.part || "Tổng hợp";
 
     const prompt = `
 Bạn là giáo viên TOEIC người Việt, chắc kiến thức và hướng dẫn thực tế.
@@ -30,6 +44,7 @@ Người học đang tập trung vào: ${part}.
 Câu hỏi: ${message}
 
 Hãy trả lời bằng tiếng Việt, tối đa 350 từ. Đi thẳng vào điều người học cần hiểu.
+Chỉ dùng văn bản thường: đoạn ngắn và danh sách đánh số. Không dùng Markdown, dấu **, tiêu đề # hoặc bảng.
 - Nếu là ngữ pháp/từ vựng: giải thích quy tắc, chỉ ra dấu hiệu nhận biết và cho 1 ví dụ TOEIC ngắn.
 - Nếu là chiến thuật: đưa quy trình 2-4 bước áp dụng ngay và một lỗi thường gặp.
 - Nếu người học đưa câu hỏi trắc nghiệm: phân tích đáp án đúng và vì sao các đáp án nhiễu sai.
@@ -37,16 +52,23 @@ Hãy trả lời bằng tiếng Việt, tối đa 350 từ. Đi thẳng vào đi
 - Kết thúc bằng một dòng "Ghi nhớ:" thật ngắn.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
+    const response = await withAiProviderCapacity({
+      timeoutMs: 45_000,
+      allow: () => consumeDailyAiCall(user.id, "coach", 20),
+      generate: (providerConfig) => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: { ...providerConfig, maxOutputTokens: 4_096 },
+      }),
     });
 
     const answer = response.text?.trim();
     if (!answer) throw new Error("AI returned an empty answer");
     return NextResponse.json({ answer });
   } catch (error) {
-    console.error("AI Coach error:", error);
+    if (error instanceof AiQuotaExceededError) return NextResponse.json({ error: "Bạn đã dùng hết lượt hỏi AI hôm nay." }, { status: 429 });
+    if (error instanceof AiCapacityError) return NextResponse.json({ error: "AI Coach đang bận. Vui lòng thử lại sau." }, { status: 503, headers: { "Retry-After": String(error.retryAfterSeconds) } });
+    console.error("AI Coach error", { ...requestLogFields(request), errorType: safeErrorType(error) });
     return NextResponse.json({ error: "AI Coach đang bận. Vui lòng thử lại sau ít phút." }, { status: 503 });
   }
 }

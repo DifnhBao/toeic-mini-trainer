@@ -1,5 +1,6 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
+import { requestAddress } from "@/app/lib/request-address";
 
 const MAX_GUEST_TESTS_PER_DAY = 3;
 const GUEST_TEST_LIFETIME_SECONDS = 30 * 60;
@@ -11,9 +12,7 @@ function guestSecret() {
 }
 
 export function guestQuotaKey(request: Request, now = new Date()) {
-  const address = request.headers.get("x-real-ip")?.trim()
-    || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    || "unknown";
+  const address = requestAddress(request);
   const day = now.toISOString().slice(0, 10);
   return createHmac("sha256", guestSecret()).update(`${day}:${address}`).digest("hex");
 }

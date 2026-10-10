@@ -1,0 +1,53 @@
+{
+  "data": [
+    {
+      "group": { "groupType": "TEXT" },
+      "questions": [
+        { "part": 5, "content": "All expense reports must be submitted _____ Friday afternoon.", "options": { "A": "by", "B": "into", "C": "among", "D": "during" }, "correctAnswer": "A" },
+        { "part": 5, "content": "The revised schedule allows the team to work more _____.", "options": { "A": "efficient", "B": "efficiency", "C": "efficiently", "D": "efficiencies" }, "correctAnswer": "C" },
+        { "part": 5, "content": "_____ the heavy rain, the outdoor delivery was completed on time.", "options": { "A": "Although", "B": "Despite", "C": "Because", "D": "Unless" }, "correctAnswer": "B" },
+        { "part": 5, "content": "Each applicant _____ required to complete an online form.", "options": { "A": "are", "B": "have", "C": "be", "D": "is" }, "correctAnswer": "D" },
+        { "part": 5, "content": "The manager asked employees to review the proposal _____ before signing it.", "options": { "A": "careful", "B": "carefully", "C": "care", "D": "carefulness" }, "correctAnswer": "B" },
+        { "part": 5, "content": "Please contact the technician _____ installed the new printer.", "options": { "A": "who", "B": "whose", "C": "which", "D": "whom" }, "correctAnswer": "A" },
+        { "part": 5, "content": "The sales team has worked in this building _____ 2021.", "options": { "A": "for", "B": "during", "C": "since", "D": "while" }, "correctAnswer": "C" },
+        { "part": 5, "content": "Customers will receive a confirmation email _____ their payment has been processed.", "options": { "A": "despite", "B": "during", "C": "because of", "D": "once" }, "correctAnswer": "D" },
+        { "part": 5, "content": "The conference room is large enough _____ forty participants.", "options": { "A": "accommodate", "B": "to accommodate", "C": "accommodated", "D": "accommodation" }, "correctAnswer": "B" },
+        { "part": 5, "content": "This month's electricity bill is _____ than last month's bill.", "options": { "A": "lower", "B": "low", "C": "lowest", "D": "lowly" }, "correctAnswer": "A" }
+      ]
+    },
+    {
+      "group": {
+        "groupType": "TEXT",
+        "passageText": "<p>To: All employees<br>Subject: Library software update</p><p>The company library will update its borrowing software on Saturday, May 18. During the update, the online catalogue will be _____ (11) from 8:00 a.m. to noon. Employees who need books should borrow them _____ (12) Friday at 5:00 p.m.</p><p>_____ (13) The library desk will remain open during its normal hours on Friday. We appreciate your _____ (14) while our technical team completes the work.</p>"
+      },
+      "questions": [
+        { "part": 6, "content": "Choose the word for blank (11).", "options": { "A": "unavailable", "B": "unavailability", "C": "unavailably", "D": "unavailabilities" }, "correctAnswer": "A" },
+        { "part": 6, "content": "Choose the word for blank (12).", "options": { "A": "among", "B": "since", "C": "by", "D": "during" }, "correctAnswer": "C" },
+        { "part": 6, "content": "Choose the sentence for blank (13).", "options": { "A": "The library is moving to a different city.", "B": "The software update was cancelled last month.", "C": "Every book must be purchased from a retailer.", "D": "Existing loans will not be affected by the update." }, "correctAnswer": "D" },
+        { "part": 6, "content": "Choose the word for blank (14).", "options": { "A": "patient", "B": "patience", "C": "patiently", "D": "patients" }, "correctAnswer": "B" }
+      ]
+    },
+    {
+      "group": {
+        "groupType": "TEXT",
+        "passageText": "<p>To: Training participants<br>From: Elena Park, Training Coordinator<br>Subject: Inventory workshop - June 12</p><p>Our inventory workshop will take place on Wednesday, June 12, from 9:00 a.m. to 11:30 a.m. The session has moved from Room A to Room B because the projector in Room A is being repaired.</p><p>Please bring your laptop and the stock report attached to this email. Coffee will be available from 8:45 a.m. Participants who want the optional lunch at noon should reply to this email by Monday, June 10.</p>"
+      },
+      "questions": [
+        { "part": 7, "content": "Why has the workshop moved to Room B?", "options": { "A": "More people have registered.", "B": "A projector is being repaired.", "C": "Lunch will be served there.", "D": "The coordinator will arrive late." }, "correctAnswer": "B" },
+        { "part": 7, "content": "What are participants asked to bring?", "options": { "A": "A receipt and a visitor badge", "B": "A projector and a price list", "C": "An invitation and a lunch box", "D": "A laptop and a stock report" }, "correctAnswer": "D" },
+        { "part": 7, "content": "What should participants do if they want lunch?", "options": { "A": "Reply by June 10", "B": "Call the repair team", "C": "Arrive at 11:30 a.m.", "D": "Visit Room A on June 12" }, "correctAnswer": "A" }
+      ]
+    },
+    {
+      "group": {
+        "groupType": "TEXT",
+        "passageText": "<p>Riverside Fitness Centre<br>Notice to members</p><p>Starting July 1, the centre will open at 6:00 a.m. on weekdays, one hour earlier than before. Saturday and Sunday hours will remain 8:00 a.m. to 6:00 p.m.</p><p>The swimming pool will be closed from July 3 to July 5 for cleaning. Members may use the pool at our North Street branch during this period at no additional charge. Bring your membership card to enter that branch.</p><p>For questions about the temporary arrangement, contact the reception desk.</p>"
+      },
+      "questions": [
+        { "part": 7, "content": "At what time did the centre previously open on weekdays?", "options": { "A": "6:00 a.m.", "B": "8:00 a.m.", "C": "7:00 a.m.", "D": "9:00 a.m." }, "correctAnswer": "C" },
+        { "part": 7, "content": "Why will the swimming pool be closed?", "options": { "A": "It will be cleaned.", "B": "A competition will take place.", "C": "Membership cards will be replaced.", "D": "The centre will change its weekend hours." }, "correctAnswer": "A" },
+        { "part": 7, "content": "What must members bring to the North Street branch?", "options": { "A": "A payment receipt", "B": "An appointment letter", "C": "A registration form", "D": "Their membership card" }, "correctAnswer": "D" }
+      ]
+    }
+  ]
+}

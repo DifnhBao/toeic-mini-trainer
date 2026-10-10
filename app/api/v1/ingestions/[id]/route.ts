@@ -27,6 +27,7 @@ export async function GET(
       errorCode: true,
       result: true,
       importedAt: true,
+      contribution: { select: { id: true, status: true } },
       createdAt: true,
       completedAt: true,
       startedAt: true,
@@ -42,7 +43,7 @@ export async function GET(
     job.startedAt.getTime() < now - 6 * 60_000;
   if (processingTimedOut) {
     await prisma.ingestionJob.updateMany({
-      where: { id: job.id, ownerId: user.id, status: job.status },
+      where: { id: job.id, ownerId: user.id, status: job.status, startedAt: job.startedAt, attemptCount: job.attemptCount },
       data: { status: "FAILED", errorCode: "WORKER_TIMEOUT", completedAt: new Date() },
     });
     job = await prisma.ingestionJob.findFirstOrThrow({
@@ -54,6 +55,7 @@ export async function GET(
         errorCode: true,
         result: true,
         importedAt: true,
+        contribution: { select: { id: true, status: true } },
         createdAt: true,
         completedAt: true,
         startedAt: true,
@@ -66,6 +68,7 @@ export async function GET(
   return apiJson({
     job: {
       ...job,
+      reviewProtocol: 1,
       importStalled: isStalledImport(job, now),
       result: canReadResult ? job.result : null,
       createdAt: job.createdAt.toISOString(),

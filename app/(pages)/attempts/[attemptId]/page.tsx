@@ -5,6 +5,8 @@ import AppHeader from "@/app/components/AppHeader";
 import AiExplainButton from "@/app/components/AiExplainButton";
 import SafePassage from "@/app/components/SafePassage";
 import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
+import { currentExplanationHidden, hiddenExplanationSelection } from "@/app/lib/explanation-policy";
+import { orderAttemptAnswers } from "@/app/lib/attempt-answer-order";
 
 export default async function ResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = await params;
@@ -13,12 +15,16 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
   const rawAttempt = user ? await prisma.testAttempt.findFirst({
     where: { id: attemptId, userId: user.id },
     include: {
-      test: true,
+      test: { select: {
+        id: true, title: true,
+        questions: { select: { questionId: true, orderIndex: true } },
+      } },
       userAnswers: {
         include: {
           question: {
             include: {
               group: { include: { audioAsset: true, imageAsset: true, contribution: { select: { status: true } } } },
+              explanationCaches: hiddenExplanationSelection,
             },
           },
           aiExplanation: true,
@@ -32,13 +38,16 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
     ? {
         ...rawAttempt,
         userAnswers: await Promise.all(
-          rawAttempt.userAnswers.map(async (answer) => ({
-            ...answer,
-            question: {
-              ...answer.question,
-              group: await resolveQuestionGroupMedia(answer.question.group, rawAttempt.userId),
-            },
-          })),
+          orderAttemptAnswers(rawAttempt.userAnswers, rawAttempt.test.questions).map(async (answer) => {
+            const { explanationCaches, ...question } = answer.question;
+            const explanationHidden = currentExplanationHidden(question.contentRevision, explanationCaches);
+            return {
+              ...answer,
+              explanationHidden,
+              aiExplanation: explanationHidden ? null : answer.aiExplanation,
+              question: { ...question, group: await resolveQuestionGroupMedia(question.group, rawAttempt.userId) },
+            };
+          }),
         ),
       }
     : null;
@@ -59,7 +68,7 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
       <AppHeader />
       <main className="page-shell result-page">
         <section className="result-hero">
-          <div className="result-copy"><span className="step-kicker">KẾT QUẢ BÀI LUYỆN</span><h1>{message}</h1><p>{attempt.test.title}</p><div className="result-actions"><Link href="/">Làm bài khác</Link><Link href="/history">Xem lịch sử</Link></div></div>
+          <div className="result-copy"><span className="step-kicker">KẾT QUẢ BÀI LUYỆN</span><h1>{message}</h1><p>{attempt.test.title}</p><div className="result-actions"><Link href="/progress">Phân tích và luyện tiếp</Link><Link href="/">Làm bài khác</Link><Link href="/history">Xem lịch sử</Link></div></div>
           <div className="score-disc"><strong>{percentage}%</strong><span>{score}/{total} câu đúng</span></div>
           <div className="result-breakdown"><div><strong>{score}</strong><span>Đúng</span></div><div><strong>{incorrect}</strong><span>Cần xem lại</span></div><div><strong>{parts.map((part) => `P${part}`).join(", ")}</strong><span>Phần đã luyện</span></div></div>
         </section>
@@ -84,7 +93,7 @@ export default async function ResultPage({ params }: { params: Promise<{ attempt
                   })}
                 </div>
                 {!userAnswer.selectedOption && <p className="unanswered-note">Bạn đã bỏ trống câu này.</p>}
-                {!userAnswer.isCorrect && <AiExplainButton userAnswerId={userAnswer.id} initialExplanation={userAnswer.aiExplanation} />}
+                {!userAnswer.isCorrect && <AiExplainButton key={`${userAnswer.id}:${userAnswer.explanationHidden ? "hidden" : "visible"}`} userAnswerId={userAnswer.id} initialExplanation={userAnswer.aiExplanation} />}
               </article>
             );
           })}

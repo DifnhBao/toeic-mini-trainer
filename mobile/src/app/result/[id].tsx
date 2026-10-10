@@ -97,6 +97,7 @@ export default function ResultScreen() {
             <Pressable onPress={() => router.replace('/practice')} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Làm bài khác</Text></Pressable>
             <Pressable onPress={() => router.push('/history')} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Lịch sử</Text></Pressable>
           </View>
+          <Pressable onPress={() => router.push('/insights')} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Phân tích và luyện tiếp →</Text></Pressable>
         </View>
 
         <View style={styles.reviewHeading}>

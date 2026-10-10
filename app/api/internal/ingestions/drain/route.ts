@@ -1,6 +1,10 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
+import { REQUEST_ID_HEADER, requestLogFields } from "@/app/lib/request-trace";
 import { after } from "next/server";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { prisma } from "@/app/lib/prisma";
+import { AI_LEASE_PREFIX } from "@/app/lib/ai-provider-capacity";
+import { isIngestionPaused } from "@/app/lib/ingestion-limits";
 import {
   isAuthorizedIngestionWorker,
   isIngestionWorkerConfigured,
@@ -18,6 +22,7 @@ export async function POST(request: Request) {
   if (!isAuthorizedIngestionWorker(request.headers.get("authorization"))) {
     return apiError("UNAUTHORIZED", "Không có quyền chạy worker.", 401);
   }
+  if (isIngestionPaused()) return apiJson({ queued: false, paused: true });
 
   try {
     // A Vercel invocation may be terminated before it can mark a job FAILED.
@@ -28,7 +33,8 @@ export async function POST(request: Request) {
     // counters; neither table contains learning history.
     await Promise.all([
       prisma.guestUsage.deleteMany({ where: { expiresAt: { lt: now } } }),
-      prisma.userAiUsage.deleteMany({ where: { expiresAt: { lt: now } } }),
+      // Active provider leases are expired by their own database-clock sweep.
+      prisma.userAiUsage.deleteMany({ where: { expiresAt: { lt: now }, NOT: { key: { startsWith: AI_LEASE_PREFIX } } } }),
     ]);
     await prisma.ingestionJob.updateMany({
       where: { status: "PROCESSING", startedAt: { lt: staleBefore }, attemptCount: { lt: 3 } },
@@ -53,14 +59,16 @@ export async function POST(request: Request) {
 
     // Respond promptly; Next/Vercel keeps the invocation alive for this task.
     // processIngestionJob atomically claims PENDING so concurrent triggers are safe.
+    const requestId = request.headers.get(REQUEST_ID_HEADER) ?? undefined;
     after(async () => {
       const { processIngestionJob } = await import("@/app/lib/toeic-ingestion");
-      await processIngestionJob(candidate.id);
+      await processIngestionJob(candidate.id, undefined, requestId);
     });
     return apiJson({ queued: true }, { status: 202 });
   } catch (error) {
     console.error("ingestion worker sweep failed", {
-      errorType: error instanceof Error ? error.name : "unknown",
+      ...requestLogFields(request),
+      errorType: safeErrorType(error),
     });
     return apiError("WORKER_UNAVAILABLE", "Worker tạm thời không khả dụng.", 503);
   }

@@ -9,7 +9,7 @@ type UploadRule = {
 
 export const UPLOAD_RULES: Record<UploadKind, UploadRule> = {
   DOCUMENT: {
-    maxBytes: 15 * 1024 * 1024,
+    maxBytes: 50 * 1024 * 1024,
     contentTypes: { "application/pdf": ".pdf" },
   },
   AUDIO: {

@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { PDFDocument } from "pdf-lib";
 import AppHeader from "@/app/components/AppHeader";
 import IngestionQuestionReview, { type ExtractedGroup } from "@/app/components/IngestionQuestionReview";
 import { MAX_INGESTION_PAGES } from "@/app/lib/ingestion-limits";
+import { UPLOAD_RULES } from "@/app/lib/upload-policy";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
+
+const PDF_LIMIT_MB = UPLOAD_RULES.DOCUMENT.maxBytes / 1024 / 1024;
 
 type UploadIntent = {
   asset: { id: string };
@@ -18,7 +22,9 @@ type IngestionJob = {
   status: "PENDING" | "PROCESSING" | "COMPLETED" | "IMPORTING" | "IMPORTED" | "FAILED";
   errorCode: string | null;
   result: { data: ExtractedGroup[] } | null;
+  contribution?: { id: string; status: string } | null;
 };
+type RecentJob = { id: string; status: string; pageStart: number; pageEnd: number | null; documentAsset: { originalName: string } };
 
 export default function AIExtractPage() {
   const { status } = useSession();
@@ -38,6 +44,17 @@ export default function AIExtractPage() {
   const [jobFailureCode, setJobFailureCode] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
+  const [existingContribution, setExistingContribution] = useState<{ id: string; status: string } | null>(null);
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const controller = new AbortController();
+    void fetch("/api/v1/ingestions", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (!controller.signal.aborted) setRecentJobs(data?.jobs || []); })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [status]);
 
   const invalidPageRange = pdfPageCount !== null && (
     !Number.isSafeInteger(pageStart) || !Number.isSafeInteger(pageEnd) ||
@@ -53,12 +70,13 @@ export default function AIExtractPage() {
     setExtractedData(null);
     setProcessedRange(null);
     setJobId(null);
+    setExistingContribution(null);
     setJobFailureCode(null);
     setMessage("");
     setError("");
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      setError("PDF vượt quá 15 MB.");
+    if (file.size > UPLOAD_RULES.DOCUMENT.maxBytes) {
+      setError(`PDF vượt quá ${PDF_LIMIT_MB} MB. Hãy chia tài liệu hoặc giảm dung lượng file.`);
       return;
     }
     try {
@@ -95,7 +113,7 @@ export default function AIExtractPage() {
   async function readJson(response: Response) {
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(data?.error?.message || data?.error || "Máy chủ không thể xử lý yêu cầu.");
+      throw new Error(apiFailureMessage(response, data, "Máy chủ không thể xử lý yêu cầu."));
     }
     return data;
   }
@@ -128,7 +146,10 @@ export default function AIExtractPage() {
   async function waitForJob(id: string) {
     for (let attempt = 0; attempt < 150; attempt += 1) {
       const response = (await readJson(await fetch(`/api/v1/ingestions/${id}`))) as { job: IngestionJob };
-      if (response.job.status === "COMPLETED" && response.job.result) return response.job.result;
+      if (["COMPLETED", "IMPORTED"].includes(response.job.status) && response.job.result) {
+        setExistingContribution(response.job.contribution ?? null);
+        return response.job.result;
+      }
       if (response.job.status === "FAILED") {
         setJobFailureCode(response.job.errorCode || "INGESTION_FAILED");
         throw new Error(ingestionErrorMessage(response.job.errorCode));
@@ -201,6 +222,19 @@ export default function AIExtractPage() {
     }
   }
 
+  async function openRecentJob(summary: RecentJob) {
+    if (loading) return;
+    setLoading(true); setError(""); setMessage(`Đang mở ${summary.documentAsset.originalName}…`);
+    setExtractedData(null); setExistingContribution(null); setJobFailureCode(null);
+    setJobId(summary.id); setProcessedRange({ start: summary.pageStart, end: summary.pageEnd ?? summary.pageStart });
+    try {
+      const result = await waitForJob(summary.id);
+      setExtractedData(result); setReviewVersion((version) => version + 1);
+      setMessage(`Đã mở ${summary.documentAsset.originalName}; không phân tích AI lại.`);
+    } catch (failure) { setMessage(""); setError(failure instanceof Error ? failure.message : "Không mở được tác vụ."); }
+    finally { setLoading(false); }
+  }
+
   async function retryJob() {
     if (!jobId || !jobFailureCode || loading) return;
     setLoading(true);
@@ -223,7 +257,19 @@ export default function AIExtractPage() {
     <div className="app-page">
       <AppHeader />
       <main className="page-shell import-page">
-        <section className="import-heading"><div><p className="eyebrow">KHO TÀI LIỆU</p><h1>Biến PDF thành bộ câu hỏi luyện tập</h1><p>AI đọc nội dung, ghép audio và cấu trúc câu hỏi. Bạn luôn kiểm tra lại trước khi lưu.</p></div><Link href="/admin/import" className="ghost-button">Nhập file JSON</Link></section>
+        <section className="import-heading"><div><p className="eyebrow">QUẢN TRỊ · KHO BÀI</p><h1>Nhập đề và audio cho người học</h1><p>Chuẩn bị trên máy tính, kiểm tra từng câu rồi xuất bản. Người học chọn bài có sẵn trên web hoặc Android.</p></div><Link href="/admin/contributions" className="ghost-button">Duyệt nội dung</Link></section>
+
+        <section className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-slate-700" aria-label="Hướng dẫn nhập đề nghe">
+          <h2 className="font-bold text-slate-900">Chuẩn bị bài nghe trong 4 bước</h2>
+          <ol className="mt-3 list-decimal space-y-2 pl-5"><li>Trên máy tính, chọn PDF đề và file audio tương ứng; chuẩn bị answer key để đối chiếu. Nên dùng đoạn audio ngắn khớp các trang đã chọn.</li><li>Chọn tối đa {MAX_INGESTION_PAGES} trang liên tiếp rồi bấm Phân tích. Audio được gắn cho các nhóm câu nghe; hệ thống không tự cắt audio hoặc tạo mốc thời gian.</li><li>Đối chiếu từng câu, bổ sung đáp án còn thiếu, gắn ảnh cho Part 1 hoặc biểu đồ, chọn Duyệt hoặc Bỏ qua. Xác nhận quyền chia sẻ rồi chuyển sang bước xuất bản.</li><li>Mở Duyệt nội dung, kiểm tra PDF, ảnh và nghe thử audio, bấm Duyệt & công khai. Người học tải lại Kho bài để chọn bài vừa đăng.</li></ol>
+          <p className="mt-3">Mỗi bài trong kho là một nhóm câu chung audio hoặc đoạn đọc. PDF nguồn không được công khai. Ở bước kiểm tra, gắn ảnh đã cắt từ PDF vào đúng nhóm câu; ảnh được giữ khi xuất bản. Hệ thống chưa tự cắt ảnh từ PDF.</p>
+          <Link className="mt-3 inline-block font-semibold text-blue-700 underline" href="/library">Xem Kho bài của người học →</Link>
+        </section>
+
+        {recentJobs.length > 0 && <section className="mb-5 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="font-bold">Tiếp tục tài liệu đã xử lý</h2><p className="mt-1 text-sm text-slate-600">Mở lại sau khi đóng trang; không cần upload hoặc gọi AI lại.</p>
+          <div className="mt-3 flex flex-wrap gap-2">{recentJobs.map((recent) => <button key={recent.id} type="button" className="ghost-button max-w-full break-words" disabled={loading} onClick={() => void openRecentJob(recent)}>{recent.documentAsset.originalName} · Trang {recent.pageStart}–{recent.pageEnd ?? recent.pageStart} · {recent.status}</button>)}</div>
+        </section>}
 
         <section className="pipeline-strip" aria-label="Quy trình nhập đề"><div className="is-active"><span>1</span><strong>Tải tài liệu</strong></div><i /><div className={extractedData ? "is-active" : ""}><span>2</span><strong>Kiểm tra dữ liệu</strong></div><i /><div className={message ? "is-active" : ""}><span>3</span><strong>Lưu hoặc gửi duyệt</strong></div></section>
 
@@ -232,7 +278,7 @@ export default function AIExtractPage() {
           <div className="upload-grid">
             <label className={`upload-zone ${pdfFile ? "has-file" : ""}`}>
               <input type="file" accept="application/pdf,.pdf" disabled={loading} onChange={(event) => void selectPdf(event.target.files?.[0] || null)} />
-              <span className="upload-symbol">PDF</span><strong>{pdfFile?.name || "Đề thi hoặc tài liệu TOEIC"}</strong><small>{pdfFile ? `${(pdfFile.size / 1024 / 1024).toFixed(1)} MB · Bấm để chọn lại` : "Kéo thả hoặc chọn file PDF, tối đa 15 MB"}</small>
+              <span className="upload-symbol">PDF</span><strong>{pdfFile?.name || "Đề thi hoặc tài liệu TOEIC"}</strong><small>{pdfFile ? `${(pdfFile.size / 1024 / 1024).toFixed(1)} MB · Bấm để chọn lại` : `Kéo thả hoặc chọn file PDF, tối đa ${PDF_LIMIT_MB} MB`}</small>
             </label>
             <label className={`upload-zone audio-zone ${audioFile ? "has-file" : ""}`}>
               <input type="file" accept="audio/*,.mp3,.m4a,.wav" disabled={loading} onChange={(event) => { setAudioFile(event.target.files?.[0] || null); setUploadedAudio(null); }} />
@@ -264,8 +310,9 @@ export default function AIExtractPage() {
           {error && <p className="inline-error" role="alert">{error}</p>}
         </section>
 
-        {extractedData?.data && jobId && (
-          <IngestionQuestionReview key={`${jobId}:${reviewVersion}`} groups={extractedData.data} jobId={jobId} pageRange={processedRange} />
+        {existingContribution && <section className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-5"><p>Nội dung này đã chuyển sang bước xuất bản ({existingContribution.status}).</p><Link className="mt-2 inline-block font-semibold text-blue-700 underline" href={`/admin/contributions?status=${existingContribution.status}`}>Mở nội dung đã gửi →</Link>{existingContribution.status === "REJECTED" && <Link className="ml-4 mt-2 inline-block font-semibold text-blue-700 underline" href={`/admin/contributions/${existingContribution.id}/edit`}>Sửa và gửi lại →</Link>}</section>}
+        {extractedData?.data && jobId && !existingContribution && (
+            <IngestionQuestionReview key={`${jobId}:${reviewVersion}`} groups={extractedData.data} jobId={jobId} pageRange={processedRange} forSharedLibrary />
         )}
       </main>
     </div>

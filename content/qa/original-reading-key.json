@@ -1,0 +1,27 @@
+{
+  "title": "Original Reading functional acceptance set",
+  "purpose": "Functional acceptance only; not an official TOEIC test or a proficiency benchmark.",
+  "permission": "Original material authored for this project. The project owner may use, modify and distribute this text. No third-party exam text was copied.",
+  "answers": [
+    { "number": 1, "answer": "A", "reason": "By introduces a deadline." },
+    { "number": 2, "answer": "C", "reason": "Efficiently is the adverb modifying work." },
+    { "number": 3, "answer": "B", "reason": "Despite takes the noun phrase the heavy rain." },
+    { "number": 4, "answer": "D", "reason": "Each applicant is a singular subject; is required is the passive form." },
+    { "number": 5, "answer": "B", "reason": "Carefully is the adverb modifying review." },
+    { "number": 6, "answer": "A", "reason": "Who is the subject of installed and refers to the technician." },
+    { "number": 7, "answer": "C", "reason": "Since introduces the starting point 2021 with the present perfect." },
+    { "number": 8, "answer": "D", "reason": "Once introduces the clause describing when the email will be sent." },
+    { "number": 9, "answer": "B", "reason": "The structure is adjective + enough + to-infinitive." },
+    { "number": 10, "answer": "A", "reason": "Lower is the comparative required before than." },
+    { "number": 11, "answer": "A", "reason": "The adjective unavailable follows will be." },
+    { "number": 12, "answer": "C", "reason": "By Friday at 5:00 p.m. states the borrowing deadline." },
+    { "number": 13, "answer": "D", "reason": "The sentence reassures current borrowers about the software update; the other statements contradict or do not fit the notice." },
+    { "number": 14, "answer": "B", "reason": "The noun patience is the object of appreciate after your." },
+    { "number": 15, "answer": "B", "reason": "The email explicitly says the projector in Room A is being repaired." },
+    { "number": 16, "answer": "D", "reason": "The email requests a laptop and the attached stock report." },
+    { "number": 17, "answer": "A", "reason": "Participants wanting lunch should reply by Monday, June 10." },
+    { "number": 18, "answer": "C", "reason": "Opening at 6:00 a.m. one hour earlier means the previous opening time was 7:00 a.m." },
+    { "number": 19, "answer": "A", "reason": "The pool closes from July 3 to July 5 for cleaning." },
+    { "number": 20, "answer": "D", "reason": "The notice says to bring a membership card to enter the other branch." }
+  ]
+}

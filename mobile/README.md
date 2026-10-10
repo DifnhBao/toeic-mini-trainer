@@ -85,3 +85,31 @@ standalone/development build identifiers before release.
   Keystore or iOS Keychain and are bound to a generated device ID.
 - Refresh token reuse revokes the full session family server-side.
 - The app bundle contains no private OAuth or AI secrets.
+
+## Shared lesson library (2026-10-08)
+
+Administrators prepare PDF/audio on the web, review the questions, then approve
+publication. Learners use the Library tab to choose an existing lesson; each test
+contains the complete eligible group and retains its media/context. Android no
+longer offers new document imports. Old private questions and local practice
+drafts are preserved. An older APK's content creation requests receive
+`403 ADMIN_CONTENT_ONLY` for USER/REVIEWER accounts, including legacy JSON imports.
+
+Deploy the library API before installing this APK. See the
+[admin listening workflow and device acceptance](../docs/ADMIN_LISTENING_WORKFLOW_2026-10-08.md).
+
+## Previous reviewed import flow (2026-10-01, historical)
+
+The Library screen now supports editing and approving/skipping each extracted
+question before saving or contributing. Local drafts and recent ingestion jobs
+can be reopened after restarting the app. Drafts are namespaced by API/account/job,
+stored only on this device, and contain no tokens, secrets, signed URLs or sharing consent.
+Wait for the saved-draft notice before closing the app.
+
+Deploy the matching API before testing this client: job details must expose
+`reviewProtocol: 1`. The new client blocks writes to older APIs; bodyless installed
+APKs retain temporary compatibility on the new server. Changes for a contribution
+after import do not edit the already-saved private question bank.
+
+See [acceptance criteria and rollout checklist](../docs/MOBILE_QUESTION_REVIEW.md).
+Native device acceptance is still required; source/bundle checks alone are not a release sign-off.

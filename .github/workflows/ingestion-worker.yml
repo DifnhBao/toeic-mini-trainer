@@ -6,8 +6,19 @@ on:
     # Keep private-repo Actions usage well below the GitHub Pro monthly allowance.
     - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'readiness-only chỉ kiểm tra; drain có thể ghi DB và gọi AI'
+        type: choice
+        default: readiness-only
+        options: [readiness-only, drain]
+      readiness_origin:
+        description: 'Tùy chọn: origin deployment của cùng project để GET readiness; để trống dùng URL đang cấu hình. Không dùng với drain.'
+        type: string
+        default: ''
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: ingestion-worker-staging
@@ -18,39 +29,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Call authenticated staging worker
         shell: bash
         env:
           WORKER_URL: ${{ secrets.INGESTION_WORKER_URL }}
           WORKER_SECRET: ${{ secrets.INGESTION_WORKER_SECRET }}
+          WORKER_MODE: ${{ github.event_name == 'schedule' && 'drain' || inputs.mode || 'readiness-only' }}
+          WORKER_READINESS_ORIGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.readiness_origin || '' }}
         run: |
           set -euo pipefail
-          if [[ "$WORKER_URL" != https://* || -z "$WORKER_SECRET" ]]; then
-            echo "Staging worker URL or secret is not configured" >&2
-            exit 1
-          fi
-          node --input-type=module <<'JS'
-          const headers = {
-            Authorization: `Bearer ${process.env.WORKER_SECRET}`,
-            Accept: 'application/json',
-          };
-          const readyUrl = new URL('/api/internal/ready', process.env.WORKER_URL);
-          const readiness = await fetch(readyUrl, {
-            method: 'GET',
-            redirect: 'error',
-            signal: AbortSignal.timeout(20_000),
-            headers,
-          });
-          if (!readiness.ok) {
-            throw new Error(`Readiness returned HTTP ${readiness.status}`);
-          }
-          const response = await fetch(process.env.WORKER_URL, {
-            method: 'POST',
-            redirect: 'error',
-            signal: AbortSignal.timeout(45_000),
-            headers,
-          });
-          if (!response.ok) {
-            throw new Error(`Worker returned HTTP ${response.status}`);
-          }
-          JS
+          node scripts/run-worker-check.mjs

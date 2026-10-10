@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { REQUEST_ID_HEADER } from "@/app/lib/request-trace";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
@@ -8,6 +9,7 @@ import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 import { requestUser } from "@/app/lib/request-user";
 import { processIngestionJob } from "@/app/lib/toeic-ingestion";
+import { hasRole } from "@/app/lib/authorization";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -25,11 +27,30 @@ const createJobSchema = z
     message: `Mỗi lần chỉ phân tích tối đa ${MAX_INGESTION_PAGES} trang liên tiếp.`,
   });
 
+// Metadata only, always scoped to the authenticated owner. Opening a job
+// uses the existing detail endpoint and never starts another AI request.
+export async function GET(request: Request) {
+  const user = await requestUser(request);
+  if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
+  const jobs = await prisma.ingestionJob.findMany({
+    where: { ownerId: user.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 20,
+    select: {
+      id: true, status: true, createdAt: true, pageStart: true, pageEnd: true,
+      documentAsset: { select: { originalName: true } },
+    },
+  });
+  return apiJson({ jobs });
+}
+
 export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
+  if (!hasRole(user, "ADMIN")) return apiError("ADMIN_CONTENT_ONLY", "Quản trị viên chuẩn bị đề và audio trên web. Bạn hãy chọn bài trong Kho bài.", 403);
 
-  const limit = takeRateLimit(request, `ingestion-create:${user.id}`, 10, 60 * 60_000);
+  const limit = await takeRateLimit(request, `ingestion-create:${user.id}`, 10, 60 * 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn tạo quá nhiều tác vụ nhập đề.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),
@@ -78,7 +99,8 @@ export async function POST(request: Request) {
     select: { id: true, status: true, createdAt: true },
   });
 
-  after(() => processIngestionJob(job.id));
+  const requestId = request.headers.get(REQUEST_ID_HEADER) ?? undefined;
+  after(() => processIngestionJob(job.id, undefined, requestId));
   return apiJson(
     { job: { ...job, createdAt: job.createdAt.toISOString() } },
     { status: 202 },

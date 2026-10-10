@@ -40,6 +40,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       },
       update: { status: "HIDDEN" },
     });
+    // Remove previously materialized copies in the same transaction. Readers
+    // also check HIDDEN, including older copies predating this cleanup.
+    await tx.aiExplanation.deleteMany({ where: { userAnswer: { questionId: question.id } } });
     await tx.authorizationAuditEvent.create({
       data: {
         actorId: actor.id,

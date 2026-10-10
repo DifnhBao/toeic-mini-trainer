@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { extractedDataSchema, type ExtractedData } from "@/app/lib/question-import";
+import { extractedDataSchema, extractionDraftSchema, type ExtractedData } from "@/app/lib/question-import";
 
 const locationSchema = {
   groupIndex: z.number().int().min(0).max(249),
@@ -11,7 +11,13 @@ const reviewSchema = z.discriminatedUnion("decision", [
   z.object({ ...locationSchema, decision: z.literal("SKIP") }).strict(),
 ]);
 
-const reviewPayloadSchema = z.object({ reviews: z.array(reviewSchema).min(1).max(500) }).strict();
+export const reviewPayloadSchema = z.object({ reviews: z.array(reviewSchema).min(1).max(500) }).strict();
+
+// Compatibility for installed APKs only. Any supplied body, including an
+// invalid one, must be validated rather than falling back to the AI result.
+export function requiresQuestionReview(request: Request) {
+  return !request.headers.get("authorization")?.startsWith("Bearer ") || request.body !== null;
+}
 
 export class InvalidIngestionReviewError extends Error {
   constructor() {
@@ -21,7 +27,7 @@ export class InvalidIngestionReviewError extends Error {
 }
 
 export function buildReviewedImport(source: unknown, input: unknown): ExtractedData {
-  const original = extractedDataSchema.parse(source);
+  const original = extractionDraftSchema.parse(source);
   const parsed = reviewPayloadSchema.safeParse(input);
   if (!parsed.success) throw new InvalidIngestionReviewError();
 

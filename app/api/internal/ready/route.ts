@@ -1,4 +1,5 @@
 import { apiError, apiJson } from "@/app/lib/api-response";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { checkObjectStorageReady } from "@/app/lib/object-storage";
 import { prisma } from "@/app/lib/prisma";
 import {
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   ]);
   if (database.status === "rejected" || storage.status === "rejected") {
     console.error("readiness check failed", {
+      ...requestLogFields(request),
       database: database.status,
       storage: storage.status,
     });

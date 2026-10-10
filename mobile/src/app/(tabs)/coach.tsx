@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette, radius } from '@/constants/design';
 import { useAuth } from '@/providers/auth-provider';
 import type { CoachTurn } from '@/types/learning';
+import { formatCoachText } from '@/lib/coach-text';
 
 const FOCUS_OPTIONS = ['Tổng hợp', 'Ngữ pháp', 'Từ vựng', 'Chiến thuật'] as const;
 
@@ -95,7 +96,9 @@ export default function CoachScreen() {
           renderItem={({ item }) => (
             <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.coachBubble]}>
               {item.content ? (
-                <Text style={item.role === 'user' ? styles.userText : styles.coachText}>{item.content}</Text>
+                <Text selectable style={item.role === 'user' ? styles.userText : styles.coachText}>
+                  {item.role === 'assistant' ? formatCoachText(item.content) : item.content}
+                </Text>
               ) : (
                 <ActivityIndicator color={palette.primary} />
               )}

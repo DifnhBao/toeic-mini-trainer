@@ -45,6 +45,8 @@ next-env.d.ts
 
 # local test assets (sample PDFs, ad-hoc scripts) — never commit
 /Test/
+/output/
+/tmp/pdfs/
 /public/uploads/
 
 # mobile release/debug JS bundles

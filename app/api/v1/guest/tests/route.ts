@@ -1,3 +1,5 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { createGuestChallenge, guestDailyLimit, guestQuotaKey, shuffleGuestQuestions } from "@/app/lib/guest-tests";
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
       remainingToday: Math.max(0, guestDailyLimit() - quota.count),
     }, { status: 201 });
   } catch (error) {
-    console.error("guest test creation failed", { errorType: error instanceof Error ? error.name : "unknown" });
+    console.error("guest test creation failed", { ...requestLogFields(request), errorType: safeErrorType(error) });
     return apiError("GUEST_TEST_UNAVAILABLE", "Chưa thể tạo bài học thử.", 503);
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 type Explanation = {
   explanationText: string;
@@ -37,23 +38,22 @@ export default function AiExplainButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userAnswerId }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (res.status === 503 || res.status === 500) {
         setErrorMessage(
-          "AI đang bị quá tải hoặc bận đột xuất. Bạn chờ vài giây rồi thử lại nhé!",
+          apiFailureMessage(res, null, "AI đang bị quá tải hoặc bận đột xuất. Bạn chờ vài giây rồi thử lại nhé!"),
         );
-      } else if (data.error) {
-        setErrorMessage(data.error);
-      } else if (typeof data.explanationText === "string") {
+      } else if (!res.ok || data?.error) {
+        setErrorMessage(apiFailureMessage(res, data, "Không thể nhận lời giải. Vui lòng thử lại."));
+      } else if (typeof data?.explanationText === "string") {
         setExplanation({
           explanationText: data.explanationText,
           suggestedSkills: normalizeSkills(data.suggestedSkills),
         });
       } else {
-        setErrorMessage("Phản hồi AI không hợp lệ. Vui lòng thử lại.");
+        setErrorMessage(apiFailureMessage(res, null, "Phản hồi AI không hợp lệ. Vui lòng thử lại."));
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
       setErrorMessage("Lỗi kết nối mạng. Vui lòng kiểm tra lại Internet.");
     } finally {
       setLoading(false);

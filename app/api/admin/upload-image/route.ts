@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import { currentWebUser } from "@/app/lib/request-user";
+import { logServerError } from "@/app/lib/server-error-log";
 
 export async function POST(request: Request) {
   try {
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       { status: 200 },
     );
   } catch (error) {
-    console.error("Lỗi upload ảnh:", error);
+    logServerError("upload.local.failed", error, request);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

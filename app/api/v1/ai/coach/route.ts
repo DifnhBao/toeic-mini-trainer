@@ -1,12 +1,16 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { consumeDailyAiCall } from "@/app/lib/ai-usage";
+import { AiCapacityError, AiQuotaExceededError, withAiProviderCapacity } from "@/app/lib/ai-provider-capacity";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const ai = new GoogleGenAI({});
 
@@ -32,6 +36,7 @@ const coachSchema = z
 
 const SYSTEM_PROMPT = `Bạn là giáo viên TOEIC người Việt, chắc kiến thức và hướng dẫn thực tế.
 Trả lời bằng tiếng Việt, tối đa 350 từ. Đi thẳng vào điều người học cần hiểu.
+Chỉ dùng văn bản thường: đoạn ngắn và danh sách đánh số. Không dùng Markdown, dấu **, tiêu đề # hoặc bảng.
 - Nếu là ngữ pháp/từ vựng: giải thích quy tắc, chỉ ra dấu hiệu nhận biết và cho 1 ví dụ TOEIC ngắn.
 - Nếu là chiến thuật: đưa quy trình 2-4 bước áp dụng ngay và một lỗi thường gặp.
 - Nếu người học đưa câu hỏi trắc nghiệm: phân tích đáp án đúng và vì sao các đáp án nhiễu sai.
@@ -42,7 +47,8 @@ export async function POST(request: Request) {
   const user = await mobileUserFromRequest(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
 
-  const limit = takeRateLimit(request, `mobile-ai-coach:${user.id}`, 10, 60_000);
+  const limit = await takeRateLimit(request, `mobile-ai-coach:${user.id}`, 10, 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn đang hỏi quá nhanh. Vui lòng thử lại sau.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),
@@ -54,27 +60,31 @@ export async function POST(request: Request) {
 
   const focus = body.data.part?.trim() || "Tổng hợp";
 
-  if (!(await consumeDailyAiCall(user.id, "coach", 20))) {
-    return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt hỏi AI hôm nay.", 429);
-  }
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: body.data.messages.map((message) => ({
-        role: message.role === "assistant" ? "model" : "user",
-        parts: [{ text: message.content }],
-      })),
-      config: {
-        systemInstruction: `${SYSTEM_PROMPT}\nNgười học đang tập trung vào: ${focus}.`,
-      },
+    const response = await withAiProviderCapacity({
+      timeoutMs: 45_000,
+      allow: () => consumeDailyAiCall(user.id, "coach", 20),
+      generate: (providerConfig) => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: body.data.messages.map((message) => ({
+          role: message.role === "assistant" ? "model" : "user",
+          parts: [{ text: message.content }],
+        })),
+        config: {
+          ...providerConfig,
+          maxOutputTokens: 4_096,
+          systemInstruction: `${SYSTEM_PROMPT}\nNgười học đang tập trung vào: ${focus}.`,
+        },
+      }),
     });
 
     const answer = response.text?.trim();
     if (!answer) throw new Error("AI returned an empty answer");
     return apiJson({ answer });
   } catch (error) {
-    console.error("v1 AI coach error:", error);
+    if (error instanceof AiQuotaExceededError) return apiError("AI_DAILY_LIMIT", "Bạn đã dùng hết lượt hỏi AI hôm nay.", 429);
+    if (error instanceof AiCapacityError) return apiError(error.code, "AI Coach đang bận. Vui lòng thử lại sau.", 503, { "Retry-After": String(error.retryAfterSeconds) });
+    console.error("v1 AI coach error", { ...requestLogFields(request), errorType: safeErrorType(error) });
     return apiError("AI_UNAVAILABLE", "AI Coach đang bận. Vui lòng thử lại sau ít phút.", 503);
   }
 }

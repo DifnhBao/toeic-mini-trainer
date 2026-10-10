@@ -3,6 +3,17 @@ import { describe, it } from "node:test";
 import { sanitizePassageHtml } from "../app/lib/passage-html";
 
 describe("passage HTML", () => {
+  it("preserves plain reading text and remains stable when imported again", () => {
+    assert.equal(sanitizePassageHtml('Source passage'), 'Source passage');
+    const safe = sanitizePassageHtml('Notice <h2>Meeting</h2><p>Friday &amp; Saturday</p>');
+    assert.match(safe, /Notice Meeting/);
+    assert.equal(sanitizePassageHtml(safe), safe);
+  });
+
+  it("removes embedded and executable element contents, not just their tags", () => {
+    const safe = sanitizePassageHtml('Keep <iframe>hidden</iframe><svg><script>bad()</script></svg><style>body{}</style><p>Read</p>');
+    assert.equal(safe, 'Keep <p>Read</p>');
+  });
   it("keeps reading structure without trusting attributes", () => {
     const html = sanitizePassageHtml('<div class="x"><strong>To:</strong> Staff<br><p>Friday</p></div>');
     assert.match(html, /<strong>To:<\/strong>/);

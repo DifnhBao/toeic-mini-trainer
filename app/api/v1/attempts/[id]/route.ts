@@ -3,6 +3,8 @@ import { apiError, apiJson } from "@/app/lib/api-response";
 import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
 import { prisma } from "@/app/lib/prisma";
 import { resolveQuestionGroupMedia } from "@/app/lib/object-storage";
+import { currentExplanationHidden, hiddenExplanationSelection } from "@/app/lib/explanation-policy";
+import { orderAttemptAnswers } from "@/app/lib/attempt-answer-order";
 
 export const runtime = "nodejs";
 
@@ -23,7 +25,10 @@ export async function GET(
       score: true,
       durationSeconds: true,
       completedAt: true,
-      test: { select: { id: true, title: true } },
+      test: { select: {
+        id: true, title: true,
+        questions: { select: { questionId: true, orderIndex: true } },
+      } },
       userAnswers: {
         orderBy: { id: "asc" },
         select: {
@@ -38,6 +43,8 @@ export async function GET(
               content: true,
               options: true,
               correctAnswer: true,
+              contentRevision: true,
+              explanationCaches: hiddenExplanationSelection,
               group: {
                 select: {
                   passageText: true,
@@ -57,18 +64,20 @@ export async function GET(
   if (!attempt) return apiError("ATTEMPT_NOT_FOUND", "Không tìm thấy kết quả.", 404);
 
   const userAnswers = await Promise.all(
-    attempt.userAnswers.map(async (answer) => ({
-      ...answer,
-      question: {
-        ...answer.question,
-        group: await resolveQuestionGroupMedia(answer.question.group, user.id),
-      },
-    })),
+    orderAttemptAnswers(attempt.userAnswers, attempt.test.questions).map(async (answer) => {
+      const { explanationCaches, contentRevision, ...question } = answer.question;
+      return {
+        ...answer,
+        aiExplanation: currentExplanationHidden(contentRevision, explanationCaches) ? null : answer.aiExplanation,
+        question: { ...question, group: await resolveQuestionGroupMedia(question.group, user.id) },
+      };
+    }),
   );
 
   return apiJson({
     attempt: {
       ...attempt,
+      test: { id: attempt.test.id, title: attempt.test.title },
       completedAt: attempt.completedAt.toISOString(),
       userAnswers,
       total: userAnswers.length,

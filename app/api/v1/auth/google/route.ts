@@ -1,3 +1,5 @@
+import { safeErrorType } from "@/app/lib/server-error-log";
+import { requestLogFields } from "@/app/lib/request-trace";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import {
   enforceAuthRateLimit,
@@ -7,6 +9,7 @@ import {
 } from "@/app/lib/mobile-api";
 import {
   AccountSuspendedError,
+  AccountLinkRequiredError,
   createMobileSession,
   resolveMobileUser,
   verifyGoogleIdentity,
@@ -15,7 +18,7 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const limited = enforceAuthRateLimit(request, "mobile-google");
+  const limited = await enforceAuthRateLimit(request, "mobile-google");
   if (limited) return limited;
 
   const body = await parseBoundedJson(request, providerSignInSchema.omit({ name: true }));
@@ -47,8 +50,11 @@ export async function POST(request: Request) {
     if (error instanceof AccountSuspendedError) {
       return apiError("ACCOUNT_SUSPENDED", "Tài khoản đã bị tạm khóa.", 403);
     }
+    if (error instanceof AccountLinkRequiredError) {
+      return apiError("ACCOUNT_LINK_REQUIRED", "Email này đã có tài khoản. Hãy đăng nhập bằng phương thức ban đầu.", 409);
+    }
     console.error("mobile Google session creation failed", {
-      errorType: error instanceof Error ? error.name : "unknown",
+      ...requestLogFields(request), errorType: safeErrorType(error),
     });
     return apiError("AUTH_SERVICE_UNAVAILABLE", "Đăng nhập tạm thời không khả dụng.", 503);
   }

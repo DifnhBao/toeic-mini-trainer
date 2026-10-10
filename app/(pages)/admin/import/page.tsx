@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { apiFailureMessage } from '@/shared/response-diagnostics';
 
 export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -30,16 +32,16 @@ export default function ImportPage() {
           body: JSON.stringify(jsonContent),
         });
 
-        const data = await res.json();
-        if (data.error) {
-          setResult(`Lỗi: ${data.error}`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok || data?.error || typeof data?.questionsAdded !== 'number') {
+          setResult(`Lỗi: ${apiFailureMessage(res, data, "Không thể nhập câu hỏi. Hãy kiểm tra lại trước khi thử tiếp.")}`);
         } else {
           setResult(
             `🎉 Thành công! Đã thêm ${data.questionsAdded} câu hỏi mới vào Database.`,
           );
         }
-      } catch {
-        setResult("Lỗi: File tải lên không đúng định dạng JSON hợp lệ.");
+      } catch (error) {
+        setResult(error instanceof SyntaxError ? "Lỗi: File tải lên không đúng định dạng JSON hợp lệ." : "Lỗi kết nối. Hãy kiểm tra lại trước khi thử nhập tiếp.");
       } finally {
         setLoading(false);
       }
@@ -53,8 +55,9 @@ export default function ImportPage() {
       <div className="bg-white p-8 rounded-xl shadow-sm border">
         <h1 className="text-2xl font-bold mb-2">Kho dữ liệu TOEIC</h1>
         <p className="text-gray-500 mb-6">
-          Tải lên bộ đề thi bằng định dạng JSON để nạp vào hệ thống.
+          JSON được lưu vào kho cá nhân của quản trị viên. Để tạo bài có audio cho người học, dùng luồng nhập đề và xuất bản vào kho chung.
         </p>
+        <Link className="mb-6 inline-block font-semibold text-blue-700 underline" href="/admin/extract">Nhập đề & audio cho kho chung →</Link>
 
         <div className="flex flex-col gap-5">
           <label className="block">

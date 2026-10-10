@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { apiError, apiJson } from "@/app/lib/api-response";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
-import { mobileUserFromRequest } from "@/app/lib/mobile-auth";
+import { requestUser } from "@/app/lib/request-user";
 import { prisma } from "@/app/lib/prisma";
 import { takeRateLimit } from "@/app/lib/rate-limit";
 
@@ -15,19 +15,20 @@ const submitSchema = z.object({
     (answers) => Object.keys(answers).length <= 50,
     "Too many answers",
   ),
-});
+}).strict();
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await mobileUserFromRequest(request);
+  const user = await requestUser(request);
   if (!user) return apiError("UNAUTHORIZED", "Bạn cần đăng nhập lại.", 401);
 
   const testId = z.string().uuid().safeParse((await params).id);
   if (!testId.success) return apiError("INVALID_TEST_ID", "Mã bài luyện không hợp lệ.", 400);
 
-  const limit = takeRateLimit(request, `mobile-test-submit:${user.id}`, 30, 60_000);
+  const limit = await takeRateLimit(request, `mobile-test-submit:${user.id}`, 30, 60_000);
+  if (limit.unavailable) return apiError("RATE_LIMIT_UNAVAILABLE", "Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau.", 503, { "Retry-After": String(limit.retryAfterSeconds) });
   if (!limit.allowed) {
     return apiError("RATE_LIMITED", "Bạn nộp bài quá nhanh. Vui lòng thử lại sau.", 429, {
       "Retry-After": String(limit.retryAfterSeconds),
@@ -59,7 +60,7 @@ export async function POST(
       id: true,
       questions: {
         select: {
-          question: { select: { id: true, correctAnswer: true } },
+          question: { select: { id: true, correctAnswer: true, options: true } },
         },
       },
     },
@@ -69,6 +70,13 @@ export async function POST(
   const questionIds = new Set(test.questions.map((item) => item.question.id));
   if (Object.keys(body.data.answers).some((id) => !questionIds.has(id))) {
     return apiError("INVALID_ANSWERS", "Đáp án chứa câu hỏi không thuộc bài luyện.", 400);
+  }
+
+  if (test.questions.some(({ question }) => {
+    const selected = body.data.answers[question.id];
+    return selected && !Object.hasOwn(question.options as Record<string, unknown>, selected);
+  })) {
+    return apiError("INVALID_ANSWERS", "Lựa chọn không tồn tại trong câu hỏi.", 400);
   }
 
   const answerRows = test.questions.map(({ question }) => {
@@ -108,6 +116,7 @@ export async function POST(
           duplicate: true,
         });
       }
+      if (raced) return apiError("SUBMISSION_CONFLICT", "Mã lần nộp đã được sử dụng.", 409);
     }
     throw error;
   }

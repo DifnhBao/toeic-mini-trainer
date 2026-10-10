@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/mobile-api";
 import {
   AccountSuspendedError,
+  AccountLinkRequiredError,
   createMobileSession,
   resolveMobileUser,
   verifyAppleIdentity,
@@ -15,7 +16,7 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const limited = enforceAuthRateLimit(request, "mobile-apple");
+  const limited = await enforceAuthRateLimit(request, "mobile-apple");
   if (limited) return limited;
 
   const body = await parseBoundedJson(request, providerSignInSchema);
@@ -35,6 +36,9 @@ export async function POST(request: Request) {
       tokens,
     });
   } catch (error) {
+    if (error instanceof AccountLinkRequiredError) {
+      return apiError("ACCOUNT_LINK_REQUIRED", "Email này đã có tài khoản. Hãy đăng nhập bằng phương thức ban đầu.", 409);
+    }
     if (error instanceof AccountSuspendedError) {
       return apiError("ACCOUNT_SUSPENDED", "Tài khoản đã bị tạm khóa.", 403);
     }

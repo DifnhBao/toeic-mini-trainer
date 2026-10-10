@@ -1,3 +1,5 @@
+export type { LearningInsights, PartInsight, PracticeRecommendation } from '../../../shared/learning-insights';
+
 export type QuestionGroup = {
   id?: string;
   groupType?: string;
@@ -16,6 +18,7 @@ export type TestQuestion = {
 
 export type TestData = {
   id: string;
+  ownerId?: string;
   title: string;
   createdAt: string;
   questions: Array<{ orderIndex: number; question: TestQuestion }>;
@@ -112,4 +115,11 @@ export type IngestionJob = {
   errorCode: string | null;
   result: { data: ExtractedQuestionGroup[] } | null;
   importedAt: string | null;
+  reviewProtocol?: number;
+  contribution?: { id: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' } | null;
+};
+
+export type IngestionSummary = Pick<IngestionJob, 'id' | 'status'> & {
+  createdAt: string; pageStart: number; pageEnd: number | null;
+  documentAsset: { originalName: string };
 };

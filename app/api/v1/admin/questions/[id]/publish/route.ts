@@ -4,6 +4,7 @@ import { hasRole } from "@/app/lib/authorization";
 import { parseBoundedJson } from "@/app/lib/mobile-api";
 import { prisma } from "@/app/lib/prisma";
 import { requestUser } from "@/app/lib/request-user";
+import { publicationCandidateSelect, questionPublicationIssue } from "@/app/lib/question-publication";
 
 export const runtime = "nodejs";
 const bodySchema = z.object({ reason: z.string().trim().min(5).max(500) }).strict();
@@ -20,19 +21,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const changed = await prisma.$transaction(async (tx) => {
     const candidate = await tx.question.findFirst({
       where: { id: id.data, ownerId: null, publicationStatus: { in: ["LEGACY", "ARCHIVED"] } },
-      select: { group: { select: {
-        audioAssetId: true, imageAssetId: true, audioUrl: true, imageUrl: true,
-        contribution: { select: { status: true } },
-      } } },
+      select: publicationCandidateSelect,
     });
-    if (!candidate) return { count: 0 };
-    const group = candidate.group;
-    if (group && (group.audioAssetId || group.imageAssetId || group.audioUrl || group.imageUrl) &&
-      group.contribution?.status !== "APPROVED") {
-      return { count: -1 };
-    }
+    if (!candidate) return { count: 0, issue: null };
+    const issue = questionPublicationIssue(candidate);
+    if (issue) return { count: 0, issue };
     const result = await tx.question.updateMany({
-      where: { id: id.data, ownerId: null, publicationStatus: { in: ["LEGACY", "ARCHIVED"] } },
+      where: { id: id.data, ownerId: null, publicationStatus: candidate.publicationStatus,
+        contentRevision: candidate.contentRevision, groupId: candidate.groupId },
       data: { publicationStatus: "PUBLISHED" },
     });
     if (result.count === 1) {
@@ -40,9 +36,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         data: { actorId: actor.id, action: "PUBLIC_QUESTION_PUBLISHED", targetType: "Question", targetId: id.data, reason: body.data.reason },
       });
     }
-    return result;
+    return { ...result, issue: null };
   });
-  if (changed.count === -1) return apiError("MEDIA_REVIEW_REQUIRED", "Câu hỏi có media cũ cần kiểm tra và chuyển sang kho chia sẻ trước.", 409);
+  if (changed.issue) return apiError(changed.issue.code, changed.issue.message, changed.issue.status);
   if (changed.count !== 1) return apiError("QUESTION_NOT_ELIGIBLE", "Câu hỏi không thể xuất bản.", 404);
   return apiJson({ published: true });
 }

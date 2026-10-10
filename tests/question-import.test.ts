@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { extractedDataSchema } from "../app/lib/question-import";
+import { extractedDataSchema, extractionDraftSchema, generatedQuestionsSchema } from "../app/lib/question-import";
 
 const validQuestion = {
   part: 5,
@@ -10,6 +10,18 @@ const validQuestion = {
 };
 
 describe("question import schema", () => {
+  it("accepts an unresolved listening draft but never accepts it for persistence", () => {
+    const source = { data: [{ questions: [{ ...validQuestion, part: 2, options: { A: "A", B: "B", C: "C" }, correctAnswer: "" }] }] };
+    assert.equal(generatedQuestionsSchema.safeParse(source).success, true);
+    assert.equal(extractionDraftSchema.safeParse(source).success, true);
+    assert.equal(extractedDataSchema.safeParse(source).success, false);
+    source.data[0].questions[0].correctAnswer = "C";
+    assert.equal(extractedDataSchema.safeParse(source).success, true);
+  });
+  it("rejects fabricated Part 2 option D and missing options in other generated Parts", () => {
+    assert.equal(generatedQuestionsSchema.safeParse({ data: [{ questions: [{ ...validQuestion, part: 2 }] }] }).success, false);
+    assert.equal(generatedQuestionsSchema.safeParse({ data: [{ questions: [{ ...validQuestion, part: 3, options: { A: "A", B: "B", C: "C" } }] }] }).success, false);
+  });
   it("accepts a bounded TOEIC question", () => {
     const parsed = extractedDataSchema.parse({ data: [{ questions: [validQuestion] }] });
     assert.equal(parsed.data[0].questions[0].correctAnswer, "A");

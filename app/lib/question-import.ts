@@ -16,17 +16,25 @@ const optionsSchema = z
     return optionCount >= 2 && optionCount <= 4;
   }, "Each question must have between 2 and 4 options");
 
+const questionFields = {
+  part: z.number().int().min(1).max(7),
+  content: z.string().trim().max(10_000).nullable().optional(),
+  options: optionsSchema,
+  correctAnswer: z.string().trim().toUpperCase().regex(/^[A-D]$/),
+};
 const questionSchema = z
-  .object({
-    part: z.number().int().min(1).max(7),
-    content: z.string().trim().max(10_000).nullable().optional(),
-    options: optionsSchema,
-    correctAnswer: z.string().trim().toUpperCase().regex(/^[A-D]$/),
-  })
+  .object(questionFields)
   .strict()
   .refine((question) => question.correctAnswer in question.options, {
     message: "The correct answer must exist in options",
   });
+
+const draftQuestionSchema = z.object({
+  ...questionFields,
+  correctAnswer: z.string().trim().toUpperCase().regex(/^(?:[A-D])?$/),
+}).strict().refine((question) => !question.correctAnswer || question.correctAnswer in question.options, {
+  message: "A known draft answer must exist in options",
+});
 
 const groupSchema = z
   .object({
@@ -58,6 +66,24 @@ export const extractedDataSchema = z
     message: "A single import cannot exceed 500 questions",
   });
 
+// An AI draft can lack an answer key. Persistence and publication continue to
+// use extractedDataSchema, so an unresolved draft cannot become a question.
+export const extractionDraftSchema = extractedDataSchema.safeExtend({
+  data: z.array(z.object({
+    group: groupSchema.nullable().optional(),
+    questions: z.array(draftQuestionSchema).min(1).max(100),
+  }).strict()).min(1).max(250),
+});
+
+export const generatedQuestionsSchema = extractionDraftSchema.superRefine((value, context) => {
+  value.data.forEach((group, groupIndex) => group.questions.forEach((question, questionIndex) => {
+    const expected = question.part === 2 ? ["A", "B", "C"] : ["A", "B", "C", "D"];
+    if (Object.keys(question.options).length !== expected.length || expected.some(key => !question.options[key])) {
+      context.addIssue({ code: "custom", path: ["data", groupIndex, "questions", questionIndex, "options"], message: "Generated options must match the TOEIC Part" });
+    }
+  }));
+});
+
 export type ExtractedData = z.infer<typeof extractedDataSchema>;
 
 export async function importExtractedQuestions(
@@ -65,20 +91,25 @@ export async function importExtractedQuestions(
   input: unknown,
   finalize?: (tx: Prisma.TransactionClient, questionsAdded: number) => Promise<void>,
   sharedContributionId?: string,
-  sharedAsset?: Prisma.UploadedAssetUncheckedCreateInput & { id: string },
+  sharedAssets: Array<Prisma.UploadedAssetUncheckedCreateInput & { id: string }> = [],
 ) {
   const parsed = extractedDataSchema.parse(input);
   const assetIds = new Set<string>();
+  const assetKinds = new Map<string, "AUDIO" | "IMAGE">();
   for (const item of parsed.data) {
-    if (item.group?.audioAssetId) assetIds.add(item.group.audioAssetId);
-    if (item.group?.imageAssetId) assetIds.add(item.group.imageAssetId);
+    for (const [id, kind] of [[item.group?.audioAssetId, "AUDIO"], [item.group?.imageAssetId, "IMAGE"]] as const) {
+      if (!id) continue;
+      if (assetKinds.has(id) && assetKinds.get(id) !== kind) throw new Error("ASSET_OWNERSHIP_INVALID");
+      assetIds.add(id);
+      assetKinds.set(id, kind);
+    }
   }
-  if (sharedContributionId && assetIds.size > 0 && !sharedAsset) {
+  if (sharedContributionId && assetIds.size > 0 && !sharedAssets.length) {
     throw new Error("SHARED_ASSET_REQUIRED");
   }
-  if (sharedAsset) {
-    if (!sharedContributionId || sharedAsset.kind !== "AUDIO" || sharedAsset.ownerId !== null ||
-      !assetIds.has(sharedAsset.id)) {
+  for (const sharedAsset of sharedAssets) {
+    if (!sharedContributionId || assetKinds.get(sharedAsset.id) !== sharedAsset.kind ||
+      sharedAsset.ownerId !== null || sharedAsset.status !== "READY" || !assetIds.has(sharedAsset.id)) {
       throw new Error("SHARED_ASSET_INVALID");
     }
     assetIds.delete(sharedAsset.id);
@@ -88,16 +119,16 @@ export async function importExtractedQuestions(
   if (assetIds.size > 0) {
     const ownedAssets = await prisma.uploadedAsset.findMany({
       where: { id: { in: [...assetIds] }, ownerId, status: "READY" },
-      select: { id: true },
+      select: { id: true, kind: true },
     });
-    if (ownedAssets.length !== assetIds.size) {
+    if (ownedAssets.length !== assetIds.size || ownedAssets.some(asset => assetKinds.get(asset.id) !== asset.kind)) {
       throw new Error("ASSET_OWNERSHIP_INVALID");
     }
   }
 
   return prisma.$transaction(
     async (tx) => {
-      if (sharedAsset) await tx.uploadedAsset.create({ data: sharedAsset });
+      for (const sharedAsset of sharedAssets) await tx.uploadedAsset.create({ data: sharedAsset });
       let questionsAdded = 0;
       for (const item of parsed.data) {
         let groupId: string | null = null;

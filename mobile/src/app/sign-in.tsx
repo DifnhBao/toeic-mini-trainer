@@ -10,6 +10,7 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -141,7 +142,7 @@ function AndroidGoogleSignInButton({ onError }: { onError: (message: string) => 
 }
 
 export default function SignInScreen() {
-  const { user, signInWithApple, sessionRestoreError, retrySession } = useAuth();
+  const { user, signInWithApple, sessionRestoreError, retrySession, logoutError, logout } = useAuth();
   const [errorMessage, setErrorMessage] = useState('');
   const [appleBusy, setAppleBusy] = useState(false);
   const hasGoogleConfig = Boolean(
@@ -187,7 +188,7 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.brandMark}>
           <Text style={styles.brandMarkText}>T</Text>
         </View>
@@ -200,6 +201,19 @@ export default function SignInScreen() {
         <View style={styles.authCard}>
           <Text style={styles.cardTitle}>Bắt đầu học</Text>
           <Text style={styles.cardCaption}>Tài khoản giúp đồng bộ lịch sử và bảo vệ tiến độ.</Text>
+
+          {logoutError && (
+            <View style={styles.configNotice}>
+              <Text style={styles.configNoticeText}>
+                {logoutError === 'local'
+                  ? 'Chưa xóa được phiên trên thiết bị. Hãy thử đăng xuất lại trước khi đóng ứng dụng.'
+                  : 'Đã đăng xuất trên thiết bị, nhưng máy chủ chưa xác nhận thu hồi phiên. Hãy thử lại khi có mạng.'}
+              </Text>
+              <Pressable accessibilityRole="button" onPress={() => void logout()}>
+                <Text style={styles.retryText}>Thử đăng xuất lại</Text>
+              </Pressable>
+            </View>
+          )}
 
           {sessionRestoreError && (
             <View style={styles.configNotice}>
@@ -255,14 +269,14 @@ export default function SignInScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.push('/guest')} style={styles.configNotice}>
           <Text style={styles.retryText}>Học thử 10 câu không cần đăng nhập →</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.canvas },
-  container: { flex: 1, justifyContent: 'center', padding: 24, gap: 12 },
+  container: { flexGrow: 1, justifyContent: 'center', padding: 24, gap: 12 },
   brandMark: {
     width: 56,
     height: 56,

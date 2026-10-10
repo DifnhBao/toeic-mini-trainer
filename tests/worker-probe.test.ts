@@ -1,0 +1,114 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { probeWorker } from '../scripts/lib/worker-probe.mjs';
+
+const url = 'https://toeic-mini-trainer.vercel.app/api/internal/ingestions/drain';
+const secret = 'fixture-only-secret-never-used-on-cloud';
+const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
+
+test('manual readiness stops after one GET, authenticates and returns only safe receipt fields', async () => {
+  const calls: string[] = [];
+  const receipt = await probeWorker({ url, secret, fetcher: async (endpoint, init) => {
+    assert.ok(endpoint instanceof URL); assert.ok(init);
+    calls.push(`${init.method} ${endpoint.pathname}`);
+    assert.equal(init.redirect, 'error'); assert.equal((init.headers as Record<string,string>).Authorization, `Bearer ${secret}`);
+    return json({ ready: true, privateData: secret });
+  } });
+  assert.deepEqual(calls, ['GET /api/internal/ready']);
+  assert.equal(receipt.workerCalled, false); assert.equal(receipt.canonicalTarget, true);
+  assert.equal(JSON.stringify(receipt).includes(secret), false); assert.equal(JSON.stringify(receipt).includes(url), false);
+});
+
+test('unsafe target, unknown mode and malformed key are rejected before network', async () => {
+  let calls = 0; const fetcher = async () => { calls++; return json({ ready: true }); };
+  for (const patch of [{ url: 'https://attacker.invalid/api/internal/ingestions/drain' }, { url: url+'?token=private' },
+    { url: 'http://toeic-mini-trainer.vercel.app/api/internal/ingestions/drain' }, { url: url.replace('/drain','/delete') },
+    { url: url+'#private' }, { url: url.replace('https://','https://user:private@') },
+    { url: url.replace('.vercel.app/','.vercel.app.attacker.invalid/') },
+    { url: url.replace('.vercel.app/','.vercel.app:8443/') },
+    { url: url.replace('toeic-mini-trainer.vercel.app','toeic-mini-trainer-other-team.vercel.app') },
+    { mode: 'guessed' }, { secret: 'short' }, { secret: secret+'\n' }])
+    await assert.rejects(probeWorker({ url, secret, fetcher, ...patch }));
+  assert.equal(calls,0);
+});
+
+test('readiness accepts the existing project aliases and deployment, with a safe target classification', async () => {
+  for (const [origin, kind] of [
+    ['https://toeic-mini-trainer.vercel.app', 'canonical'],
+    ['https://toeic-mini-trainer-le-dinh-bao-s-projects.vercel.app', 'team-alias'],
+    ['https://toeic-mini-trainer-r36raf45w-le-dinh-bao-s-projects.vercel.app', 'deployment'],
+  ]) {
+    let calls = 0;
+    const receipt = await probeWorker({ url: origin+'/api/internal/ingestions/drain', secret, fetcher: async (endpoint, init) => {
+      calls++;
+      assert.ok(endpoint instanceof URL);
+      assert.equal(endpoint.origin, origin);
+      assert.equal(endpoint.pathname, '/api/internal/ready');
+      assert.equal(init?.method, 'GET');
+      return json({ ready: true });
+    } });
+    assert.equal(calls, 1);
+    assert.equal(receipt.targetKind, kind);
+    assert.equal(receipt.canonicalTarget, kind === 'canonical');
+    assert.equal(receipt.workerCalled, false);
+    assert.equal(JSON.stringify(receipt).includes(origin), false);
+  }
+});
+
+test('HTTP success alone cannot trigger a worker when readiness body is false or invalid', async () => {
+  for (const response of [json({ ready: false }), new Response('private '+secret), json({ error: 'secret' }, 401), new Response('x'.repeat(65537))]) {
+    let calls=0;
+    await assert.rejects(probeWorker({ url, secret, mode:'drain', fetcher:async()=>{calls++;return response;} }));
+    assert.equal(calls,1);
+  }
+});
+
+test('a manual check can target a new deployment without changing the configured worker or calling POST', async () => {
+  const readinessOrigin = 'https://toeic-mini-trainer-r36raf45w-le-dinh-bao-s-projects.vercel.app';
+  const calls: string[] = [];
+  const receipt = await probeWorker({ url, secret, readinessOrigin, fetcher: async (endpoint, init) => {
+    assert.ok(endpoint instanceof URL);
+    assert.equal(endpoint.origin, readinessOrigin);
+    calls.push(`${init?.method} ${endpoint.pathname}`);
+    return json({ ready: true });
+  } });
+  assert.deepEqual(calls, ['GET /api/internal/ready']);
+  assert.equal(receipt.targetKind, 'deployment');
+  assert.equal(receipt.targetOverride, true);
+  assert.equal(receipt.canonicalTarget, false);
+  assert.equal(receipt.workerCalled, false);
+  assert.equal(JSON.stringify(receipt).includes(readinessOrigin), false);
+});
+
+test('target overrides never permit drain, credentials, another team or an arbitrary endpoint', async () => {
+  let calls = 0;
+  const fetcher = async () => { calls++; return json({ ready: true }); };
+  for (const readinessOrigin of ['https://attacker.invalid', 'https://toeic-mini-trainer-other-team.vercel.app',
+    'https://toeic-mini-trainer.vercel.app:8443', 'https://user:private@toeic-mini-trainer.vercel.app',
+    'https://toeic-mini-trainer.vercel.app/api/internal/ready', 'https://toeic-mini-trainer.vercel.app?key=private',
+    'https://toeic-mini-trainer.vercel.app#private', ' https://toeic-mini-trainer.vercel.app']) {
+    await assert.rejects(probeWorker({ url, secret, readinessOrigin, fetcher }));
+  }
+  await assert.rejects(probeWorker({ url, secret, mode: 'drain', readinessOrigin: 'https://toeic-mini-trainer.vercel.app', fetcher }),
+    (error: Error) => error.message === 'READINESS_OVERRIDE_FORBIDDEN');
+  assert.equal(calls, 0);
+});
+
+test('explicit drain parses queued/paused and does not log the rest of the worker response', async () => {
+  for (const worker of [{ queued:true }, { queued:false }, { queued:false, paused:true }]) {
+    const calls:string[]=[];
+    const receipt=await probeWorker({url,secret,mode:'drain',fetcher:async (_endpoint,init)=>{
+      assert.ok(init);
+      calls.push(init.method!); return json(calls.length===1?{ready:true}:{...worker,privateJobId:secret},calls.length===1?200:202);
+    }});
+    assert.deepEqual(calls,['GET','POST']);assert.equal(receipt.workerCalled,true);assert.ok('queued' in receipt);assert.equal(receipt.queued,worker.queued);
+    assert.equal(JSON.stringify(receipt).includes(secret),false);
+  }
+});
+
+test('raw transport/parser information never reaches error messages and drain does not retry', async () => {
+  await assert.rejects(probeWorker({url,secret,fetcher:async()=>{throw new Error(secret+url);}}),(error:Error)=>error.message==='TRANSPORT_FAILED'&&!error.message.includes(secret));
+  let calls=0;
+  await assert.rejects(probeWorker({url,secret,mode:'drain',fetcher:async()=>{calls++;return calls===1?json({ready:true}):json({error:secret},503);}}),(error:Error)=>error.message==='WORKER_HTTP_FAILED');
+  assert.equal(calls,2);
+});

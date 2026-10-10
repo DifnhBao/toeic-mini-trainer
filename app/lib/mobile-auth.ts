@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma, type MobileSession, type PrismaClient } from "@prisma/client";
 import {
   SignJWT,
   createRemoteJWKSet,
@@ -33,6 +33,13 @@ export class AccountSuspendedError extends Error {
   constructor() {
     super("Account is suspended");
     this.name = "AccountSuspendedError";
+  }
+}
+
+export class AccountLinkRequiredError extends Error {
+  constructor() {
+    super("Sign in with the original provider before linking another identity");
+    this.name = "AccountLinkRequiredError";
   }
 }
 
@@ -137,20 +144,20 @@ export async function resolveMobileUser(identity: MobileIdentity) {
     throw new Error("A verified email is required for the first sign-in");
   }
 
+  // A verified email from a new provider is not an authenticated account-link
+  // request. Keep the original account and its learning data unchanged.
+  if (await prisma.user.findUnique({ where: { email: identity.email }, select: { id: true } })) {
+    throw new AccountLinkRequiredError();
+  }
+
   try {
     return await prisma.$transaction(async (tx) => {
-      const user = await tx.user.upsert({
-        where: { email: identity.email },
-        create: {
+      const user = await tx.user.create({
+        data: {
           email: identity.email,
           emailVerified: new Date(),
           name: identity.name,
           image: identity.image,
-        },
-        update: {
-          emailVerified: new Date(),
-          ...(identity.name ? { name: identity.name } : {}),
-          ...(identity.image ? { image: identity.image } : {}),
         },
       });
 
@@ -180,6 +187,9 @@ export async function resolveMobileUser(identity: MobileIdentity) {
       if (account) {
         if (account.user.status !== "ACTIVE") throw new AccountSuspendedError();
         return account.user;
+      }
+      if (await prisma.user.findUnique({ where: { email: identity.email }, select: { id: true } })) {
+        throw new AccountLinkRequiredError();
       }
     }
     throw error;
@@ -235,41 +245,49 @@ export async function createMobileSession(
   };
 }
 
-export async function rotateRefreshToken(token: string, deviceId: string) {
-  const session = await prisma.mobileSession.findUnique({
-    where: { tokenHash: hashRefreshToken(token) },
-  });
-  if (!session) return null;
-  const activeUser = await prisma.user.findFirst({
-    where: { id: session.userId, status: "ACTIVE" }, select: { id: true },
-  });
-  if (!activeUser) return null;
+async function withRefreshFamily<T>(token: string, database: PrismaClient,
+  action: (tx: Prisma.TransactionClient, session: MobileSession) => Promise<T>) {
+  const tokenHash = hashRefreshToken(token);
+  const located = await database.mobileSession.findUnique({ where: { tokenHash }, select: { familyId: true } });
+  if (!located) return null;
+  return database.$transaction(async (tx) => {
+    // Serialize rotation, reuse detection and logout before reading current
+    // state. A row-only UPDATE can miss a replacement inserted while it waits.
+    // Transaction locks work with poolers and release on commit/rollback.
+    await tx.$executeRaw`SET LOCAL lock_timeout = '2s'`;
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(18888, hashtext(${located.familyId}))`;
+    const session = await tx.mobileSession.findUnique({ where: { tokenHash } });
+    if (!session) return null;
+    return action(tx, session);
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, maxWait: 2_000, timeout: 5_000 });
+}
 
-  const now = new Date();
-  if (session.revokedAt) {
-    if (session.replacedById) {
-      await prisma.mobileSession.updateMany({
-        where: { familyId: session.familyId, revokedAt: null },
-        data: { revokedAt: now },
+export async function rotateRefreshToken(token: string, deviceId: string, database: PrismaClient = prisma) {
+  return withRefreshFamily(token, database, async (tx, session) => {
+    const activeUser = await tx.user.findFirst({ where: { id: session.userId, status: "ACTIVE" }, select: { id: true } });
+    if (!activeUser) return null;
+    const now = new Date();
+    if (session.revokedAt) {
+      if (session.replacedById) await tx.mobileSession.updateMany({
+        where: { familyId: session.familyId, revokedAt: null }, data: { revokedAt: now },
       });
+      return null;
     }
-    return null;
-  }
-  if (session.expiresAt <= now || session.deviceId !== deviceId) return null;
-
-  const replacementId = randomUUID();
-  const replacementToken = newRefreshToken();
-  const replacementExpiry = new Date(
-    Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
-  );
-
-  const rotated = await prisma.$transaction(async (tx) => {
+    if (session.expiresAt <= now || session.deviceId !== deviceId) return null;
+    const replacementId = randomUUID();
+    const replacementToken = newRefreshToken();
+    const replacementExpiry = new Date(now.getTime() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+    // Sign before changing the stored token so invalid JWT configuration rolls
+    // back without consuming the client's only usable refresh token.
+    const accessToken = await createAccessToken(session.userId);
     const update = await tx.mobileSession.updateMany({
       where: { id: session.id, revokedAt: null },
       data: { revokedAt: now, replacedById: replacementId, lastUsedAt: now },
     });
-    if (update.count !== 1) return false;
-
+    if (update.count !== 1) {
+      await tx.mobileSession.updateMany({ where: { familyId: session.familyId, revokedAt: null }, data: { revokedAt: now } });
+      return null;
+    }
     await tx.mobileSession.create({
       data: {
         id: replacementId,
@@ -281,33 +299,13 @@ export async function rotateRefreshToken(token: string, deviceId: string) {
         expiresAt: replacementExpiry,
       },
     });
-    return true;
+    return { accessToken, accessTokenExpiresIn: ACCESS_TOKEN_SECONDS, refreshToken: replacementToken, refreshTokenExpiresAt: replacementExpiry.toISOString() };
   });
-  if (!rotated) {
-    await prisma.mobileSession.updateMany({
-      where: { familyId: session.familyId, revokedAt: null },
-      data: { revokedAt: now },
-    });
-    return null;
-  }
-
-  return {
-    accessToken: await createAccessToken(session.userId),
-    accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
-    refreshToken: replacementToken,
-    refreshTokenExpiresAt: replacementExpiry.toISOString(),
-  };
 }
 
-export async function revokeRefreshToken(token: string) {
-  const session = await prisma.mobileSession.findUnique({
-    where: { tokenHash: hashRefreshToken(token) },
-  });
-  if (!session) return;
-
-  await prisma.mobileSession.updateMany({
-    where: { familyId: session.familyId, revokedAt: null },
-    data: { revokedAt: new Date() },
+export async function revokeRefreshToken(token: string, database: PrismaClient = prisma) {
+  await withRefreshFamily(token, database, async (tx, session) => {
+    await tx.mobileSession.updateMany({ where: { familyId: session.familyId, revokedAt: null }, data: { revokedAt: new Date() } });
   });
 }
 

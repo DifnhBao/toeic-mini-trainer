@@ -1,0 +1,73 @@
+const canonical = 'https://toeic-mini-trainer.vercel.app';
+const teamAlias = 'https://toeic-mini-trainer-le-dinh-bao-s-projects.vercel.app';
+const ownDeployment = /^https:\/\/toeic-mini-trainer-[a-z0-9]+-le-dinh-bao-s-projects\.vercel\.app$/;
+const isOwnOrigin = origin => origin === canonical || origin === teamAlias || ownDeployment.test(origin);
+
+export class WorkerProbeError extends Error {
+  constructor(code, status) {
+    super(code);
+    this.name = 'WorkerProbeError';
+    this.code = code;
+    if (Number.isInteger(status)) this.status = status;
+  }
+}
+
+async function readJson(response) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new WorkerProbeError('INVALID_RESPONSE');
+  const chunks = []; let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 65536) throw new WorkerProbeError('RESPONSE_TOO_LARGE');
+      chunks.push(value);
+    }
+    try {
+      const bytes = new Uint8Array(size); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch { throw new WorkerProbeError('INVALID_RESPONSE'); }
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+}
+
+export async function probeWorker({ url, secret, mode = 'readiness-only', readinessOrigin = '', fetcher = fetch }) {
+  if (!['readiness-only', 'drain'].includes(mode)) throw new WorkerProbeError('INVALID_MODE');
+  if (typeof readinessOrigin !== 'string') throw new WorkerProbeError('INVALID_READINESS_TARGET');
+  const targetOverride = readinessOrigin !== '';
+  if (targetOverride && mode !== 'readiness-only') throw new WorkerProbeError('READINESS_OVERRIDE_FORBIDDEN');
+  let target;
+  if (targetOverride) {
+    try { target = new URL(readinessOrigin); } catch { throw new WorkerProbeError('INVALID_READINESS_TARGET'); }
+    if (!isOwnOrigin(target.origin) || target.pathname !== '/' || target.username || target.password || target.search || target.hash || /\s/.test(readinessOrigin))
+      throw new WorkerProbeError('INVALID_READINESS_TARGET');
+    target = new URL('/api/internal/ingestions/drain', target);
+  } else {
+    try { target = new URL(url); } catch { throw new WorkerProbeError('INVALID_TARGET'); }
+  }
+  if (!isOwnOrigin(target.origin) || target.pathname !== '/api/internal/ingestions/drain'
+    || target.username || target.password || target.search || target.hash)
+    throw new WorkerProbeError('INVALID_TARGET');
+  if (typeof secret !== 'string' || secret.length < 32 || /\s/.test(secret)) throw new WorkerProbeError('INVALID_CREDENTIAL');
+  const headers = { Authorization: `Bearer ${secret}`, Accept: 'application/json' };
+  async function request(endpoint, method, timeout) {
+    try { return await fetcher(endpoint, { method, redirect: 'error', headers, signal: AbortSignal.timeout(timeout) }); }
+    catch { throw new WorkerProbeError('TRANSPORT_FAILED'); }
+  }
+  const ready = await request(new URL('/api/internal/ready', target), 'GET', 20000);
+  if (!ready.ok) throw new WorkerProbeError('READINESS_HTTP_FAILED', ready.status);
+  if ((await readJson(ready))?.ready !== true) throw new WorkerProbeError('READINESS_NOT_READY');
+  const rawId = ready.headers.get('x-request-id');
+  const requestId = rawId && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(rawId) ? rawId : null;
+  const targetKind = target.origin === canonical ? 'canonical' : target.origin === teamAlias ? 'team-alias' : 'deployment';
+  const receipt = { mode, targetKind, targetOverride, canonicalTarget: target.origin === canonical, readinessStatus: ready.status, ready: true, requestId, workerCalled: false };
+  // Manual checks stop here; never reach a job/counter mutation or provider call.
+  if (mode === 'readiness-only') return receipt;
+  const worker = await request(target, 'POST', 45000);
+  if (!worker.ok) throw new WorkerProbeError('WORKER_HTTP_FAILED', worker.status);
+  const data = await readJson(worker);
+  if (typeof data?.queued !== 'boolean' || (data.paused !== undefined && typeof data.paused !== 'boolean') || (data.queued && data.paused))
+    throw new WorkerProbeError('INVALID_WORKER_RESPONSE');
+  return { ...receipt, workerCalled: true, workerStatus: worker.status, queued: data.queued, paused: data.paused === true };
+}

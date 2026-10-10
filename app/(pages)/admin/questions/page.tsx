@@ -3,6 +3,7 @@ import { prisma } from "@/app/lib/prisma";
 import AdminShell from "../_components/AdminShell";
 import { AdminAccessDenied, adminUser } from "../_components/admin-access";
 import { QuestionControls } from "../_components/AdminActions";
+import QuestionSkillControls from "../_components/QuestionSkillControls";
 
 export const runtime = "nodejs";
 const statuses = ["LEGACY", "PUBLISHED", "ARCHIVED"] as const;
@@ -17,7 +18,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
   const where = { ownerId: null, publicationStatus: status };
   const [total, questions] = await Promise.all([
     prisma.question.count({ where }),
-    prisma.question.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * 20, take: 20, select: { id: true, part: true, content: true, options: true, correctAnswer: true, publicationStatus: true, createdAt: true, group: { select: { passageText: true, audioUrl: true, imageUrl: true, audioAssetId: true, imageAssetId: true, contribution: { select: { status: true } } } } } }),
+    prisma.question.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * 20, take: 20, select: { id: true, part: true, content: true, options: true, correctAnswer: true, publicationStatus: true, createdAt: true, skillTags: { select: { skillTag: { select: { id: true, name: true } } } }, group: { select: { passageText: true, audioUrl: true, imageUrl: true, audioAssetId: true, imageAssetId: true, contribution: { select: { status: true } } } } } }),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / 20));
 
@@ -36,6 +37,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
         {hasMedia ? <p className={`mt-2 text-xs font-semibold ${mediaNeedsReview ? "text-amber-700" : "text-slate-500"}`}>{mediaNeedsReview ? "Có media cũ/chưa được duyệt — cần xử lý quyền chia sẻ trước" : "Có media từ đóng góp đã duyệt"}</p> : null}
         <p className="mt-2 break-all text-[11px] text-slate-400">ID: {question.id}</p>
         <QuestionControls id={question.id} status={question.publicationStatus} />
+        <QuestionSkillControls key={`${question.id}:${question.skillTags.map(tag => tag.skillTag.id).sort().join(",")}`} id={question.id} part={question.part} initialTags={question.skillTags.map(tag => tag.skillTag)} />
       </article>;
     })}{!questions.length ? <p className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Không có câu hỏi trong trạng thái này.</p> : null}</div>
     <div className="mt-5 flex items-center justify-between text-sm">{page > 1 ? <Link className="font-semibold text-blue-600" href={`/admin/questions?status=${status}&page=${page - 1}`}>← Trang trước</Link> : <span />}{page < totalPages ? <Link className="font-semibold text-blue-600" href={`/admin/questions?status=${status}&page=${page + 1}`}>Trang sau →</Link> : null}</div>

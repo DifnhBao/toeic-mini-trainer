@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette, radius } from '@/constants/design';
 import { useAuth } from '@/providers/auth-provider';
+import { UnfinishedPractice } from '@/components/unfinished-practice';
 import type { ProgressSummary } from '@/types/learning';
 
 export default function DashboardScreen() {
@@ -33,6 +34,7 @@ export default function DashboardScreen() {
           <Text style={styles.subtitle}>Một bài ngắn 10–20 câu là đủ để giữ nhịp mỗi ngày.</Text>
         </View>
 
+        <UnfinishedPractice limit={2} />
         <Pressable
           onPress={() => router.push('/practice')}
           style={({ pressed }) => [styles.heroCard, pressed && styles.pressed]}>
@@ -58,6 +60,11 @@ export default function DashboardScreen() {
           </Pressable>
         </View>
 
+        <Pressable onPress={() => router.push('/insights')} style={styles.smallCard}>
+          <Text style={styles.cardTitle}>Nên tập trung vào đâu? →</Text>
+          <Text style={styles.cardText}>Xem Part cần cải thiện, câu bỏ trống và buổi luyện được gợi ý từ kết quả của bạn.</Text>
+        </Pressable>
+
         <Text style={styles.sectionTitle}>Lối tắt</Text>
         <View style={styles.grid}>
           <Pressable onPress={() => router.push('/practice')} style={styles.smallCard}>
@@ -72,8 +79,8 @@ export default function DashboardScreen() {
           </Pressable>
           <Pressable onPress={() => router.push('/library')} style={styles.smallCard}>
             <Text style={styles.cardIcon}>▣</Text>
-            <Text style={styles.cardTitle}>Nhập tài liệu</Text>
-            <Text style={styles.cardText}>PDF và audio riêng tư.</Text>
+            <Text style={styles.cardTitle}>Kho bài</Text>
+            <Text style={styles.cardText}>Chọn bài nghe và đọc có sẵn.</Text>
           </Pressable>
         </View>
       </ScrollView>
