@@ -2,6 +2,7 @@ import { probeWorker, WorkerProbeError } from './lib/worker-probe.mjs';
 
 try {
   const receipt = await probeWorker({ url: process.env.WORKER_URL, secret: process.env.WORKER_SECRET,
+    readinessOrigin: process.env.WORKER_READINESS_ORIGIN,
     mode: process.env.GITHUB_EVENT_NAME === 'schedule' ? 'drain' : process.env.WORKER_MODE || 'readiness-only' });
   console.log(JSON.stringify(receipt));
 } catch (error) {

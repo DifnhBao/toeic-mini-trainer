@@ -12,6 +12,10 @@ on:
         type: choice
         default: readiness-only
         options: [readiness-only, drain]
+      readiness_origin:
+        description: 'Tùy chọn: origin deployment của cùng project để GET readiness; để trống dùng URL đang cấu hình. Không dùng với drain.'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -34,6 +38,7 @@ jobs:
           WORKER_URL: ${{ secrets.INGESTION_WORKER_URL }}
           WORKER_SECRET: ${{ secrets.INGESTION_WORKER_SECRET }}
           WORKER_MODE: ${{ github.event_name == 'schedule' && 'drain' || inputs.mode || 'readiness-only' }}
+          WORKER_READINESS_ORIGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.readiness_origin || '' }}
         run: |
           set -euo pipefail
           node scripts/run-worker-check.mjs

@@ -1,6 +1,7 @@
 const canonical = 'https://toeic-mini-trainer.vercel.app';
 const teamAlias = 'https://toeic-mini-trainer-le-dinh-bao-s-projects.vercel.app';
 const ownDeployment = /^https:\/\/toeic-mini-trainer-[a-z0-9]+-le-dinh-bao-s-projects\.vercel\.app$/;
+const isOwnOrigin = origin => origin === canonical || origin === teamAlias || ownDeployment.test(origin);
 
 export class WorkerProbeError extends Error {
   constructor(code, status) {
@@ -31,11 +32,21 @@ async function readJson(response) {
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
-export async function probeWorker({ url, secret, mode = 'readiness-only', fetcher = fetch }) {
+export async function probeWorker({ url, secret, mode = 'readiness-only', readinessOrigin = '', fetcher = fetch }) {
   if (!['readiness-only', 'drain'].includes(mode)) throw new WorkerProbeError('INVALID_MODE');
+  if (typeof readinessOrigin !== 'string') throw new WorkerProbeError('INVALID_READINESS_TARGET');
+  const targetOverride = readinessOrigin !== '';
+  if (targetOverride && mode !== 'readiness-only') throw new WorkerProbeError('READINESS_OVERRIDE_FORBIDDEN');
   let target;
-  try { target = new URL(url); } catch { throw new WorkerProbeError('INVALID_TARGET'); }
-  if ((target.origin !== canonical && target.origin !== teamAlias && !ownDeployment.test(target.origin)) || target.pathname !== '/api/internal/ingestions/drain'
+  if (targetOverride) {
+    try { target = new URL(readinessOrigin); } catch { throw new WorkerProbeError('INVALID_READINESS_TARGET'); }
+    if (!isOwnOrigin(target.origin) || target.pathname !== '/' || target.username || target.password || target.search || target.hash || /\s/.test(readinessOrigin))
+      throw new WorkerProbeError('INVALID_READINESS_TARGET');
+    target = new URL('/api/internal/ingestions/drain', target);
+  } else {
+    try { target = new URL(url); } catch { throw new WorkerProbeError('INVALID_TARGET'); }
+  }
+  if (!isOwnOrigin(target.origin) || target.pathname !== '/api/internal/ingestions/drain'
     || target.username || target.password || target.search || target.hash)
     throw new WorkerProbeError('INVALID_TARGET');
   if (typeof secret !== 'string' || secret.length < 32 || /\s/.test(secret)) throw new WorkerProbeError('INVALID_CREDENTIAL');
@@ -50,7 +61,7 @@ export async function probeWorker({ url, secret, mode = 'readiness-only', fetche
   const rawId = ready.headers.get('x-request-id');
   const requestId = rawId && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(rawId) ? rawId : null;
   const targetKind = target.origin === canonical ? 'canonical' : target.origin === teamAlias ? 'team-alias' : 'deployment';
-  const receipt = { mode, targetKind, canonicalTarget: target.origin === canonical, readinessStatus: ready.status, ready: true, requestId, workerCalled: false };
+  const receipt = { mode, targetKind, targetOverride, canonicalTarget: target.origin === canonical, readinessStatus: ready.status, ready: true, requestId, workerCalled: false };
   // Manual checks stop here; never reach a job/counter mutation or provider call.
   if (mode === 'readiness-only') return receipt;
   const worker = await request(target, 'POST', 45000);

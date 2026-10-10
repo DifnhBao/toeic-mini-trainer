@@ -63,6 +63,37 @@ test('HTTP success alone cannot trigger a worker when readiness body is false or
   }
 });
 
+test('a manual check can target a new deployment without changing the configured worker or calling POST', async () => {
+  const readinessOrigin = 'https://toeic-mini-trainer-r36raf45w-le-dinh-bao-s-projects.vercel.app';
+  const calls: string[] = [];
+  const receipt = await probeWorker({ url, secret, readinessOrigin, fetcher: async (endpoint, init) => {
+    assert.ok(endpoint instanceof URL);
+    assert.equal(endpoint.origin, readinessOrigin);
+    calls.push(`${init?.method} ${endpoint.pathname}`);
+    return json({ ready: true });
+  } });
+  assert.deepEqual(calls, ['GET /api/internal/ready']);
+  assert.equal(receipt.targetKind, 'deployment');
+  assert.equal(receipt.targetOverride, true);
+  assert.equal(receipt.canonicalTarget, false);
+  assert.equal(receipt.workerCalled, false);
+  assert.equal(JSON.stringify(receipt).includes(readinessOrigin), false);
+});
+
+test('target overrides never permit drain, credentials, another team or an arbitrary endpoint', async () => {
+  let calls = 0;
+  const fetcher = async () => { calls++; return json({ ready: true }); };
+  for (const readinessOrigin of ['https://attacker.invalid', 'https://toeic-mini-trainer-other-team.vercel.app',
+    'https://toeic-mini-trainer.vercel.app:8443', 'https://user:private@toeic-mini-trainer.vercel.app',
+    'https://toeic-mini-trainer.vercel.app/api/internal/ready', 'https://toeic-mini-trainer.vercel.app?key=private',
+    'https://toeic-mini-trainer.vercel.app#private', ' https://toeic-mini-trainer.vercel.app']) {
+    await assert.rejects(probeWorker({ url, secret, readinessOrigin, fetcher }));
+  }
+  await assert.rejects(probeWorker({ url, secret, mode: 'drain', readinessOrigin: 'https://toeic-mini-trainer.vercel.app', fetcher }),
+    (error: Error) => error.message === 'READINESS_OVERRIDE_FORBIDDEN');
+  assert.equal(calls, 0);
+});
+
 test('explicit drain parses queued/paused and does not log the rest of the worker response', async () => {
   for (const worker of [{ queued:true }, { queued:false }, { queued:false, paused:true }]) {
     const calls:string[]=[];
